@@ -1,0 +1,6 @@
+{
+  "name": "Stocks Analyzer",
+  "description": "Analyzes a Google Spreadsheet with stock indicators and provides an AI-powered ranking.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
