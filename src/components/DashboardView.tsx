@@ -467,7 +467,7 @@ export function DashboardView() {
                     x={paddingLeft - 8} 
                     y={gridY + 4} 
                     fill="rgba(148, 163, 184, 0.8)" 
-                    fontSize="10" 
+                    fontSize="12" 
                     textAnchor="end"
                     fontWeight="500"
                     fontFamily="monospace"
@@ -497,7 +497,7 @@ export function DashboardView() {
                     x={ptX} 
                     y={svgHeight - paddingBottom + 16} 
                     fill="rgba(148, 163, 184, 0.8)" 
-                    fontSize="10" 
+                    fontSize="12" 
                     textAnchor="middle"
                     fontWeight="bold"
                   >
@@ -980,7 +980,7 @@ export function DashboardView() {
                             y={yLine + 3} 
                             textAnchor="end" 
                             fill="#94a3b8" 
-                            fontSize="9" 
+                            fontSize="11" 
                             fontWeight="bold"
                             className="font-mono"
                           >
@@ -1062,7 +1062,7 @@ export function DashboardView() {
                               y={y - 10} 
                               textAnchor="middle" 
                               fill={isStock ? '#34d399' : '#a5b4fc'} 
-                              fontSize="8" 
+                              fontSize="10" 
                               fontWeight="black" 
                               className="font-mono"
                             >
@@ -1076,7 +1076,7 @@ export function DashboardView() {
                             y={svgHeight - paddingBottom + 16} 
                             textAnchor="middle" 
                             fill="#f8fafc" 
-                            fontSize="10" 
+                            fontSize="12" 
                             fontWeight="extrabold" 
                             className="font-mono tracking-wider transition-colors duration-200 group-hover:fill-indigo-300"
                           >
@@ -1089,7 +1089,7 @@ export function DashboardView() {
                             y={svgHeight - paddingBottom + 26} 
                             textAnchor="middle" 
                             fill={isStock ? '#6ee7b7' : '#c7d2fe'} 
-                            fontSize="7" 
+                            fontSize="9" 
                             fontWeight="black" 
                             className="opacity-70 font-sans tracking-tight"
                           >
@@ -1177,6 +1177,79 @@ export function DashboardView() {
               })}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      {/* Styled Strategic Analysis & Performance Insights Card */}
+      <div className="bg-gradient-to-br from-slate-900/90 to-black/40 border border-white/15 rounded-3xl p-6 md:p-8 shadow-2xl space-y-6">
+        <div className="flex items-center gap-3 border-b border-white/10 pb-4">
+          <TrendingDown className="w-6 h-6 text-indigo-400" />
+          <div>
+            <h3 className="text-lg font-bold text-white uppercase tracking-wider">Análise de Desempenho & Diagnóstico da Carteira</h3>
+            <p className="text-xs text-slate-400">Por que a carteira de renda variável está abaixo do CDI benchmark neste período?</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          
+          {/* Col 1: Justification (Por Que está abaixo do CDI?) */}
+          <div className="space-y-4 bg-white/5 border border-white/5 p-5 rounded-2xl">
+            <h4 className="text-sm font-bold text-indigo-300 uppercase tracking-widest flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
+              Causa Raiz & Justificativa Financeira
+            </h4>
+            <div className="text-xs text-slate-300 space-y-3 leading-relaxed">
+              <p>
+                A atual taxa básica de juros (Selic) em patamares elevados força o benchmark <strong className="text-white">CDI</strong> a uma capitalização diária composta extremamente rigorosa e sem drawdowns (volatilidade neutra).
+              </p>
+              <p>
+                Em contrapartida, nossa carteira tem alta exposição a <strong className="text-white">FIIs (Fundos Imobiliários) e Ações de Valor</strong>. No curto prazo, a elevação dos juros reais gera o efeito de <em className="text-slate-400">abertura da curva de juros</em>, diminuindo os valuations dos ativos de renda variável através do desconto de fluxos de caixa futuros e pressionando temporariamente os preços das cotas.
+              </p>
+              <p>
+                Ademais, os proventos acumulados (Dividend Yields exibidos em nosso novo gráfico de barras) são creditados periodicamente em caixa e levam alguns ciclos de reinvestimento para acelerar o efeito bola de neve no montante consolidade.
+              </p>
+            </div>
+          </div>
+
+          {/* Col 2: Strategies (O que fazer para melhorar o desempenho?) */}
+          <div className="space-y-4 bg-white/5 border border-white/5 p-5 rounded-2xl">
+            <h4 className="text-sm font-bold text-emerald-300 uppercase tracking-widest flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+              Plano de Ação & Ajuste de Alocação
+            </h4>
+            <div className="text-xs text-slate-300 space-y-3 leading-relaxed">
+              <p>
+                Para potencializar o retorno da carteira e convergir com o CDI (ou superá-lo no médio prazo), recomendamos as seguintes ações:
+              </p>
+              <ul className="list-none space-y-2.5">
+                <li className="flex items-start gap-2">
+                  <span className="text-emerald-400 font-extrabold text-[10px] bg-emerald-500/10 px-1.5 py-0.5 rounded shrink-0">1</span>
+                  <span>
+                    <strong className="text-white">Aportes táticos no Yield On Cost (YOC):</strong> Aproveitar a compressão atual de preços observada na tabela para subscrever cotas e ações com dividend yields projetados maiores, travando excelentes yields para o longo prazo.
+                  </span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-indigo-400 font-extrabold text-[10px] bg-indigo-500/10 px-1.5 py-0.5 rounded shrink-0">2</span>
+                  <span>
+                    <strong className="text-white">Foco em Ativos de Proteção Inflacionária:</strong> Direcionar parte dos recursos para FIIs de recebíveis ("FIIs de Papel") atrelados ao IPCA+ e CDI+, mitigando a volatilidade do portfólio físico de tijolo.
+                  </span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-blue-400 font-extrabold text-[10px] bg-blue-500/10 px-1.5 py-0.5 rounded shrink-0">3</span>
+                  <span>
+                    <strong className="text-white">Arbitragem Cambial (S&P 500):</strong> Manter a alocação dolarizada ativa para balancear recessões locais e capturar a valorização de ativos globais de tecnologia.
+                  </span>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+        </div>
+
+        {/* Dynamic warning footer indicator */}
+        <div className="flex items-center gap-2 bg-indigo-500/10 border border-indigo-500/20 p-3 rounded-xl text-[10px] text-indigo-300 font-medium">
+          <Info className="w-4 h-4 text-indigo-400 shrink-0" />
+          <span>Nota Técnica: Renda variável exige foco no crescimento orgânico dos ativos. Flutuações de curto prazo frente a taxas de juros de dois dígitos são normais e costumam anteceder períodos de forte recuperação nos ciclos de corte de juros.</span>
         </div>
       </div>
       
