@@ -10,6 +10,7 @@ async function startServer() {
 
   // Add CORS to allow external frontends (e.g. GitHub Pages) to hit this API
   app.use(cors({ origin: "*" }));
+  app.options("*", cors());
 
   // Middleware to parse large JSON bodies (spreadsheet data can be big)
   app.use(express.json({ limit: '50mb' }));
@@ -21,6 +22,10 @@ async function startServer() {
 
   app.all("/api/process-data", async (req, res) => {
     console.log("=> HIT /api/process-data", req.method, req.url);
+    
+    if (req.method === "OPTIONS") {
+      return res.sendStatus(204);
+    }
     
     if (req.method !== "POST") {
       return res.status(405).json({ error: "Method Not Allowed. Must be POST." });
@@ -93,10 +98,38 @@ async function startServer() {
       ${JSON.stringify(limitedData, null, 2)}
       `;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt
-      });
+      let response;
+      let attempts = 0;
+      const maxAttempts = 4;
+      let delay = 1000; // start with 1 second delay
+
+      while (attempts < maxAttempts) {
+        try {
+          attempts++;
+          response = await ai.models.generateContent({
+            model: 'gemini-3.5-flash',
+            contents: prompt
+          });
+          break; // successfully generated, break out of loop
+        } catch (genError: any) {
+          console.warn(`Gemini API attempt ${attempts} failed:`, genError);
+          const errMsg = (genError.message || "").toLowerCase();
+          const isRateLimit = errMsg.includes("429") || errMsg.includes("quota") || errMsg.includes("resource_exhausted");
+          const isHighDemand = errMsg.includes("503") || errMsg.includes("high demand") || errMsg.includes("temporary") || errMsg.includes("unavailable");
+          
+          if ((isRateLimit || isHighDemand) && attempts < maxAttempts) {
+            console.log(`Waiting ${delay}ms before retry due to model demand/rate limit...`);
+            await new Promise((resolve) => setTimeout(resolve, delay));
+            delay *= 2; // exponential backoff
+          } else {
+            throw genError; // rethrow if it's not retryable or we've run out of attempts
+          }
+        }
+      }
+
+      if (!response || !response.text) {
+        throw new Error("Could not retrieve a valid analysis from Gemini application.");
+      }
 
       res.json({ result: response.text });
     } catch (error: any) {

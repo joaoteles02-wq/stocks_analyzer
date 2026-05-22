@@ -14,12 +14,24 @@ export default function App() {
 
   const [files, setFiles] = useState<{ id: string; name: string }[]>([]);
   const [loadingFiles, setLoadingFiles] = useState(false);
-  const [selectedFileId, setSelectedFileId] = useState<string>('');
+  const [selectedFileId, setSelectedFileId] = useState<string>(() => {
+    return localStorage.getItem('saved_spreadsheet_id') || '';
+  });
 
   const [analyzing, setAnalyzing] = useState(false);
-  const [analysisResult, setAnalysisResult] = useState<string | null>(null);
+  const [analysisResult, setAnalysisResult] = useState<string | null>(() => {
+    return localStorage.getItem('stocks_analysis_result') || null;
+  });
+  const [previousAnalysisResult, setPreviousAnalysisResult] = useState<string | null>(null);
+  const [highlightedResult, setHighlightedResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [currentView, setCurrentView] = useState<'analysis' | 'settings'>('analysis');
+
+  useEffect(() => {
+    if (selectedFileId) {
+      localStorage.setItem('saved_spreadsheet_id', selectedFileId);
+    }
+  }, [selectedFileId]);
 
   useEffect(() => {
     initAuth(
@@ -55,6 +67,10 @@ export default function App() {
     setNeedsAuth(true);
     setFiles([]);
     setAnalysisResult(null);
+    setPreviousAnalysisResult(null);
+    setHighlightedResult(null);
+    localStorage.removeItem('saved_spreadsheet_id');
+    localStorage.removeItem('stocks_analysis_result');
   };
 
   const findSpreadsheets = async () => {
@@ -65,7 +81,13 @@ export default function App() {
       const found = await searchStocksFilterSheet(token);
       setFiles(found);
       if (found.length > 0) {
-        setSelectedFileId(found[0].id);
+        const savedId = localStorage.getItem('saved_spreadsheet_id') || selectedFileId;
+        const exists = found.some(f => f.id === savedId);
+        if (savedId && exists) {
+          setSelectedFileId(savedId);
+        } else {
+          setSelectedFileId(found[0].id);
+        }
       } else {
         setError("Não foi encontrada nenhuma planilha no seu Google Drive que condiga com a busca. Você pode colar a ID diretamente.");
       }
@@ -87,7 +109,7 @@ export default function App() {
     if (!token || !selectedFileId) return;
     setAnalyzing(true);
     setError(null);
-    setAnalysisResult(null);
+    const currentRes = analysisResult;
     try {
       // Extrair ID se o usuário colar a URL completa
       let actualId = selectedFileId;
@@ -114,7 +136,18 @@ export default function App() {
         throw new Error(data?.error || "Failed to analyze");
       }
       
-      setAnalysisResult(data.result);
+      const newResult = data.result;
+      if (currentRes && currentRes !== newResult) {
+        setPreviousAnalysisResult(currentRes);
+        const diffed = diffMarkdown(currentRes, newResult);
+        setHighlightedResult(diffed);
+      } else {
+        setPreviousAnalysisResult(null);
+        setHighlightedResult(null);
+      }
+
+      setAnalysisResult(newResult);
+      localStorage.setItem('stocks_analysis_result', newResult);
     } catch (err: any) {
       if (err.message.includes("insufficient authentication scopes") || err.message.includes("Insufficient Permission")) {
         setError("Erro de permissão: O Google bloqueou o acesso. Clique em 'Sair' ali em cima e faça login novamente. Na tela do Google, role para baixo e MARQUE as caixinhas de permissão do Google Drive e Sheets.");
@@ -123,6 +156,14 @@ export default function App() {
       } else if (err.message.includes("401") || err.message.toLowerCase().includes("unauthenticated") || err.message.toLowerCase().includes("invalid authentication") || err.message.toLowerCase().includes("invalid credentials")) {
         handleLogout();
         setError("Sua sessão do Google expirou. Desconectamos sua conta, por favor faça login novamente.");
+      } else if (err.message.toLowerCase().includes("load failed") || err.message.toLowerCase().includes("failed to fetch")) {
+        setError(
+          "O navegador do celular (especialmente o Safari no iPhone) às vezes interrompe conexões de longa duração por motivos de economia de bateria ou segurança (Load Failed). " +
+          "Dicas para resolver agora: \n" +
+          "1. Desative o 'Modo de Pouca Energia' nas configurações de bateria do seu celular.\n" +
+          "2. Atualize a página e tente de novo com internet estável.\n" +
+          "3. Abra o app usando o navegador Google Chrome no celular ou através de um computador para maior estabilidade!"
+        );
       } else {
         setError("Erro ao analisar a planilha: " + err.message);
       }
@@ -139,8 +180,8 @@ export default function App() {
         {/* Header */}
         <header className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="p-3 bg-white/10 border border-white/20 rounded-xl text-white backdrop-blur-md shadow-lg">
-              <FileSpreadsheet className="w-6 h-6" />
+            <div className="w-12 h-12 bg-white/10 border border-white/20 rounded-xl overflow-hidden backdrop-blur-md shadow-lg flex items-center justify-center">
+              <img src="/Azul1.png" alt="Stocks Analyzer Logo" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
             </div>
             <div>
               <h1 className="text-2xl tracking-tight text-white drop-shadow-sm"><strong className="font-bold">Stocks</strong> <span className="font-normal italic">Analyzer</span></h1>
@@ -299,7 +340,7 @@ export default function App() {
               ) : (
                 <div className="space-y-8">
                   <div className="text-center mb-8">
-                    <h2 className="text-3xl font-bold text-white tracking-tight uppercase tracking-wider">Top 10 the best</h2>
+                    <h2 className="text-3xl font-bold text-white tracking-tight uppercase tracking-wider font-sans">Top 10 the best Stocks</h2>
                   </div>
 
                   <button 
@@ -319,9 +360,41 @@ export default function App() {
                     <span className="w-1.5 h-8 bg-gradient-to-b from-indigo-400 to-purple-500 rounded-full inline-block"></span>
                     Relatório Especializado
                   </h3>
+
+                  {highlightedResult && (
+                    <div className="flex items-center justify-between mb-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl px-4 py-3 text-sm text-yellow-300 backdrop-blur-md">
+                      <span className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse inline-block"></span>
+                        Alterações desde a leitura anterior destacadas em amarelo
+                      </span>
+                      <button 
+                        onClick={() => setHighlightedResult(null)} 
+                        className="text-yellow-400 hover:text-white underline font-semibold transition text-xs cursor-pointer"
+                      >
+                        Limpar destaques
+                      </button>
+                    </div>
+                  )}
+
                   <div className="bg-black/30 backdrop-blur-xl border border-white/10 rounded-3xl p-6 md:p-10 shadow-2xl">
                     <div className="markdown-body">
-                      <Markdown>{analysisResult}</Markdown>
+                      <Markdown
+                        components={{
+                          code({ className, children, ...props }: any) {
+                            const codeText = String(children);
+                            if (!className && codeText.startsWith('h:')) {
+                              return (
+                                <mark className="bg-yellow-400/40 text-yellow-200 px-1 py-0.5 rounded border border-yellow-500/40 font-sans font-semibold not-italic">
+                                  {codeText.slice(2)}
+                                </mark>
+                              );
+                            }
+                            return <code className={className} {...props}>{children}</code>;
+                          }
+                        }}
+                      >
+                        {highlightedResult || analysisResult}
+                      </Markdown>
                     </div>
                   </div>
                 </div>
@@ -333,5 +406,134 @@ export default function App() {
       </div>
     </div>
   );
+}
+
+function diffContentTokens(oldLine: string, newLine: string): string {
+  const tokenRegex = /(\s+|[|*#`()\[\]]+|[^\s|*#`()\[\]]+)/g;
+  
+  const oldTokens = oldLine.match(tokenRegex) || [];
+  const newTokens = newLine.match(tokenRegex) || [];
+  
+  const dp: number[][] = Array.from({ length: oldTokens.length + 1 }, () =>
+    Array(newTokens.length + 1).fill(0)
+  );
+
+  for (let i = 1; i <= oldTokens.length; i++) {
+    for (let j = 1; j <= newTokens.length; j++) {
+      if (oldTokens[i - 1] === newTokens[j - 1]) {
+        dp[i][j] = dp[i - 1][j - 1] + 1;
+      } else {
+        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+      }
+    }
+  }
+
+  let i = oldTokens.length;
+  let j = newTokens.length;
+  const result: { text: string; status: 'added' | 'unchanged' }[] = [];
+
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && oldTokens[i - 1] === newTokens[j - 1]) {
+      result.unshift({ text: newTokens[j - 1], status: 'unchanged' });
+      i--;
+      j--;
+    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+      result.unshift({ text: newTokens[j - 1], status: 'added' });
+      j--;
+    } else {
+      i--;
+    }
+  }
+
+  let assembled = '';
+  let currentHighlightGroup = '';
+
+  for (const token of result) {
+    const isFormattingOrWhitespace = /^[|*#`()\[\]\s]+$/.test(token.text);
+    if (token.status === 'added' && !isFormattingOrWhitespace) {
+      currentHighlightGroup += token.text.replace(/`/g, '');
+    } else {
+      if (currentHighlightGroup) {
+        assembled += '`h:' + currentHighlightGroup + '`';
+        currentHighlightGroup = '';
+      }
+      assembled += token.text;
+    }
+  }
+  if (currentHighlightGroup) {
+    assembled += '`h:' + currentHighlightGroup + '`';
+  }
+
+  return assembled;
+}
+
+function diffMarkdown(oldText: string, newText: string): string {
+  if (!oldText) return newText;
+
+  const oldLines = oldText.split('\n');
+  const newLines = newText.split('\n');
+
+  const dp: number[][] = Array.from({ length: oldLines.length + 1 }, () =>
+    Array(newLines.length + 1).fill(0)
+  );
+
+  for (let i = 1; i <= oldLines.length; i++) {
+    for (let j = 1; j <= newLines.length; j++) {
+      if (oldLines[i - 1].trim() === newLines[j - 1].trim()) {
+        dp[i][j] = dp[i - 1][j - 1] + 1;
+      } else {
+        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+      }
+    }
+  }
+
+  let i = oldLines.length;
+  let j = newLines.length;
+  
+  const ops: { type: 'keep' | 'add' | 'delete'; line: string }[] = [];
+  
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && oldLines[i - 1].trim() === newLines[j - 1].trim()) {
+      ops.unshift({ type: 'keep', line: newLines[j - 1] });
+      i--;
+      j--;
+    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+      ops.unshift({ type: 'add', line: newLines[j - 1] });
+      j--;
+    } else {
+      ops.unshift({ type: 'delete', line: oldLines[i - 1] });
+      i--;
+    }
+  }
+
+  const finalLines: string[] = [];
+  let blockDeletes: string[] = [];
+  let blockAdds: string[] = [];
+
+  const flushEditBlock = () => {
+    const minLen = Math.min(blockDeletes.length, blockAdds.length);
+    for (let k = 0; k < minLen; k++) {
+      finalLines.push(diffContentTokens(blockDeletes[k], blockAdds[k]));
+    }
+    for (let k = minLen; k < blockAdds.length; k++) {
+      finalLines.push(diffContentTokens('', blockAdds[k]));
+    }
+    blockDeletes = [];
+    blockAdds = [];
+  };
+
+  for (const op of ops) {
+    if (op.type === 'keep') {
+      flushEditBlock();
+      finalLines.push(op.line);
+    } else if (op.type === 'delete') {
+      blockDeletes.push(op.line);
+    } else if (op.type === 'add') {
+      blockAdds.push(op.line);
+    }
+  }
+  flushEditBlock();
+
+  return finalLines.join('\n');
 }
 

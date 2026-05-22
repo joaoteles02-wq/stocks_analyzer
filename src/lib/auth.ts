@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, User } from 'firebase/auth';
+import { getAuth, signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, onAuthStateChanged, User } from 'firebase/auth';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
@@ -14,33 +14,84 @@ provider.setCustomParameters({
 });
 
 let isSigningIn = false;
-let cachedAccessToken: string | null = sessionStorage.getItem('google_access_token');
+let cachedAccessToken: string | null = localStorage.getItem('google_access_token') || sessionStorage.getItem('google_access_token');
 
 export const initAuth = (
   onAuthSuccess?: (user: User, token: string) => void,
   onAuthFailure?: () => void
 ) => {
-  return onAuthStateChanged(auth, async (user: User | null) => {
-    if (user) {
-      if (cachedAccessToken) {
-        if (onAuthSuccess) onAuthSuccess(user, cachedAccessToken);
-      } else if (!isSigningIn) {
-        // We have a user but no token. We might need them to log in again to get the Drive/Sheets scopes token.
-        cachedAccessToken = null;
-        sessionStorage.removeItem('google_access_token');
-        if (onAuthFailure) onAuthFailure();
+  // Check redirect result first (handles returning from the Google login screen on mobile)
+  getRedirectResult(auth)
+    .then((result) => {
+      if (result) {
+        const credential = GoogleAuthProvider.credentialFromResult(result);
+        if (credential?.accessToken) {
+          cachedAccessToken = credential.accessToken;
+          localStorage.setItem('google_access_token', cachedAccessToken);
+          sessionStorage.setItem('google_access_token', cachedAccessToken);
+          if (onAuthSuccess && result.user) {
+            onAuthSuccess(result.user, cachedAccessToken);
+          }
+        }
       }
-    } else {
-      cachedAccessToken = null;
-      sessionStorage.removeItem('google_access_token');
-      if (onAuthFailure) onAuthFailure();
-    }
-  });
+
+      // ONLY subscribe to onAuthStateChanged AFTER checking the redirect result
+      // This ensures any newly received redirect credentials are saved to localStorage first,
+      // avoiding a race condition where onAuthStateChanged fires before getRedirectResult resolves.
+      onAuthStateChanged(auth, async (user: User | null) => {
+        const currentToken = localStorage.getItem('google_access_token') || sessionStorage.getItem('google_access_token');
+        
+        if (user) {
+          if (currentToken) {
+            cachedAccessToken = currentToken;
+            if (onAuthSuccess) onAuthSuccess(user, currentToken);
+          } else {
+            // We have a user but no Google Sheets/Drive OAuth token in storage. 
+            // They need to click login again to grant specific Drive scopes.
+            cachedAccessToken = null;
+            localStorage.removeItem('google_access_token');
+            sessionStorage.removeItem('google_access_token');
+            if (onAuthFailure) onAuthFailure();
+          }
+        } else {
+          cachedAccessToken = null;
+          localStorage.removeItem('google_access_token');
+          sessionStorage.removeItem('google_access_token');
+          if (onAuthFailure) onAuthFailure();
+        }
+      });
+    })
+    .catch((error) => {
+      console.error('Redirect sign in error:', error);
+      // Fallback on error to still listen for changes
+      onAuthStateChanged(auth, async (user: User | null) => {
+        const currentToken = localStorage.getItem('google_access_token') || sessionStorage.getItem('google_access_token');
+        if (user && currentToken) {
+          cachedAccessToken = currentToken;
+          if (onAuthSuccess) onAuthSuccess(user, currentToken);
+        } else {
+          if (onAuthFailure) onAuthFailure();
+        }
+      });
+    });
+};
+
+const isMobileDevice = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 };
 
 export const googleSignIn = async (): Promise<{ user: User; accessToken: string } | null> => {
   try {
     isSigningIn = true;
+    
+    if (isMobileDevice()) {
+      // Use redirect on mobile to bypassed aggressive popup blockers
+      await signInWithRedirect(auth, provider);
+      return null;
+    }
+
+    // Use popup on desktop
     const result = await signInWithPopup(auth, provider);
     const credential = GoogleAuthProvider.credentialFromResult(result);
     if (!credential?.accessToken) {
@@ -48,13 +99,17 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
     }
 
     cachedAccessToken = credential.accessToken;
+    localStorage.setItem('google_access_token', cachedAccessToken);
     sessionStorage.setItem('google_access_token', cachedAccessToken);
     return { user: result.user, accessToken: cachedAccessToken };
   } catch (error: any) {
     console.error('Sign in error:', error);
     throw error;
   } finally {
-    isSigningIn = false;
+    // Only clear login loading screen state if we didn't redirect away
+    if (!isMobileDevice()) {
+      isSigningIn = false;
+    }
   }
 };
 
@@ -65,5 +120,6 @@ export const getAccessToken = async (): Promise<string | null> => {
 export const logout = async () => {
   await auth.signOut();
   cachedAccessToken = null;
+  localStorage.removeItem('google_access_token');
   sessionStorage.removeItem('google_access_token');
 };
