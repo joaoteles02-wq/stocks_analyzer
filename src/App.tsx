@@ -34,6 +34,12 @@ export default function App() {
   }, [selectedFileId]);
 
   useEffect(() => {
+    // Redirect HTTP to HTTPS for secure cookie, authentication APIs, and POST persistence on mobile
+    if (typeof window !== 'undefined' && window.location.protocol === 'http:' && !window.location.hostname.includes('localhost')) {
+      window.location.href = window.location.href.replace('http:', 'https:');
+      return;
+    }
+
     initAuth(
       (user, token) => {
         setNeedsAuth(false);
@@ -118,7 +124,13 @@ export default function App() {
         actualId = match[1];
       }
 
-      const res = await fetch(`/api/process-data`, {
+      // Ensure we hit HTTPS directly to avoid HTTP -> HTTPS redirects which convert POST to GET on mobile browsers.
+      let apiUrl = `/api/process-data`;
+      if (typeof window !== 'undefined' && window.location.protocol === 'http:' && !window.location.hostname.includes('localhost')) {
+        apiUrl = `https://${window.location.host}/api/process-data`;
+      }
+
+      const res = await fetch(apiUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token, spreadsheetId: actualId }),
