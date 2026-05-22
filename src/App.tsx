@@ -164,10 +164,10 @@ export default function App() {
     );
   }, []);
 
-  const handleLogin = async () => {
+  const handleLogin = async (method: 'popup' | 'redirect' = 'popup') => {
     setIsLoggingIn(true);
     try {
-      const result = await googleSignIn();
+      const result = await googleSignIn(method);
       if (result) {
         setToken(result.accessToken);
         setUser(result.user);
@@ -450,55 +450,89 @@ export default function App() {
           )}
           
           {needsAuth ? (
-            <div className="text-center py-12 space-y-6">
+            <div className="text-center py-12 space-y-6 max-w-xl mx-auto">
               <div className="mx-auto w-16 h-16 bg-white/10 backdrop-blur-md rounded-full flex items-center justify-center border border-white/20 shadow-inner">
                 <LogIn className="w-8 h-8 text-white" />
               </div>
               <div>
-                <h2 className="text-xl font-semibold mb-2 text-white">Conecte sua conta do Google</h2>
-                <p className="text-slate-300 max-w-md mx-auto text-sm leading-relaxed">
-                  Para analisarmos sua planilha, precisamos de permissão para ler seus arquivos no Google Drive e Google Sheets.
+                <h2 className="text-xl font-bold mb-2 text-white">Conecte sua conta do Google</h2>
+                <p className="text-slate-300 text-sm leading-relaxed max-w-md mx-auto">
+                  Para podermos analisar suas planilhas de ativos e sincronizar sua carteira de investimentos, precisamos de permissão para ler arquivos do Google Drive e Google Sheets.
                 </p>
               </div>
 
               {/* Informative block for mobile/iframe login issues */}
-              {isInIframe && (
-                <div className="mx-auto max-w-md bg-amber-500/10 border border-amber-500/20 text-amber-300 rounded-2xl p-5 text-xs text-left leading-relaxed space-y-3.5 shadow-lg">
+              {isInIframe ? (
+                <div className="bg-amber-500/10 border border-amber-500/20 text-amber-300 rounded-2xl p-5 text-xs text-left leading-relaxed space-y-3.5 shadow-lg">
                   <p className="font-extrabold flex items-center gap-2 text-amber-400 text-sm">
-                    ⚠️ Atenção para login no Celular
+                    ⚠️ Atenção: Limitação de Celular (Iframe)
                   </p>
                   <p>
-                    Em navegadores de celular (iOS/Android), os sistemas de login integrados no painel interno (iframe) do Google AI Studio são frequentemente <strong>bloqueados por privacidade e segurança</strong>.
+                    Você está visualizando o aplicativo dentro do painel do AI Studio. Por motivos de segurança e privacidade, navegadores móveis (Safari, Chrome) <strong>impedem qualquer fluxo de login do Google dentro de frames (painéis internos)</strong>, gerando telas brancas ou erros.
                   </p>
-                  <p className="text-slate-300">
-                    Se o botão abaixo não responder ou falhar ao carregar, por favor, abra o aplicativo em uma janela limpa fora do painel de desenvolvimento utilizando o botão abaixo.
+                  <p className="text-slate-300 font-bold">
+                    Como resolver? Abra o app em aba dedicada fora do painel de desenvolvimento:
                   </p>
                   <button
                     type="button"
                     onClick={() => window.open(window.location.href, '_blank')}
-                    className="w-full mt-2.5 py-2.5 px-4 bg-amber-500 text-black hover:bg-amber-400 transition font-black rounded-xl text-center active:scale-95 block cursor-pointer text-xs"
+                    className="w-full mt-2 py-3 px-4 bg-amber-500 text-black hover:bg-amber-400 transition font-black rounded-xl text-center active:scale-95 block cursor-pointer text-sm shadow-md"
                   >
-                    Abrir Aplicativo em Nova Aba (Externo) ↗
+                    Abrir no Navegador Externo (Clique Aqui) ↗
                   </button>
+                </div>
+              ) : (
+                <div className="bg-slate-900/60 border border-white/5 text-slate-300 rounded-2xl p-5 text-xs text-left leading-relaxed space-y-3.5 shadow-lg">
+                  <p className="font-bold flex items-center gap-2 text-white text-sm border-b border-white/10 pb-2">
+                    📱 Dica essencial para Celular (WhatsApp / Webviews)
+                  </p>
+                  <ul className="list-disc pl-4 space-y-1.5 text-slate-400">
+                    <li>
+                      Se você abriu este link <strong>visto do WhatsApp, Instagram ou Telegram</strong>, o navegador integrado de bate-papo desses apps bloqueia logins do Google por segurança (<span className="text-amber-400 font-bold font-mono">disallowed_useragent</span>).
+                    </li>
+                    <li>
+                      <strong>Solução:</strong> Toque no ícone de opções (geralmente nos três pontinhos <code className="bg-slate-800 px-1 py-0.5 rounded text-white font-mono">...</code> ou no ícone da bússola) e escolha <strong>&quot;Abrir no Chrome&quot;</strong> ou <strong>&quot;Abrir no Safari&quot;</strong>.
+                    </li>
+                  </ul>
                 </div>
               )}
 
-              <button 
-                onClick={handleLogin}
-                disabled={isLoggingIn}
-                className="gsi-material-button mx-auto flex items-center justify-center gap-3 px-6 py-3 border border-white/20 rounded-full font-medium hover:bg-white/10 transition shadow-lg bg-black/40 backdrop-blur-md text-white cursor-pointer"
-              >
-                {isLoggingIn ? <Loader2 className="w-5 h-5 animate-spin" /> : (
-                  <svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" className="w-5 h-5">
-                    <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path>
-                    <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"></path>
-                    <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"></path>
-                    <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"></path>
-                    <path fill="none" d="M0 0h48v48H0z"></path>
-                  </svg>
-                )}
-                <span>Continuar com Google</span>
-              </button>
+              {/* Login Methods for best reliability */}
+              <div className="space-y-4 pt-2">
+                <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Escolha a forma de conexão no celular:</p>
+                
+                <div className="flex flex-col sm:flex-row gap-3 justify-center max-w-sm mx-auto">
+                  {/* POPUP METHOD - highly recommended for safari mobile tabs */}
+                  <button 
+                    onClick={() => handleLogin('popup')}
+                    disabled={isLoggingIn}
+                    className="flex-1 flex items-center justify-center gap-2 px-5 py-3.5 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-bold text-xs rounded-xl transition shadow-md border border-indigo-400/20 cursor-pointer disabled:opacity-50"
+                  >
+                    {isLoggingIn ? <Loader2 className="w-4 h-4 animate-spin" /> : (
+                      <svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" className="w-4 h-4 shrink-0">
+                        <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path>
+                        <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"></path>
+                        <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"></path>
+                        <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"></path>
+                        <path fill="none" d="M0 0h48v48H0z"></path>
+                      </svg>
+                    )}
+                    <span>Entrar (Nova Caixa)</span>
+                  </button>
+
+                  {/* REDIRECT METHOD - alternative fallback */}
+                  <button 
+                    onClick={() => handleLogin('redirect')}
+                    disabled={isLoggingIn}
+                    className="flex-1 flex items-center justify-center gap-2 px-5 py-3.5 bg-black/40 hover:bg-slate-800 text-slate-200 hover:text-white font-bold text-xs rounded-xl transition shadow border border-white/10 cursor-pointer disabled:opacity-50"
+                  >
+                    {isLoggingIn ? <Loader2 className="w-4 h-4 animate-spin" /> : (
+                      <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full shrink-0"></span>
+                    )}
+                    <span>Entrar (Redirecionar)</span>
+                  </button>
+                </div>
+              </div>
             </div>
           ) : currentView === 'settings' ? (
             <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">

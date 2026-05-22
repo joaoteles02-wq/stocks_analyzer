@@ -81,17 +81,16 @@ const isMobileDevice = (): boolean => {
   return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 };
 
-export const googleSignIn = async (): Promise<{ user: User; accessToken: string } | null> => {
+export const googleSignIn = async (method: 'popup' | 'redirect' = 'popup'): Promise<{ user: User; accessToken: string } | null> => {
   try {
     isSigningIn = true;
     
-    if (isMobileDevice()) {
-      // Use redirect on mobile to bypassed aggressive popup blockers
+    if (method === 'redirect') {
       await signInWithRedirect(auth, provider);
       return null;
     }
 
-    // Use popup on desktop
+    // Default to popup which is highly reliable on Safari/Chrome mobile inside standard tabs
     const result = await signInWithPopup(auth, provider);
     const credential = GoogleAuthProvider.credentialFromResult(result);
     if (!credential?.accessToken) {
@@ -106,10 +105,7 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
     console.error('Sign in error:', error);
     throw error;
   } finally {
-    // Only clear login loading screen state if we didn't redirect away
-    if (!isMobileDevice()) {
-      isSigningIn = false;
-    }
+    isSigningIn = false;
   }
 };
 
