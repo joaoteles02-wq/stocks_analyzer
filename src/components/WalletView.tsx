@@ -1,0 +1,679 @@
+import { useState, useEffect } from 'react';
+import Markdown from 'react-markdown';
+import { 
+  Wallet, 
+  Coins, 
+  TrendingUp, 
+  Globe, 
+  Percent, 
+  Briefcase, 
+  RotateCcw, 
+  Sparkles, 
+  Loader2, 
+  CheckCircle, 
+  AlertCircle, 
+  Sliders, 
+  RefreshCw,
+  HelpCircle
+} from 'lucide-react';
+
+export interface Asset {
+  ticker: string;
+  name: string;
+  type: 'stocks' | 'fii' | 'sp500';
+  price: number; // Price in original currency
+  currency: 'BRL' | 'USD';
+  yield: number; // e.g., 0.11 or 0.08
+  sector: string;
+  description: string;
+}
+
+export const ALL_BEST_30_ASSETS: Asset[] = [
+  // Ações brasileiras (10)
+  { ticker: 'VALE3', name: 'Vale S.A.', type: 'stocks', price: 62.50, currency: 'BRL', yield: 0.082, sector: 'Mineração e Siderurgia', description: 'Uma das maiores mineradoras globais, líder em receita e excelente pagadora de dividendos.' },
+  { ticker: 'PETR4', name: 'Petrobras S.A.', type: 'stocks', price: 38.20, currency: 'BRL', yield: 0.145, sector: 'Petróleo e Gás', description: 'Líder nacional de refino e exploração de petróleo offshore de águas profundas (Pré-sal).' },
+  { ticker: 'ITUB4', name: 'Itaú Unibanco Holding S.A.', type: 'stocks', price: 33.40, currency: 'BRL', yield: 0.058, sector: 'Financeiro', description: 'Maior banco privado brasileiro com alta rentabilidade consistente e governança exemplar.' },
+  { ticker: 'BBAS3', name: 'Banco do Brasil S.A.', type: 'stocks', price: 27.10, currency: 'BRL', yield: 0.098, sector: 'Financeiro', description: 'Banco com forte atuação no agronegócio e excelente retorno histórico sobre patrimônio (ROE).' },
+  { ticker: 'WEGE3', name: 'Weg S.A.', type: 'stocks', price: 42.60, currency: 'BRL', yield: 0.018, sector: 'Bens de Capital', description: 'Gigante multinacional de fabricação de motores elétricos, geradores e automação industrial.' },
+  { ticker: 'EGIE3', name: 'Engie Brasil Energia S.A.', type: 'stocks', price: 44.15, currency: 'BRL', yield: 0.076, sector: 'Utilidade Pública', description: 'Maior geradora privada de energia 100% limpa do país, referência sob critérios ESG.' },
+  { ticker: 'ABEV3', name: 'Ambev S.A.', type: 'stocks', price: 12.80, currency: 'BRL', yield: 0.055, sector: 'Consumo Não-Cíclico', description: 'Líder absoluta do mercado de bebidas latinas com fortíssima geração de caixa operacional.' },
+  { ticker: 'ELET3', name: 'Eletrobras S.A.', type: 'stocks', price: 39.50, currency: 'BRL', yield: 0.035, sector: 'Utilidade Pública', description: 'Potência privatizada de geração e transmissão de energia térmica e hidroelétrica nacional.' },
+  { ticker: 'KLBN11', name: 'Klabin S.A.', type: 'stocks', price: 21.30, currency: 'BRL', yield: 0.065, sector: 'Materiais Básicos', description: 'Maior produtora e exportadora de papéis para embalagens e celulose de alta eficiência.' },
+  { ticker: 'TAEE11', name: 'Taesa S.A.', type: 'stocks', price: 35.80, currency: 'BRL', yield: 0.095, sector: 'Utilidade Pública', description: 'Referência em transmissão de energia elétrica com contratos longos de receita previsível.' },
+
+  // FIIs (10)
+  { ticker: 'MXRF11', name: 'Maxi Renda FII', type: 'fii', price: 10.15, currency: 'BRL', yield: 0.118, sector: 'Papel (Recebíveis)', description: 'Fundo imobiliário com maior número de cotistas focado em certificados de recebíveis imobiliários.' },
+  { ticker: 'HGLG11', name: 'Cshg Logística FII', type: 'fii', price: 165.20, currency: 'BRL', yield: 0.084, sector: 'Tijolo (Logística)', description: 'Referência de excelência na gestão ativa de galpões logísticos de alto padrão construtivo.' },
+  { ticker: 'XPML11', name: 'XP Malls FII', type: 'fii', price: 112.40, currency: 'BRL', yield: 0.089, sector: 'Tijolo (Shoppings)', description: 'Portfólio resiliente focado em participações robustas de shopping centers premium em capitais.' },
+  { ticker: 'KNIP11', name: 'Kinea Índices de Preços FII', type: 'fii', price: 94.60, currency: 'BRL', yield: 0.102, sector: 'Papel (Recebíveis)', description: 'Fundo destinado a investidores qualificados focado em CRIs indexados à inflação (IPCA).' },
+  { ticker: 'KNCR11', name: 'Kinea Rendimentos Imobiliários FII', type: 'fii', price: 102.30, currency: 'BRL', yield: 0.112, sector: 'Papel (Recebíveis)', description: 'Fundo gerido pela Kinea focado em CRIs atrelados à taxa CDI com baixo risco de inadimplência.' },
+  { ticker: 'XPLG11', name: 'XP Log FII', type: 'fii', price: 98.70, currency: 'BRL', yield: 0.085, sector: 'Tijolo (Logística)', description: 'Fundo ativo em galpões logísticos estrategicamente localizados no sudeste brasileiro.' },
+  { ticker: 'BTLG11', name: 'BTG Pactual Logística FII', type: 'fii', price: 101.90, currency: 'BRL', yield: 0.088, sector: 'Tijolo (Logística)', description: 'Fundo de logística robusto com locatários de alto escalão do e-commerce nacional.' },
+  { ticker: 'VISC11', name: 'Vinci Shopping Centers FII', type: 'fii', price: 114.20, currency: 'BRL', yield: 0.082, sector: 'Tijolo (Shoppings)', description: 'Excelente portfólio de shoppings gerido ativamente pela Vinci Partners.' },
+  { ticker: 'HGBS11', name: 'Hedge Brasil Shopping FII', type: 'fii', price: 215.10, currency: 'BRL', yield: 0.081, sector: 'Tijolo (Shoppings)', description: 'Fundo pioneiro no segmento de shoppings com imóveis consolidados há mais de uma década.' },
+  { ticker: 'ALZR11', name: 'Alianza Trust Renda Imobiliária FII', type: 'fii', price: 116.45, currency: 'BRL', yield: 0.083, sector: 'Híbrido (Contratos Atípicos)', description: 'Fundo voltado ao desenvolvimento de contratos atípicos (Built-to-Suit / Sale-Leaseback) estáveis.' },
+
+  // S&P 500 (10)
+  { ticker: 'AAPL', name: 'Apple Inc.', type: 'sp500', price: 182.30, currency: 'USD', yield: 0.005, sector: 'Tecnologia / Hardware', description: 'Titã global em eletrônicos de consumo premium, ecossistema iOS e receita recorrente de serviços.' },
+  { ticker: 'MSFT', name: 'Microsoft Corp.', type: 'sp500', price: 415.50, currency: 'USD', yield: 0.007, sector: 'Tecnologia / Software', description: 'Líder em computação na nuvem híbrida (Azure), software corporativo e inteligência artificial.' },
+  { ticker: 'NVDA', name: 'Nvidia Corp.', type: 'sp500', price: 910.20, currency: 'USD', yield: 0.001, sector: 'Tecnologia / Semicondutores', description: 'Líder no fornecimento de chips gráficos de processamento profundo para data centers e IA.' },
+  { ticker: 'AMZN', name: 'Amazon.com Inc.', type: 'sp500', price: 180.12, currency: 'USD', yield: 0.000, sector: 'E-Commerce / Cloud', description: 'Gigante pioneira do comércio eletrônico mundial e provedora de infraestrutura de nuvem AWS.' },
+  { ticker: 'GOOGL', name: 'Alphabet Inc.', type: 'sp500', price: 172.50, currency: 'USD', yield: 0.005, sector: 'Tecnologia / Anúncios', description: 'Liderança inconteste em pesquisas de internet, Youtube, Android e ecossistema de anúncios.' },
+  { ticker: 'META', name: 'Meta Platforms Inc.', type: 'sp500', price: 475.40, currency: 'USD', yield: 0.004, sector: 'Redes Sociais', description: 'Proprietária do Facebook, Instagram e Whatsapp, pioneira em redes e anúncios sociais.' },
+  { ticker: 'TSLA', name: 'Tesla Inc.', type: 'sp500', price: 178.20, currency: 'USD', yield: 0.000, sector: 'Automotivo / Energia', description: 'Líder global e pioneira absoluta no desenvolvimento de carros elétricos autônomos e baterias.' },
+  { ticker: 'BRK.B', name: 'Berkshire Hathaway Inc.', type: 'sp500', price: 405.10, currency: 'USD', yield: 0.000, sector: 'Hegemonia Global (Multiconglomerado)', description: 'Veículo de investimento do lendário Warren Buffett composto por seguradoras e marcas resilientes.' },
+  { ticker: 'JPM', name: 'JPMorgan Chase & Co.', type: 'sp500', price: 195.30, currency: 'USD', yield: 0.024, sector: 'Financeiro', description: 'O maior banco dos Estados Unidos com balanço patrimonial ultra-resistente (fortaleza).' },
+  { ticker: 'LLY', name: 'Eli Lilly and Company', type: 'sp500', price: 780.40, currency: 'USD', yield: 0.006, sector: 'Saúde / Biotecnologia', description: 'Gigante da saúde e biofarma responsável por tratamentos globais revolucionários de emagrecimento.' }
+];
+
+// 10 Balanced default assets: 3 Stocks BR, 3 FII, 4 S&P 500
+const DEFAULT_WALLET_SLOTS: { assetTicker: string; weight: number }[] = [
+  { assetTicker: 'ITUB4', weight: 15 },
+  { assetTicker: 'WEGE3', weight: 10 },
+  { assetTicker: 'TAEE11', weight: 10 },
+  { assetTicker: 'HGLG11', weight: 15 },
+  { assetTicker: 'MXRF11', weight: 10 },
+  { assetTicker: 'XPML11', weight: 10 },
+  { assetTicker: 'AAPL', weight: 10 },
+  { assetTicker: 'MSFT', weight: 10 },
+  { assetTicker: 'GOOGL', weight: 5 },
+  { assetTicker: 'NVDA', weight: 5 },
+];
+
+export function WalletView() {
+  const USD_BRL_RATE = 5.15; // Simulated dollar exchange rate for realistic calculations
+
+  const [wallet, setWallet] = useState<{ asset: Asset; weight: number }[]>(() => {
+    // Attempt local storage load
+    const saved = localStorage.getItem('saved_interactive_wallet');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length === 10) {
+          // Map back to current Asset database object securely
+          return parsed.map((item: any) => {
+            const staticAsset = ALL_BEST_30_ASSETS.find(a => a.ticker === item.ticker);
+            return {
+              asset: staticAsset || ALL_BEST_30_ASSETS.find(a => a.ticker === 'ITUB4')!,
+              weight: item.weight
+            };
+          });
+        }
+      } catch (e) {
+        console.error('Failed to parse saved wallet:', e);
+      }
+    }
+
+    // Default Fallback mapping
+    return DEFAULT_WALLET_SLOTS.map(slot => {
+      const matched = ALL_BEST_30_ASSETS.find(a => a.ticker === slot.assetTicker)!;
+      return { asset: matched, weight: slot.weight };
+    });
+  });
+
+  const [investmentBudget, setInvestmentBudget] = useState<number>(() => {
+    return Number(localStorage.getItem('saved_wallet_budget')) || 25000;
+  });
+
+  const [activeReplaceIndex, setActiveReplaceIndex] = useState<number | null>(null);
+  const [aiReport, setAiReport] = useState<string | null>(() => {
+    return localStorage.getItem('saved_wallet_ai_report') || null;
+  });
+  const [loadingAi, setLoadingAi] = useState(false);
+  const [walletError, setWalletError] = useState<string | null>(null);
+
+  // Persistence effects
+  useEffect(() => {
+    const compactFormat = wallet.map(w => ({ ticker: w.asset.ticker, weight: w.weight }));
+    localStorage.setItem('saved_interactive_wallet', JSON.stringify(compactFormat));
+  }, [wallet]);
+
+  useEffect(() => {
+    localStorage.setItem('saved_wallet_budget', String(investmentBudget));
+  }, [investmentBudget]);
+
+  // Compute stats
+  const totalWeight = wallet.reduce((sum, item) => sum + item.weight, 0);
+
+  const getBRLPrice = (asset: Asset): number => {
+    return asset.currency === 'USD' ? asset.price * USD_BRL_RATE : asset.price;
+  };
+
+  // Weighted Yield calculation
+  const weightedAnnualYield = wallet.reduce((sum, item) => {
+    return sum + (item.asset.yield * (item.weight / 100));
+  }, 0);
+
+  // Breakdown by Type
+  const typeWeights = wallet.reduce((acc, item) => {
+    acc[item.asset.type] = (acc[item.asset.type] || 0) + item.weight;
+    return acc;
+  }, {} as Record<'stocks' | 'fii' | 'sp500', number>);
+
+  const stocksWeight = typeWeights.stocks || 0;
+  const fiiWeight = typeWeights.fii || 0;
+  const sp500Weight = typeWeights.sp500 || 0;
+
+  // Geographic Weight (Brazil: stocks + fii, USA: sp500)
+  const brazilWeight = stocksWeight + fiiWeight;
+  const usaWeight = sp500Weight;
+
+  // Investment values
+  const yearlyDividendsSimulated = investmentBudget * weightedAnnualYield;
+
+  const handleWeightChange = (index: number, newWeight: number) => {
+    const updated = [...wallet];
+    updated[index].weight = Math.max(0, Math.min(100, Math.round(newWeight)));
+    setWallet(updated);
+  };
+
+  const equalizeWeights = () => {
+    const updated = wallet.map(w => ({ ...w, weight: 10 }));
+    setWallet(updated);
+  };
+
+  const rebalanceWeights = () => {
+    if (totalWeight === 0) {
+      equalizeWeights();
+      return;
+    }
+    const ratio = 100 / totalWeight;
+    let sum = 0;
+    const updated = wallet.map((w, idx) => {
+      let weight = Math.round(w.weight * ratio);
+      if (idx === wallet.length - 1) {
+        weight = 100 - sum; // fix remaining precision discrepancy
+      } else {
+        sum += weight;
+      }
+      return { ...w, weight: Math.max(1, weight) };
+    });
+    setWallet(updated);
+  };
+
+  const replaceAssetAtSlot = (index: number, newAsset: Asset) => {
+    // Check if asset is already in the wallet in another slot
+    const alreadyExists = wallet.some((w, idx) => idx !== index && w.asset.ticker === newAsset.ticker);
+    if (alreadyExists) {
+      setWalletError(`O ativo ${newAsset.ticker} já faz parte da sua carteira! Escolha outro para diversificar.`);
+      setTimeout(() => setWalletError(null), 5000);
+      setActiveReplaceIndex(null);
+      return;
+    }
+
+    const updated = [...wallet];
+    updated[index].asset = newAsset;
+    setWallet(updated);
+    setActiveReplaceIndex(null);
+  };
+
+  const getAiAdvise = async () => {
+    if (totalWeight !== 100) {
+      setWalletError("Por favor, rebalanceie o peso dos ativos de modo que a soma total seja exatamente 100%!");
+      return;
+    }
+
+    setLoadingAi(true);
+    setWalletError(null);
+    try {
+      const serializableWallet = wallet.map(w => ({
+        ticker: w.asset.ticker,
+        name: w.asset.name,
+        type: w.asset.type,
+        weight: w.weight,
+        sector: w.asset.sector
+      }));
+
+      const res = await fetch('/api/wallet-insight', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ wallet: serializableWallet })
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || "Failed to generate dynamic assessment.");
+      }
+
+      const data = await res.json();
+      setAiReport(data.result);
+      localStorage.setItem('saved_wallet_ai_report', data.result);
+    } catch (e: any) {
+      console.error(e);
+      setWalletError("Erro ao obter conselho do Advisor de IA: " + e.message);
+    } finally {
+      setLoadingAi(false);
+    }
+  };
+
+  const clearReport = () => {
+    setAiReport(null);
+    localStorage.removeItem('saved_wallet_ai_report');
+  };
+
+  // Customized dynamic SVG Pie Segment calculations for visual rendering
+  const getPiePath = (startPercent: number, endPercent: number, radius: number): string => {
+    const startAngle = (startPercent / 100) * 360 - 90;
+    const endAngle = (endPercent / 100) * 360 - 90;
+    
+    // Degrees to radians conversion helper
+    const rad = (deg: number) => (deg * Math.PI) / 180;
+    
+    const x1 = 50 + radius * Math.cos(rad(startAngle));
+    const y1 = 50 + radius * Math.sin(rad(startAngle));
+    const x2 = 50 + radius * Math.cos(rad(endAngle));
+    const y2 = 50 + radius * Math.sin(rad(endAngle));
+    
+    const largeArcFlag = endPercent - startPercent > 50 ? 1 : 0;
+    
+    // Direct path descriptor for SVG arc
+    return `M 50 50 L ${x1} ${y1} A ${radius} ${radius} 0 ${largeArcFlag} 1 ${x2} ${y2} Z`;
+  };
+
+  return (
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      
+      {/* Visual Alert Banner for Wallet Errors */}
+      {walletError && (
+        <div className="bg-red-950/80 text-red-200 border border-red-500/50 rounded-2xl p-4 text-sm font-medium flex items-center gap-3 backdrop-blur-md shadow-lg">
+          <AlertCircle className="w-5 h-5 text-red-400 shrink-0" />
+          <p>{walletError}</p>
+        </div>
+      )}
+
+      {/* Top Section and Welcome Descriptor */}
+      <div className="bg-black/30 border border-white/10 rounded-3xl p-6 md:p-8 flex flex-col md:flex-row items-center justify-between gap-6 shadow-xl">
+        <div className="space-y-2 text-center md:text-left">
+          <h2 className="text-3xl font-extrabold text-white tracking-tight flex items-center justify-center md:justify-start gap-3">
+            <Wallet className="w-8 h-8 text-indigo-400" />
+            Minha Carteira (Wallet)
+          </h2>
+          <p className="text-slate-300 max-w-xl text-sm leading-relaxed">
+            Monte e otimize uma carteira global contendo exatamente <strong className="font-bold text-white">10 ativos estratégicos</strong>. 
+            Misture ações brasileiras de alto dividendos, fundos imobiliários rentáveis e líderes do índice S&P 500 americano selecionados de nossa biblioteca de recomendados.
+          </p>
+        </div>
+
+        {/* Big visual score / health indicator */}
+        <div className="flex flex-col items-center justify-center bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-center min-w-[160px] shadow-inner">
+          <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider mb-1">Status de Peso</span>
+          {totalWeight === 100 ? (
+            <div className="flex flex-col items-center text-emerald-400">
+              <CheckCircle className="w-7 h-7 mb-1" />
+              <span className="text-xl font-bold">100% Ok</span>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center">
+              <span className={`text-2xl font-black ${totalWeight > 100 ? 'text-rose-400' : 'text-amber-400'}`}>
+                {totalWeight}%
+              </span>
+              <span className="text-xs text-slate-300 mt-1">Deve somar 100%</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Grid: Left Column (Otimização & Slots) & Right Column (Métricas e Visualização) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        {/* LEFT COLUMN: Asset selection & weights slider */}
+        <div className="lg:col-span-2 space-y-6">
+          <div className="bg-black/20 border border-white/10 rounded-3xl p-6 shadow-md space-y-6">
+            
+            {/* Header Control row */}
+            <div className="flex items-center justify-between flex-wrap gap-4 border-b border-white/10 pb-4">
+              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                <Sliders className="w-5 h-5 text-indigo-400" />
+                Alocação e Balanceamento
+              </h3>
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={equalizeWeights} 
+                  className="px-3 py-1.5 bg-white/5 border border-white/10 rounded-xl text-xs font-semibold hover:bg-white/10 text-slate-300 transition"
+                >
+                  Distribuir Igual (10%)
+                </button>
+                <button 
+                  onClick={rebalanceWeights} 
+                  className="px-3 py-1.5 bg-indigo-500/10 border border-indigo-400/20 text-indigo-300 rounded-xl text-xs font-bold hover:bg-indigo-500/25 transition flex items-center gap-1"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" /> Rebalancear 100%
+                </button>
+              </div>
+            </div>
+
+            {/* List of 10 slots */}
+            <div className="divide-y divide-white/5 space-y-4">
+              {wallet.map((slot, idx) => (
+                <div key={`${slot.asset.ticker}-${idx}`} className="pt-4 first:pt-0 space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    
+                    {/* Left: Ticker details */}
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs font-bold text-slate-500 w-5 text-center bg-white/5 rounded-full h-5 flex items-center justify-center">
+                        {idx + 1}
+                      </span>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold text-white tracking-wider text-base">
+                            {slot.asset.ticker}
+                          </span>
+                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border ${
+                            slot.asset.type === 'stocks' 
+                              ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20' 
+                              : slot.asset.type === 'fii'
+                                ? 'bg-indigo-500/10 text-indigo-300 border-indigo-500/20'
+                                : 'bg-blue-500/10 text-blue-300 border-blue-500/20'
+                          }`}>
+                            {slot.asset.type === 'stocks' ? 'Ações BR' : slot.asset.type === 'fii' ? 'FII' : 'S&P 500'}
+                          </span>
+                        </div>
+                        <p className="text-slate-400 text-xs font-medium max-w-[210px] truncate">{slot.asset.name}</p>
+                      </div>
+                    </div>
+
+                    {/* Middle info and selector trigger */}
+                    <div className="flex items-center gap-3">
+                      <div className="text-right">
+                        <p className="text-xs text-slate-300 font-bold">
+                          {slot.asset.currency === 'USD' 
+                            ? `US$ ${slot.asset.price.toFixed(2)}` 
+                            : `R$ ${slot.asset.price.toFixed(2)}`}
+                        </p>
+                        <p className="text-[10px] text-slate-400">
+                          Setor: {slot.asset.sector.split(' / ')[0]}
+                        </p>
+                      </div>
+
+                      {/* Replace Asset / Trigger replacement dropdown modal */}
+                      <button
+                        onClick={() => setActiveReplaceIndex(activeReplaceIndex === idx ? null : idx)}
+                        className="p-1 px-2.5 bg-white/5 border border-white/10 rounded-lg text-xs font-semibold hover:bg-indigo-500/20 hover:text-indigo-200 hover:border-indigo-500/30 text-slate-300 transition"
+                      >
+                        Substituir
+                      </button>
+                    </div>
+
+                  </div>
+
+                  {/* Range Slider for weights */}
+                  <div className="flex items-center gap-4 pl-8 group">
+                    <input 
+                      type="range"
+                      min="0"
+                      max="100"
+                      step="1"
+                      value={slot.weight}
+                      onChange={e => handleWeightChange(idx, Number(e.target.value))}
+                      className="flex-1 accent-indigo-400 h-1.5 bg-black/40 rounded-lg cursor-pointer"
+                    />
+                    <div className="w-14 shrink-0 flex items-center justify-end bg-black/30 border border-white/10 rounded-md py-0.5 px-2 text-right">
+                      <span className="text-sm font-semibold text-white tracking-tight">{slot.weight}</span>
+                      <span className="text-xs text-indigo-300 ml-0.5 font-bold">%</span>
+                    </div>
+                  </div>
+
+                  {/* Dropdown Replacement Menu - Shown inline below the slot when active */}
+                  {activeReplaceIndex === idx && (
+                    <div className="pl-8 pt-2 pb-4 bg-black/20 rounded-xl p-4 border border-white/5 animate-in slide-in-from-top-2 duration-200">
+                      <div className="mb-3 flex items-center justify-between">
+                        <span className="text-xs font-bold text-indigo-300">Escolha um dos {ALL_BEST_30_ASSETS.length} melhores ativos:</span>
+                        <button 
+                          onClick={() => setActiveReplaceIndex(null)}
+                          className="text-xs hover:text-white text-slate-400 font-medium"
+                        >
+                          Fechar
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[220px] overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 pr-1">
+                        {ALL_BEST_30_ASSETS.map((asset) => {
+                          const isInWallet = wallet.some((w) => w.asset.ticker === asset.ticker);
+                          return (
+                            <button
+                              key={asset.ticker}
+                              disabled={isInWallet}
+                              onClick={() => replaceAssetAtSlot(idx, asset)}
+                              className={`p-2.5 rounded-lg border text-left transition text-xs relative ${
+                                isInWallet 
+                                  ? 'bg-white/5 border-white/5 text-slate-500 cursor-not-allowed opacity-55' 
+                                  : 'bg-black/40 border-white/10 hover:border-indigo-400/50 hover:bg-white/5 text-white'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="font-bold font-mono tracking-wider">{asset.ticker}</span>
+                                <span className="text-[9px] text-slate-400 uppercase tracking-widest">{asset.type === 'stocks' ? 'Ação' : asset.type === 'fii' ? 'FII' : 'S&P 500'}</span>
+                              </div>
+                              <p className="truncate text-slate-400 pr-4">{asset.name}</p>
+                              {isInWallet && (
+                                <span className="absolute bottom-1 right-2 text-[8px] font-bold text-indigo-400 uppercase">Na Carteira</span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                </div>
+              ))}
+            </div>
+
+          </div>
+        </div>
+
+        {/* RIGHT COLUMN: Performance simulators & Allocation Graphic breakdown */}
+        <div className="space-y-6">
+
+          {/* Core Simulator Calculation Box */}
+          <div className="bg-black/30 border border-white/10 rounded-3xl p-6 shadow-lg space-y-6">
+            <h3 className="text-lg font-bold text-white flex items-center gap-2 border-b border-white/10 pb-3">
+              <Coins className="w-5 h-5 text-amber-400" />
+              Simulador de Carteira
+            </h3>
+
+            {/* Total Budget Input */}
+            <div className="space-y-2">
+              <label className="text-xs text-slate-400 block font-semibold uppercase tracking-wider">Aporte Financeiro Total</label>
+              <div className="relative">
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">R$</span>
+                <input 
+                  type="text"
+                  value={investmentBudget}
+                  onChange={e => {
+                    const val = Number(e.target.value.replace(/\D/g, ''));
+                    setInvestmentBudget(val > 10000000 ? 10000000 : val);
+                  }}
+                  className="w-full p-3 pl-10 border border-white/20 rounded-xl bg-black/40 text-white font-bold"
+                />
+              </div>
+              <p className="text-[10px] text-slate-400 italic">Preço base do Dólar computado a R$ {USD_BRL_RATE.toFixed(2)}</p>
+            </div>
+
+            {/* Key visual metrics list */}
+            <div className="space-y-4">
+              
+              {/* Estimated Yield */}
+              <div className="bg-black/20 border border-white/5 rounded-xl p-4 flex items-center justify-between">
+                <div>
+                  <span className="text-xs text-slate-400 font-semibold block">Yield Médio Ponderado</span>
+                  <span className="text-md font-bold text-emerald-400">{(weightedAnnualYield * 100).toFixed(2)}% a.a.</span>
+                </div>
+                <div className="bg-emerald-500/10 p-2.5 rounded-lg border border-emerald-500/20 text-emerald-400">
+                  <Percent className="w-5 h-5" />
+                </div>
+              </div>
+
+              {/* Estimated Yearly Cashflow */}
+              <div className="bg-black/20 border border-white/5 rounded-xl p-4 flex items-center justify-between">
+                <div>
+                  <span className="text-xs text-slate-400 font-semibold block">Renda Passiva Anual Estimada</span>
+                  <span className="text-lg font-black text-white">R$ {yearlyDividendsSimulated.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  <span className="text-[10px] text-indigo-300 block">~R$ {(yearlyDividendsSimulated / 12).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / mês</span>
+                </div>
+                <div className="bg-amber-500/10 p-2.5 rounded-lg border border-amber-500/20 text-amber-400">
+                  <TrendingUp className="w-5 h-5" />
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          {/* Custom Graphical Charts Panel */}
+          <div className="bg-black/30 border border-white/10 rounded-3xl p-6 shadow-lg space-y-6">
+            <h3 className="text-lg font-bold text-white flex items-center gap-2 border-b border-white/10 pb-3">
+              <Briefcase className="w-5 h-5 text-indigo-400" />
+              Distribuição Patrimonial
+            </h3>
+
+            {/* Geographic Diversification Indicator */}
+            <div className="space-y-2">
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1">
+                  <Globe className="w-3.5 h-3.5 text-blue-400" /> Brasil ({brazilWeight}%)
+                </span>
+                <span className="text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1">
+                  <Globe className="w-3.5 h-3.5 text-indigo-400" /> EUA ({usaWeight}%)
+                </span>
+              </div>
+              
+              <div className="w-full bg-black/40 h-3 rounded-full overflow-hidden flex border border-white/10">
+                <div className="bg-gradient-to-r from-blue-500 to-cyan-500 h-full" style={{ width: `${brazilWeight}%` }}></div>
+                <div className="bg-gradient-to-r from-indigo-500 to-purple-600 h-full" style={{ width: `${usaWeight}%` }}></div>
+              </div>
+            </div>
+
+            {/* Custom Pie Chart constructed using SVG circles - extremely lightweight and highly compatible */}
+            <div className="flex flex-col items-center justify-center pt-2">
+              <div className="relative w-36 h-36">
+                <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
+                  {/* Default Background */}
+                  <circle cx="50" cy="50" r="40" fill="none" stroke="#1e293b" strokeWidth="8" />
+                  
+                  {/* Category Arcs */}
+                  {/* Arc Ações Stocks (Green) */}
+                  {stocksWeight > 0 && (
+                    <path
+                      d={getPiePath(0, stocksWeight, 40)}
+                      fill="none"
+                      stroke="#10b981"
+                      strokeWidth="10"
+                      strokeDasharray={`${(stocksWeight / 100) * 251.2} 251.2`}
+                      strokeDashoffset="0"
+                      className="transition-all duration-500"
+                    />
+                  )}
+
+                  {/* Arc FIIs (Indigo) */}
+                  {fiiWeight > 0 && (
+                    <path
+                      d={getPiePath(0, fiiWeight, 40)}
+                      fill="none"
+                      stroke="#6366f1"
+                      strokeWidth="10"
+                      strokeDasharray={`${(fiiWeight / 100) * 251.2} 251.2`}
+                      strokeDashoffset={-((stocksWeight / 100) * 251.2)}
+                      className="transition-all duration-500"
+                    />
+                  )}
+
+                  {/* Arc S&P 500 (Blue/Lightblue) */}
+                  {sp500Weight > 0 && (
+                    <path
+                      d={getPiePath(0, sp500Weight, 40)}
+                      fill="none"
+                      stroke="#3b82f6"
+                      strokeWidth="10"
+                      strokeDasharray={`${(sp500Weight / 100) * 251.2} 251.2`}
+                      strokeDashoffset={-(((stocksWeight + fiiWeight) / 100) * 251.2)}
+                      className="transition-all duration-500"
+                    />
+                  )}
+                </svg>
+
+                {/* Inner label */}
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+                  <span className="text-xs text-slate-400 font-bold tracking-tight">Ativos</span>
+                  <span className="text-xl font-extrabold text-white">10 Slots</span>
+                </div>
+              </div>
+
+              {/* Legends list */}
+              <div className="w-full grid grid-cols-3 gap-2 mt-4 text-center">
+                <div className="bg-black/20 p-2 rounded-xl border border-white/5">
+                  <span className="block w-2.5 h-2.5 rounded-full bg-emerald-500 mx-auto mb-1"></span>
+                  <span className="text-[10px] text-slate-400 block font-bold">Ações BR</span>
+                  <span className="text-xs font-bold text-white">{stocksWeight}%</span>
+                </div>
+                <div className="bg-black/20 p-2 rounded-xl border border-white/5">
+                  <span className="block w-2.5 h-2.5 rounded-full bg-indigo-500 mx-auto mb-1"></span>
+                  <span className="text-[10px] text-slate-400 block font-bold">FIIs BR</span>
+                  <span className="text-xs font-bold text-white">{fiiWeight}%</span>
+                </div>
+                <div className="bg-black/20 p-2 rounded-xl border border-white/5">
+                  <span className="block w-2.5 h-2.5 rounded-full bg-blue-500 mx-auto mb-1"></span>
+                  <span className="text-[10px] text-slate-400 block font-bold">S&P 500</span>
+                  <span className="text-xs font-bold text-white">{sp500Weight}%</span>
+                </div>
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+      {/* AI INVESTMENT ADVICE PORTAL SECTION */}
+      <div className="border-t border-white/10 pt-8 mt-10">
+        <div className="bg-gradient-to-br from-indigo-950/40 to-slate-900/60 border border-indigo-500/20 rounded-3xl p-6 md:p-8 space-y-6 shadow-2xl relative overflow-hidden">
+          
+          {/* Subtle glowing ambient light behind the AI Advice banner */}
+          <div className="absolute top-0 right-0 w-[400px] h-[300px] bg-indigo-500/5 blur-[120px] rounded-full -z-10"></div>
+          
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="space-y-1 text-center md:text-left">
+              <h3 className="text-xl font-extrabold text-white flex items-center justify-center md:justify-start gap-2">
+                <Sparkles className="w-5 h-5 text-indigo-400 animate-pulse" />
+                Parecer de Diversificação e Risco por IA
+              </h3>
+              <p className="text-xs text-slate-300 max-w-xl">
+                Envie suas posições e alocações personalizadas para a inteligência artificial do Gemini analisar o risco setorial, diversificação global e balanço de rendimentos.
+              </p>
+            </div>
+
+            <div className="flex gap-3">
+              {aiReport && (
+                <button 
+                  onClick={clearReport}
+                  className="px-4 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs font-bold text-slate-400 hover:text-white transition"
+                >
+                  Limpar Relatório
+                </button>
+              )}
+              <button
+                onClick={getAiAdvise}
+                disabled={loadingAi}
+                className="px-6 py-3 bg-indigo-500 text-white rounded-xl text-xs font-black shadow-lg hover:bg-indigo-600 border border-indigo-400/30 transition flex items-center gap-2"
+              >
+                {loadingAi ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                {loadingAi ? 'Analisando Carteira...' : 'Obter Relatório do AI Advisor'}
+              </button>
+            </div>
+          </div>
+
+          {/* Markdown advice display */}
+          {aiReport && (
+            <div className="bg-black/40 border border-white/10 rounded-2xl p-6 md:p-8 text-slate-200 text-sm leading-relaxed animate-in fade-in duration-300">
+              <div className="markdown-body">
+                <Markdown>{aiReport}</Markdown>
+              </div>
+            </div>
+          )}
+
+        </div>
+      </div>
+
+    </div>
+  );
+}

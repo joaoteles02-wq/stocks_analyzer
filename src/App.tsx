@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import Markdown from 'react-markdown';
 import { User } from 'firebase/auth';
-import { LogIn, FileSpreadsheet, Search, Loader2, Settings, ArrowLeft } from 'lucide-react';
+import { LogIn, FileSpreadsheet, Search, Loader2, Settings, ArrowLeft, Briefcase, Wallet, LayoutDashboard } from 'lucide-react';
 import { googleSignIn, initAuth, logout } from './lib/auth';
 import { searchStocksFilterSheet } from './lib/drive';
-import { getSpreadsheetData } from './lib/sheets';
+import { getSpreadsheetData, getSpreadsheetSheets } from './lib/sheets';
+import { WalletView } from './components/WalletView';
+import { DashboardView } from './components/DashboardView';
 
 export default function App() {
   const [needsAuth, setNeedsAuth] = useState(true);
@@ -19,19 +21,126 @@ export default function App() {
   });
 
   const [analyzing, setAnalyzing] = useState(false);
-  const [analysisResult, setAnalysisResult] = useState<string | null>(() => {
+  const [error, setError] = useState<string | null>(null);
+  const [currentView, setCurrentView] = useState<'analysis' | 'wallet' | 'dashboard' | 'settings'>('analysis');
+
+  // Separated states for Stocks, FII and S&P 500
+  const [analysisType, setAnalysisType] = useState<'stocks' | 'fii' | 'sp500'>('stocks');
+
+  const [stocksAnalysisResult, setStocksAnalysisResult] = useState<string | null>(() => {
     return localStorage.getItem('stocks_analysis_result') || null;
   });
-  const [previousAnalysisResult, setPreviousAnalysisResult] = useState<string | null>(null);
-  const [highlightedResult, setHighlightedResult] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [currentView, setCurrentView] = useState<'analysis' | 'settings'>('analysis');
+  const [stocksPreviousResult, setStocksPreviousResult] = useState<string | null>(() => {
+    return localStorage.getItem('stocks_previous_result') || null;
+  });
+  const [stocksHighlightedResult, setStocksHighlightedResult] = useState<string | null>(() => {
+    return localStorage.getItem('stocks_highlighted_result') || null;
+  });
+
+  const [fiiAnalysisResult, setFiiAnalysisResult] = useState<string | null>(() => {
+    return localStorage.getItem('fii_analysis_result') || null;
+  });
+  const [fiiPreviousResult, setFiiPreviousResult] = useState<string | null>(() => {
+    return localStorage.getItem('fii_previous_result') || null;
+  });
+  const [fiiHighlightedResult, setFiiHighlightedResult] = useState<string | null>(() => {
+    return localStorage.getItem('fii_highlighted_result') || null;
+  });
+
+  const [sp500AnalysisResult, setSp500AnalysisResult] = useState<string | null>(() => {
+    return localStorage.getItem('sp500_analysis_result') || null;
+  });
+  const [sp500PreviousResult, setSp500PreviousResult] = useState<string | null>(() => {
+    return localStorage.getItem('sp500_previous_result') || null;
+  });
+  const [sp500HighlightedResult, setSp500HighlightedResult] = useState<string | null>(() => {
+    return localStorage.getItem('sp500_highlighted_result') || null;
+  });
+
+  const [selectedSheetName, setSelectedSheetName] = useState<string>(() => {
+    return localStorage.getItem('saved_sheet_name') || '';
+  });
+
+  const [sheetNames, setSheetNames] = useState<string[]>([]);
+  const [loadingSheets, setLoadingSheets] = useState(false);
 
   useEffect(() => {
     if (selectedFileId) {
       localStorage.setItem('saved_spreadsheet_id', selectedFileId);
     }
   }, [selectedFileId]);
+
+  useEffect(() => {
+    if (selectedSheetName) {
+      localStorage.setItem('saved_sheet_name', selectedSheetName);
+    } else {
+      localStorage.removeItem('saved_sheet_name');
+    }
+  }, [selectedSheetName]);
+
+  // Auto-switch sheet suggestion when analysisType changes
+  useEffect(() => {
+    if (sheetNames.length > 0) {
+      const isFiiMode = analysisType === 'fii';
+      const isSp500Mode = analysisType === 'sp500';
+      
+      const matchedName = sheetNames.find(n => {
+        const lowerName = n.toLowerCase();
+        if (isFiiMode) return lowerName.includes('fii');
+        if (isSp500Mode) return lowerName.includes('s&p') || lowerName.includes('sp500') || lowerName.includes('sp 500') || lowerName.includes('usa') || lowerName.includes('us');
+        return lowerName.includes('ações') || lowerName.includes('açao') || lowerName.includes('acao') || lowerName.includes('stock');
+      });
+      
+      if (matchedName) {
+        setSelectedSheetName(matchedName);
+      }
+    }
+  }, [analysisType, sheetNames]);
+
+  useEffect(() => {
+    const fetchSheets = async () => {
+      if (!token || !selectedFileId) {
+        setSheetNames([]);
+        return;
+      }
+      setLoadingSheets(true);
+      try {
+        let actualId = selectedFileId;
+        const match = selectedFileId.match(/\/d\/([a-zA-Z0-9-_]+)/);
+        if (match && match[1]) {
+          actualId = match[1];
+        }
+        const names = await getSpreadsheetSheets(token, actualId);
+        setSheetNames(names);
+        
+        if (names.length > 0) {
+          const savedSheet = localStorage.getItem('saved_sheet_name');
+          if (savedSheet && names.includes(savedSheet)) {
+            setSelectedSheetName(savedSheet);
+          } else {
+            const isFiiMode = analysisType === 'fii';
+            const isSp500Mode = analysisType === 'sp500';
+            const matchedName = names.find(n => {
+              const lowerName = n.toLowerCase();
+              if (isFiiMode) return lowerName.includes('fii');
+              if (isSp500Mode) return lowerName.includes('s&p') || lowerName.includes('sp500') || lowerName.includes('sp 500') || lowerName.includes('usa') || lowerName.includes('us');
+              return lowerName.includes('ações') || lowerName.includes('açao') || lowerName.includes('acao') || lowerName.includes('stock');
+            });
+            setSelectedSheetName(matchedName || names[0]);
+          }
+        } else {
+          setSelectedSheetName('');
+        }
+      } catch (err: any) {
+        console.error("Failed to load sheet list:", err);
+        setSheetNames([]);
+      } finally {
+        setLoadingSheets(false);
+      }
+    };
+
+    fetchSheets();
+  }, [selectedFileId, token]);
 
   useEffect(() => {
     // Redirect HTTP to HTTPS for secure cookie, authentication APIs, and POST persistence on mobile
@@ -72,11 +181,23 @@ export default function App() {
     setToken(null);
     setNeedsAuth(true);
     setFiles([]);
-    setAnalysisResult(null);
-    setPreviousAnalysisResult(null);
-    setHighlightedResult(null);
+    
+    setStocksAnalysisResult(null);
+    setStocksPreviousResult(null);
+    setStocksHighlightedResult(null);
+    setFiiAnalysisResult(null);
+    setFiiPreviousResult(null);
+    setFiiHighlightedResult(null);
+    setSelectedSheetName('');
+
     localStorage.removeItem('saved_spreadsheet_id');
     localStorage.removeItem('stocks_analysis_result');
+    localStorage.removeItem('stocks_previous_result');
+    localStorage.removeItem('stocks_highlighted_result');
+    localStorage.removeItem('fii_analysis_result');
+    localStorage.removeItem('fii_previous_result');
+    localStorage.removeItem('fii_highlighted_result');
+    localStorage.removeItem('saved_sheet_name');
   };
 
   const findSpreadsheets = async () => {
@@ -115,7 +236,16 @@ export default function App() {
     if (!token || !selectedFileId) return;
     setAnalyzing(true);
     setError(null);
-    const currentRes = analysisResult;
+
+    const isFiiMode = analysisType === 'fii';
+    const isSp500Mode = analysisType === 'sp500';
+    const activeSheetName = selectedSheetName;
+    const currentRes = isFiiMode 
+      ? fiiAnalysisResult 
+      : isSp500Mode 
+        ? sp500AnalysisResult 
+        : stocksAnalysisResult;
+
     try {
       // Extrair ID se o usuário colar a URL completa
       let actualId = selectedFileId;
@@ -133,7 +263,12 @@ export default function App() {
       const res = await fetch(apiUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, spreadsheetId: actualId }),
+        body: JSON.stringify({ 
+          token, 
+          spreadsheetId: actualId, 
+          sheetName: activeSheetName, 
+          analysisType 
+        }),
       });
       
       let data;
@@ -149,17 +284,53 @@ export default function App() {
       }
       
       const newResult = data.result;
-      if (currentRes && currentRes !== newResult) {
-        setPreviousAnalysisResult(currentRes);
-        const diffed = diffMarkdown(currentRes, newResult);
-        setHighlightedResult(diffed);
+      
+      if (isFiiMode) {
+        if (currentRes && currentRes !== newResult) {
+          setFiiPreviousResult(currentRes);
+          localStorage.setItem('fii_previous_result', currentRes);
+          const diffed = diffMarkdown(currentRes, newResult);
+          setFiiHighlightedResult(diffed);
+          localStorage.setItem('fii_highlighted_result', diffed);
+        } else {
+          setFiiPreviousResult(null);
+          localStorage.removeItem('fii_previous_result');
+          setFiiHighlightedResult(null);
+          localStorage.removeItem('fii_highlighted_result');
+        }
+        setFiiAnalysisResult(newResult);
+        localStorage.setItem('fii_analysis_result', newResult);
+      } else if (isSp500Mode) {
+        if (currentRes && currentRes !== newResult) {
+          setSp500PreviousResult(currentRes);
+          localStorage.setItem('sp500_previous_result', currentRes);
+          const diffed = diffMarkdown(currentRes, newResult);
+          setSp500HighlightedResult(diffed);
+          localStorage.setItem('sp500_highlighted_result', diffed);
+        } else {
+          setSp500PreviousResult(null);
+          localStorage.removeItem('sp500_previous_result');
+          setSp500HighlightedResult(null);
+          localStorage.removeItem('sp500_highlighted_result');
+        }
+        setSp500AnalysisResult(newResult);
+        localStorage.setItem('sp500_analysis_result', newResult);
       } else {
-        setPreviousAnalysisResult(null);
-        setHighlightedResult(null);
+        if (currentRes && currentRes !== newResult) {
+          setStocksPreviousResult(currentRes);
+          localStorage.setItem('stocks_previous_result', currentRes);
+          const diffed = diffMarkdown(currentRes, newResult);
+          setStocksHighlightedResult(diffed);
+          localStorage.setItem('stocks_highlighted_result', diffed);
+        } else {
+          setStocksPreviousResult(null);
+          localStorage.removeItem('stocks_previous_result');
+          setStocksHighlightedResult(null);
+          localStorage.removeItem('stocks_highlighted_result');
+        }
+        setStocksAnalysisResult(newResult);
+        localStorage.setItem('stocks_analysis_result', newResult);
       }
-
-      setAnalysisResult(newResult);
-      localStorage.setItem('stocks_analysis_result', newResult);
     } catch (err: any) {
       if (err.message.includes("insufficient authentication scopes") || err.message.includes("Insufficient Permission")) {
         setError("Erro de permissão: O Google bloqueou o acesso. Clique em 'Sair' ali em cima e faça login novamente. Na tela do Google, role para baixo e MARQUE as caixinhas de permissão do Google Drive e Sheets.");
@@ -226,6 +397,50 @@ export default function App() {
               <div className="p-4 bg-red-950/80 text-red-200 rounded-xl text-sm font-medium border border-red-500/50 backdrop-blur-md shadow-2xl text-center">
                 {error}
               </div>
+            </div>
+          )}
+
+          {/* Menu de Páginas Primário (Análise vs Carteira) */}
+          {!needsAuth && currentView !== 'settings' && (
+            <div className="flex border-b border-white/10 pb-5 mb-8 gap-1 sm:gap-6 justify-center flex-wrap">
+              <button
+                type="button"
+                onClick={() => setCurrentView('analysis')}
+                className={`pb-2 px-3 sm:px-4 text-sm sm:text-base font-bold transition-all relative flex items-center gap-2 cursor-pointer ${
+                  currentView === 'analysis'
+                    ? 'text-white border-b-2 border-indigo-400 font-extrabold'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <FileSpreadsheet className="w-4 h-4 sm:w-5 h-5 text-indigo-400" />
+                Análise de Planilhas
+              </button>
+              
+              <button
+                type="button"
+                onClick={() => setCurrentView('wallet')}
+                className={`pb-2 px-3 sm:px-4 text-sm sm:text-base font-bold transition-all relative flex items-center gap-2 cursor-pointer ${
+                  currentView === 'wallet'
+                    ? 'text-white border-b-2 border-indigo-400 font-extrabold'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <Wallet className="w-4 h-4 sm:w-5 h-5 text-indigo-400" />
+                Minha Carteira (Wallet)
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setCurrentView('dashboard')}
+                className={`pb-2 px-3 sm:px-4 text-sm sm:text-base font-bold transition-all relative flex items-center gap-2 cursor-pointer ${
+                  currentView === 'dashboard'
+                    ? 'text-white border-b-2 border-indigo-400 font-extrabold'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <LayoutDashboard className="w-4 h-4 sm:w-5 h-5 text-indigo-400" />
+                Dashboard
+              </button>
             </div>
           )}
           
@@ -326,13 +541,86 @@ export default function App() {
                     />
                   </div>
 
+                  <div className="flex items-center gap-4 text-slate-400 text-sm font-medium opacity-50">
+                    <hr className="flex-1 border-white/20" />
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-bold text-slate-300">Aba</label>
+                      {loadingSheets && (
+                        <span className="text-xs text-indigo-400 flex items-center gap-1">
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" /> Carregando abas...
+                        </span>
+                      )}
+                    </div>
+
+                    {sheetNames.length > 0 ? (
+                      <select 
+                        value={selectedSheetName} 
+                        onChange={e => setSelectedSheetName(e.target.value)}
+                        className="w-full p-3 border border-white/10 rounded-xl bg-black/40 text-white outline-none focus:ring-2 focus:ring-indigo-400/50 focus:border-indigo-400 transition"
+                      >
+                        {sheetNames.map(name => (
+                          <option key={name} value={name}>{name}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="p-3 border border-white/10 rounded-xl bg-black/20 text-slate-400 text-xs italic">
+                        {selectedFileId ? "Nenhuma aba carregada..." : "Selecione uma planilha acima."}
+                      </div>
+                    )}
+                  </div>
+
                 </div>
               </div>
-
             </div>
+          ) : currentView === 'wallet' ? (
+            <WalletView />
+          ) : currentView === 'dashboard' ? (
+            <DashboardView />
           ) : (
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
               
+              {/* Seletor de Abas / Visualização */}
+              <div className="flex justify-center">
+                <div className="inline-flex p-1 bg-black/40 backdrop-blur-md rounded-2xl border border-white/10 shadow-inner flex-wrap justify-center gap-1 sm:gap-0">
+                  <button
+                    type="button"
+                    onClick={() => setAnalysisType('stocks')}
+                    className={`px-4 sm:px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 flex items-center gap-2 ${
+                      analysisType === 'stocks'
+                        ? 'bg-gradient-to-r from-indigo-500/80 to-purple-600/80 text-white shadow-md'
+                        : 'text-slate-400 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    Ações (Stocks)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAnalysisType('fii')}
+                    className={`px-4 sm:px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 flex items-center gap-2 ${
+                      analysisType === 'fii'
+                        ? 'bg-gradient-to-r from-indigo-500/80 to-purple-600/80 text-white shadow-md'
+                        : 'text-slate-400 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    FIIs (Fundos Imobiliários)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAnalysisType('sp500')}
+                    className={`px-4 sm:px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 flex items-center gap-2 ${
+                      analysisType === 'sp500'
+                        ? 'bg-gradient-to-r from-indigo-500/80 to-purple-600/80 text-white shadow-md'
+                        : 'text-slate-400 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    S&P 500
+                  </button>
+                </div>
+              </div>
+
               {!selectedFileId ? (
                 <div className="text-center py-16 space-y-4">
                   <div className="mx-auto w-20 h-20 bg-white/5 rounded-full flex items-center justify-center border border-white/10 mb-6 shadow-inner">
@@ -340,7 +628,7 @@ export default function App() {
                   </div>
                   <h2 className="text-2xl font-bold text-white">Nenhuma planilha configurada</h2>
                   <p className="text-slate-400 max-w-sm mx-auto">
-                    Para usar o assistente, vá nas Configurações e selecione a planilha de Ações do seu Google Drive.
+                    Para usar o assistente, vá nas Configurações e selecione a planilha de dados do seu Google Drive.
                   </p>
                   <button 
                     onClick={() => setCurrentView('settings')}
@@ -352,7 +640,19 @@ export default function App() {
               ) : (
                 <div className="space-y-8">
                   <div className="text-center mb-8">
-                    <h2 className="text-3xl font-bold text-white tracking-tight uppercase tracking-wider font-sans">Top 10 the best Stocks</h2>
+                    <h2 className="text-3xl font-bold text-white tracking-tight uppercase tracking-wider font-sans">
+                      {analysisType === 'stocks' 
+                        ? "Top 10 the best Stocks" 
+                        : analysisType === 'sp500'
+                          ? "Top 10 the best S&P 500"
+                          : "Top 10 the best FII's"}
+                    </h2>
+                    
+                    <div className="mt-3">
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-white/5 text-indigo-200 border border-white/10">
+                        Aba ativa: <span className="text-white font-mono font-bold">{selectedSheetName || "Não configurada"}</span>
+                      </span>
+                    </div>
                   </div>
 
                   <button 
@@ -361,26 +661,57 @@ export default function App() {
                     className="w-full p-5 bg-gradient-to-r from-indigo-500/80 to-purple-600/80 hover:from-indigo-500 hover:to-purple-500 border border-white/20 backdrop-blur-md text-white rounded-2xl font-bold text-lg transition flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed shadow-xl hover:shadow-indigo-500/25"
                   >
                     {analyzing ? <Loader2 className="w-6 h-6 animate-spin" /> : <Search className="w-6 h-6" />}
-                    {analyzing ? 'Analisando via IA (Isso pode levar alguns segundos)...' : analysisResult ? 'Reload' : 'Ler Planilha e Gerar Ranking'}
+                    {analyzing 
+                      ? 'Analisando via IA (Isso pode levar alguns segundos)...' 
+                      : (analysisType === 'stocks' 
+                          ? stocksAnalysisResult 
+                          : analysisType === 'sp500' 
+                            ? sp500AnalysisResult 
+                            : fiiAnalysisResult) 
+                        ? 'Analisar Novamente' 
+                        : 'Ler Planilha e Gerar Ranking'}
                   </button>
                 </div>
               )}
               
-              {analysisResult && (
+              {(analysisType === 'stocks' 
+                ? stocksAnalysisResult 
+                : analysisType === 'sp500' 
+                  ? sp500AnalysisResult 
+                  : fiiAnalysisResult) && (
                 <div className="pt-10 border-t border-white/10 mt-10 relative">
                   <h3 className="text-2xl font-bold mb-8 text-white flex items-center gap-3">
                     <span className="w-1.5 h-8 bg-gradient-to-b from-indigo-400 to-purple-500 rounded-full inline-block"></span>
-                    Relatório Especializado
+                    Relatório Especializado - {analysisType === 'stocks' 
+                      ? 'Ações' 
+                      : analysisType === 'sp500' 
+                        ? 'S&P 500' 
+                        : 'Fundos Imobiliários'}
                   </h3>
 
-                  {highlightedResult && (
+                  {(analysisType === 'stocks' 
+                    ? stocksHighlightedResult 
+                    : analysisType === 'sp500' 
+                      ? sp500HighlightedResult 
+                      : fiiHighlightedResult) && (
                     <div className="flex items-center justify-between mb-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl px-4 py-3 text-sm text-yellow-300 backdrop-blur-md">
                       <span className="flex items-center gap-2">
                         <span className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse inline-block"></span>
                         Alterações desde a leitura anterior destacadas em amarelo
                       </span>
                       <button 
-                        onClick={() => setHighlightedResult(null)} 
+                        onClick={() => {
+                          if (analysisType === 'stocks') {
+                            setStocksHighlightedResult(null);
+                            localStorage.removeItem('stocks_highlighted_result');
+                          } else if (analysisType === 'sp500') {
+                            setSp500HighlightedResult(null);
+                            localStorage.removeItem('sp500_highlighted_result');
+                          } else {
+                            setFiiHighlightedResult(null);
+                            localStorage.removeItem('fii_highlighted_result');
+                          }
+                        }} 
                         className="text-yellow-400 hover:text-white underline font-semibold transition text-xs cursor-pointer"
                       >
                         Limpar destaques
@@ -405,7 +736,11 @@ export default function App() {
                           }
                         }}
                       >
-                        {highlightedResult || analysisResult}
+                        {(analysisType === 'stocks' 
+                          ? (stocksHighlightedResult || stocksAnalysisResult) 
+                          : analysisType === 'sp500' 
+                            ? (sp500HighlightedResult || sp500AnalysisResult) 
+                            : (fiiHighlightedResult || fiiAnalysisResult)) || ''}
                       </Markdown>
                     </div>
                   </div>
