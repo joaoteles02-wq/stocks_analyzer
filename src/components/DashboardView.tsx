@@ -859,7 +859,7 @@ export function DashboardView() {
             <BarChart2 className="w-6 h-6 text-emerald-400" />
             <div>
               <h3 className="text-lg font-bold text-white uppercase tracking-wider">Dividend Yields por Ativo (%)</h3>
-              <p className="text-xs text-slate-400">Classificação de dividendos anuais de sua carteira ativa</p>
+              <p className="text-xs text-slate-400">Rendimento anual de dividendos comparando Ações vs FIIs</p>
             </div>
           </div>
           
@@ -904,83 +904,211 @@ export function DashboardView() {
           </div>
         </div>
 
-        {/* Bar Chart Container */}
+        {/* Legend Panel */}
+        <div className="flex items-center gap-6 text-xs bg-white/5 border border-white/5 px-4 py-2.5 rounded-2xl w-fit">
+          <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Legenda de Tipo:</span>
+          <div className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-md bg-gradient-to-t from-emerald-600 to-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.4)]"></span>
+            <span className="text-emerald-300 font-bold">Ações (Dividendos)</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-md bg-gradient-to-t from-indigo-600 to-indigo-400 shadow-[0_0_8px_rgba(99,102,241,0.4)]"></span>
+            <span className="text-indigo-300 font-bold">FIIs (Rendimento Mensal)</span>
+          </div>
+        </div>
+
+        {/* Bar Chart Container with horizontal scroll container for mobile layout integrity */}
         <div className="space-y-4">
-          {sortedAssetsForYield.map((asset) => {
-            const assetIdx = walletAssets.findIndex(a => a.ticker === asset.ticker);
-            const barColor = getColorForIndex(assetIdx !== -1 ? assetIdx : 0);
-            
-            const yieldVal = asset.yield * 100;
-            const weightVal = walletWeights[asset.ticker] || 0;
-            
-            // Calculate proportional bar width based on max yield in portfolio
-            const relativeWidth = Math.max(3, (asset.yield / maxYieldInPortfolio) * 100);
-            
-            return (
-              <div 
-                key={`yield-bar-${asset.ticker}`} 
-                className="group relative bg-black/15 hover:bg-white/5 border border-white/5 hover:border-white/10 rounded-2xl p-4 transition-all duration-300 flex flex-col md:flex-row md:items-center justify-between gap-4"
-              >
-                {/* Info block: Ticker, name, sector */}
-                <div className="flex items-center gap-3 min-w-[210px]">
-                  <span 
-                    className="w-3.5 h-3.5 rounded-full shrink-0 shadow-lg border border-white/10" 
-                    style={{ backgroundColor: barColor }}
-                  ></span>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono font-black text-white text-sm tracking-wide">{asset.ticker}</span>
-                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase ${
-                        asset.type === 'stocks'
-                          ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/10'
-                          : asset.type === 'fii'
-                            ? 'bg-indigo-500/10 text-indigo-300 border border-indigo-500/10'
-                            : 'bg-blue-500/10 text-blue-300 border-blue-500/10'
-                      }`}>
-                        {asset.type === 'stocks' ? 'Ação' : asset.type === 'fii' ? 'FII' : 'S&P'}
-                      </span>
-                      <span className="text-[10px] text-slate-400 font-bold font-mono bg-white/5 px-1.5 py-0.5 rounded">
-                        {weightVal}% peso
-                      </span>
-                    </div>
-                    <span className="text-xs text-slate-400 font-medium truncate max-w-[170px] block mt-0.5">
-                      {asset.name}
-                    </span>
-                  </div>
-                </div>
+          <div className="w-full overflow-x-auto scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+            <div className="min-w-[550px] p-2">
+              {(() => {
+                const svgWidth = 600;
+                const svgHeight = 250;
+                const paddingTop = 35;
+                const paddingBottom = 45;
+                const paddingLeft = 45;
+                const paddingRight = 15;
+                const chartHeight = svgHeight - paddingTop - paddingBottom;
+                const chartWidth = svgWidth - paddingLeft - paddingRight;
 
-                {/* Progress bar container */}
-                <div className="flex-1 space-y-1">
-                  <div className="w-full h-3.5 bg-black/35 rounded-full overflow-hidden border border-white/5 p-[2px]">
-                    <div 
-                      className="h-full rounded-full transition-all duration-1000 ease-out relative group-hover:brightness-110"
-                      style={{ 
-                        width: `${relativeWidth}%`,
-                        backgroundColor: barColor,
-                        boxShadow: `0 0 10px ${barColor}30`
-                      }}
-                    >
-                      {/* Subtle stripe effect for premium look */}
-                      <div className="absolute inset-0 bg-[linear-gradient(45deg,rgba(255,255,255,0.15)_25%,transparent_25%,transparent_50%,rgba(255,255,255,0.15)_50%,rgba(255,255,255,0.15)_75%,transparent_75%,transparent)] bg-[size:10px_10px] animate-[pulse_3s_infinite] opacity-30" />
-                    </div>
-                  </div>
-                  <div className="flex justify-between text-[10px] text-slate-500 font-semibold px-0.5">
-                    <span>{asset.sector}</span>
-                    <span>Proporção de rendimento</span>
-                  </div>
-                </div>
+                const maxYieldPct = Math.max(0.01, maxYieldInPortfolio * 100);
+                const barSpacing = chartWidth / Math.max(1, sortedAssetsForYield.length);
+                const barWidth = Math.min(28, Math.max(12, barSpacing * 0.5));
 
-                {/* Numerical Yield value flag badge */}
-                <div className="text-right flex items-center justify-between md:justify-end md:min-w-[120px] gap-2">
-                  <div className="md:hidden text-xs text-slate-400 font-semibold">Rendimento:</div>
-                  <div className="bg-emerald-500/10 border border-emerald-500/25 px-3 py-1.5 rounded-xl font-mono text-center shadow-inner">
-                    <span className="text-emerald-400 font-black text-sm">{yieldVal.toFixed(2)}%</span>
-                    <span className="text-[9px] text-emerald-300/80 block uppercase leading-none font-bold">Yield a.a.</span>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+                return (
+                  <svg 
+                    viewBox={`0 0 ${svgWidth} ${svgHeight}`} 
+                    className="w-full h-auto overflow-visible select-none"
+                  >
+                    <defs>
+                      {/* Gradient for Stocks ("Dividendos") */}
+                      <linearGradient id="grad-dividendos" x1="0" y1="1" x2="0" y2="0">
+                        <stop offset="0%" stopColor="#047857" />
+                        <stop offset="100%" stopColor="#10b981" />
+                      </linearGradient>
+                      
+                      {/* Gradient for FIIs ("Rendimento") */}
+                      <linearGradient id="grad-rendimento" x1="0" y1="1" x2="0" y2="0">
+                        <stop offset="0%" stopColor="#4f46e5" />
+                        <stop offset="100%" stopColor="#818cf8" />
+                      </linearGradient>
+
+                      {/* Backup scale gradient */}
+                      <linearGradient id="grad-backup" x1="0" y1="1" x2="0" y2="0">
+                        <stop offset="0%" stopColor="#1d4ed8" />
+                        <stop offset="100%" stopColor="#3b82f6" />
+                      </linearGradient>
+                    </defs>
+
+                    {/* Horizontal Grid lines */}
+                    {[0, 0.5, 1].map((ratio) => {
+                      const value = maxYieldPct * ratio;
+                      const yLine = svgHeight - paddingBottom - ratio * chartHeight;
+                      return (
+                        <g key={`y-grid-${ratio}`}>
+                          <line 
+                            x1={paddingLeft} 
+                            y1={yLine} 
+                            x2={svgWidth - paddingRight} 
+                            y2={yLine} 
+                            stroke="rgba(255, 255, 255, 0.08)" 
+                            strokeDasharray="4 4" 
+                            strokeWidth="1"
+                          />
+                          <text 
+                            x={paddingLeft - 8} 
+                            y={yLine + 3} 
+                            textAnchor="end" 
+                            fill="#94a3b8" 
+                            fontSize="9" 
+                            fontWeight="bold"
+                            className="font-mono"
+                          >
+                            {value.toFixed(1)}%
+                          </text>
+                        </g>
+                      );
+                    })}
+
+                    {/* Chart baseline */}
+                    <line 
+                      x1={paddingLeft} 
+                      y1={svgHeight - paddingBottom} 
+                      x2={svgWidth - paddingRight} 
+                      y2={svgHeight - paddingBottom} 
+                      stroke="rgba(255, 255, 255, 0.2)" 
+                      strokeWidth="1"
+                    />
+
+                    {/* Bars rendering */}
+                    {sortedAssetsForYield.map((asset, i) => {
+                      const valPct = asset.yield * 100;
+                      const barHeight = (valPct / maxYieldPct) * chartHeight;
+                      const x = paddingLeft + i * barSpacing + (barSpacing - barWidth) / 2;
+                      const y = svgHeight - paddingBottom - barHeight;
+
+                      const isStock = asset.type === 'stocks';
+                      const gradientId = isStock ? 'url(#grad-dividendos)' : asset.type === 'fii' ? 'url(#grad-rendimento)' : 'url(#grad-backup)';
+                      const glowColor = isStock ? 'rgba(16,185,129,0.3)' : 'rgba(99,102,241,0.3)';
+
+                      return (
+                        <g key={`v-bar-${asset.ticker}`} className="group cursor-pointer">
+                          {/* Invisible hover helper for bigger mouse area */}
+                          <rect 
+                            x={paddingLeft + i * barSpacing} 
+                            y={paddingTop} 
+                            width={barSpacing} 
+                            height={chartHeight + 10} 
+                            fill="transparent" 
+                          />
+
+                          {/* Glow background shape on bar hover */}
+                          <rect 
+                            x={x - 4} 
+                            y={y - 4} 
+                            width={barWidth + 8} 
+                            height={barHeight + 6} 
+                            rx={6} 
+                            fill={glowColor}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                          />
+
+                          {/* The actual vertical rounded bar */}
+                          <rect 
+                            x={x} 
+                            y={y} 
+                            width={barWidth} 
+                            height={Math.max(3, barHeight)} 
+                            rx={4} 
+                            fill={gradientId}
+                            className="transition-all duration-300 group-hover:brightness-110"
+                          />
+
+                          {/* Value pill label on top of each bar */}
+                          <g className="transition-all duration-300 transform group-hover:-translate-y-0.5">
+                            <rect 
+                              x={x + barWidth / 2 - 20} 
+                              y={y - 20} 
+                              width={40} 
+                              height={14} 
+                              rx={4} 
+                              fill="rgba(15, 23, 42, 0.9)" 
+                              stroke={isStock ? '#10b981' : '#6366f1'} 
+                              strokeWidth="1"
+                              className="shadow-lg"
+                            />
+                            <text 
+                              x={x + barWidth / 2} 
+                              y={y - 10} 
+                              textAnchor="middle" 
+                              fill={isStock ? '#34d399' : '#a5b4fc'} 
+                              fontSize="8" 
+                              fontWeight="black" 
+                              className="font-mono"
+                            >
+                              {valPct.toFixed(1)}%
+                            </text>
+                          </g>
+
+                          {/* Ticker label on bottom (X Coordinate) */}
+                          <text 
+                            x={x + barWidth / 2} 
+                            y={svgHeight - paddingBottom + 16} 
+                            textAnchor="middle" 
+                            fill="#f8fafc" 
+                            fontSize="10" 
+                            fontWeight="extrabold" 
+                            className="font-mono tracking-wider transition-colors duration-200 group-hover:fill-indigo-300"
+                          >
+                            {asset.ticker}
+                          </text>
+
+                          {/* Type subtitle (DIV vs REND) */}
+                          <text 
+                            x={x + barWidth / 2} 
+                            y={svgHeight - paddingBottom + 26} 
+                            textAnchor="middle" 
+                            fill={isStock ? '#6ee7b7' : '#c7d2fe'} 
+                            fontSize="7" 
+                            fontWeight="black" 
+                            className="opacity-70 font-sans tracking-tight"
+                          >
+                            {isStock ? 'DIVIDENDO' : 'RENDIMENTO'}
+                          </text>
+                        </g>
+                      );
+                    })}
+                  </svg>
+                );
+              })()}
+            </div>
+          </div>
+
+          {/* Swipe text for mobile layout helper */}
+          <div className="flex md:hidden items-center justify-center gap-1 text-[10px] text-slate-400 font-bold bg-white/5 py-1 px-3 rounded-lg w-fit mx-auto">
+            <span>Arraste para o lado para ver todos os ativos</span>
+            <ChevronRight className="w-3.5 h-3.5 animate-pulse" />
+          </div>
         </div>
       </div>
 
