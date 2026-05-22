@@ -13,6 +13,7 @@ export default function App() {
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [isInIframe, setIsInIframe] = useState(false);
 
   const [files, setFiles] = useState<{ id: string; name: string }[]>([]);
   const [loadingFiles, setLoadingFiles] = useState(false);
@@ -147,6 +148,10 @@ export default function App() {
     if (typeof window !== 'undefined' && window.location.protocol === 'http:' && !window.location.hostname.includes('localhost')) {
       window.location.href = window.location.href.replace('http:', 'https:');
       return;
+    }
+
+    if (typeof window !== 'undefined') {
+      setIsInIframe(window.self !== window.top);
     }
 
     initAuth(
@@ -455,10 +460,33 @@ export default function App() {
                   Para analisarmos sua planilha, precisamos de permissão para ler seus arquivos no Google Drive e Google Sheets.
                 </p>
               </div>
+
+              {/* Informative block for mobile/iframe login issues */}
+              {isInIframe && (
+                <div className="mx-auto max-w-md bg-amber-500/10 border border-amber-500/20 text-amber-300 rounded-2xl p-5 text-xs text-left leading-relaxed space-y-3.5 shadow-lg">
+                  <p className="font-extrabold flex items-center gap-2 text-amber-400 text-sm">
+                    ⚠️ Atenção para login no Celular
+                  </p>
+                  <p>
+                    Em navegadores de celular (iOS/Android), os sistemas de login integrados no painel interno (iframe) do Google AI Studio são frequentemente <strong>bloqueados por privacidade e segurança</strong>.
+                  </p>
+                  <p className="text-slate-300">
+                    Se o botão abaixo não responder ou falhar ao carregar, por favor, abra o aplicativo em uma janela limpa fora do painel de desenvolvimento utilizando o botão abaixo.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => window.open(window.location.href, '_blank')}
+                    className="w-full mt-2.5 py-2.5 px-4 bg-amber-500 text-black hover:bg-amber-400 transition font-black rounded-xl text-center active:scale-95 block cursor-pointer text-xs"
+                  >
+                    Abrir Aplicativo em Nova Aba (Externo) ↗
+                  </button>
+                </div>
+              )}
+
               <button 
                 onClick={handleLogin}
                 disabled={isLoggingIn}
-                className="gsi-material-button mx-auto flex items-center justify-center gap-3 px-6 py-3 border border-white/20 rounded-full font-medium hover:bg-white/10 transition shadow-lg bg-black/40 backdrop-blur-md text-white"
+                className="gsi-material-button mx-auto flex items-center justify-center gap-3 px-6 py-3 border border-white/20 rounded-full font-medium hover:bg-white/10 transition shadow-lg bg-black/40 backdrop-blur-md text-white cursor-pointer"
               >
                 {isLoggingIn ? <Loader2 className="w-5 h-5 animate-spin" /> : (
                   <svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" className="w-5 h-5">
