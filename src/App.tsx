@@ -260,14 +260,29 @@ export default function App() {
       }
 
       // Ensure we hit HTTPS directly to avoid HTTP -> HTTPS redirects which convert POST to GET on mobile browsers.
-      let apiUrl = `/api/process-data`;
-      if (typeof window !== 'undefined' && window.location.protocol === 'http:' && !window.location.hostname.includes('localhost')) {
-        apiUrl = `https://${window.location.host}/api/process-data`;
-      }
+      const isLocalhost = typeof window !== 'undefined' && window.location.hostname.includes('localhost');
+      const apiHost = isLocalhost ? '' : `https://${window.location.host}`;
+      
+      // We pass parameters inside both the URL query string and headers, in addition to the POST body.
+      // If a mobile Webview (like Microsoft OneNote) intercepts and converts the request to GET or strips the body,
+      // the server will still have redundant, robust access channels to find the active sheet ID & credentials!
+      const params = new URLSearchParams({
+        token: token || '',
+        spreadsheetId: actualId || '',
+        sheetName: activeSheetName || '',
+        analysisType: analysisType || ''
+      });
+      const apiUrl = `${apiHost}/api/process-data?${params.toString()}`;
 
       const res = await fetch(apiUrl, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "X-Google-Token": token || '',
+          "X-Spreadsheet-Id": actualId || '',
+          "X-Sheet-Name": activeSheetName || '',
+          "X-Analysis-Type": analysisType || ''
+        },
         body: JSON.stringify({ 
           token, 
           spreadsheetId: actualId, 

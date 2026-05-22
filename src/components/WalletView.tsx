@@ -224,9 +224,21 @@ export function WalletView() {
         sector: w.asset.sector
       }));
 
-      const res = await fetch('/api/wallet-insight', {
+      const isLocalhost = typeof window !== 'undefined' && window.location.hostname.includes('localhost');
+      const apiHost = isLocalhost ? '' : `https://${window.location.host}`;
+      
+      const walletStr = JSON.stringify(serializableWallet);
+      const params = new URLSearchParams({
+        wallet: walletStr
+      });
+      const apiUrl = `${apiHost}/api/wallet-insight?${params.toString()}`;
+
+      const res = await fetch(apiUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-Wallet-Data': walletStr
+        },
         body: JSON.stringify({ wallet: serializableWallet })
       });
 

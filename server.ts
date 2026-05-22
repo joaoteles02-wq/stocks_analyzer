@@ -20,11 +20,27 @@ async function startServer() {
     res.json({ env: process.env.NODE_ENV, test: "ok" });
   });
 
-  app.post("/api/wallet-insight", async (req, res) => {
+  app.all("/api/wallet-insight", async (req, res) => {
+    if (req.method === "OPTIONS") {
+      return res.sendStatus(204);
+    }
     try {
-      const { wallet } = req.body;
+      let wallet = req.body?.wallet;
+
+      // If POST body was dropped/redirected, parse from query param or custom header for mobile compatibility
+      if (!wallet) {
+        const rawWallet = req.query?.wallet || req.headers?.["x-wallet-data"];
+        if (typeof rawWallet === "string") {
+          try {
+            wallet = JSON.parse(decodeURIComponent(rawWallet));
+          } catch (e) {
+            console.error("Failed to parse fallback wallet string:", e);
+          }
+        }
+      }
+
       if (!wallet || !Array.isArray(wallet)) {
-        return res.status(400).json({ error: "Dados da carteira inválidos." });
+        return res.status(400).json({ error: "Dados da carteira inválidos ou não fornecidos." });
       }
 
       if (!process.env.GEMINI_API_KEY) {
@@ -93,13 +109,28 @@ Mantenha uma linguagem muito profissional, direta e sofisticada. Não use tabela
     if (req.method === "OPTIONS") {
       return res.sendStatus(204);
     }
-    
-    if (req.method !== "POST") {
-      return res.status(405).json({ error: "Method Not Allowed. Must be POST." });
-    }
 
     try {
-      const { sheetData, token, spreadsheetId, sheetName, analysisType } = req.body;
+      let { sheetData, token, spreadsheetId, sheetName, analysisType } = req.body || {};
+
+      // Unified extraction to support GET or downgraded requests
+      if (!token) {
+        token = req.headers?.["x-google-token"] || req.query?.token;
+      }
+      if (!spreadsheetId) {
+        spreadsheetId = req.headers?.["x-spreadsheet-id"] || req.query?.spreadsheetId;
+      }
+      if (!sheetName) {
+        sheetName = req.headers?.["x-sheet-name"] || req.query?.sheetName;
+      }
+      if (!analysisType) {
+        analysisType = req.headers?.["x-analysis-type"] || req.query?.analysisType;
+      }
+      if (!sheetData && req.query?.sheetData) {
+        try {
+          sheetData = JSON.parse(decodeURIComponent(req.query.sheetData as string));
+        } catch (e) {}
+      }
 
       let finalSheetData = sheetData;
 
