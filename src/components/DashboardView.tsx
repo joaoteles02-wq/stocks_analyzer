@@ -13,7 +13,9 @@ import {
   Eye, 
   EyeOff, 
   ChevronRight,
-  Info
+  Info,
+  BarChart2,
+  Percent
 } from 'lucide-react';
 
 interface HistoricalPoint {
@@ -92,6 +94,20 @@ export function DashboardView() {
   // Chart view Mode: 'individual' (show lines for each asset) or 'portfolio' (show aggregate consolidated portfolio value over time)
   const [chartMode, setChartMode] = useState<'individual' | 'portfolio'>('individual');
   const [showCdiBenchmark, setShowCdiBenchmark] = useState<boolean>(true);
+  const [yieldSortMode, setYieldSortMode] = useState<'yield' | 'ticker' | 'weight'>('yield');
+
+  const maxYieldInPortfolio = Math.max(...walletAssets.map(a => a.yield), 0.01);
+  const sortedAssetsForYield = [...walletAssets].sort((a, b) => {
+    if (yieldSortMode === 'yield') {
+      return b.yield - a.yield;
+    } else if (yieldSortMode === 'ticker') {
+      return a.ticker.localeCompare(b.ticker);
+    } else {
+      const wA = walletWeights[a.ticker] || 0;
+      const wB = walletWeights[b.ticker] || 0;
+      return wB - wA;
+    }
+  });
 
   // CDI accumulated monthly rates for 2026: Jan/26 (0.0%), Fev/26 (+0.82%), Mar/26 (+1.68%), Abr/26 (+2.53%), Mai/26 (+3.39%)
   const CDI_ACUMULADO_2026 = [0.0, 0.82, 1.68, 2.53, 3.39];
@@ -834,6 +850,138 @@ export function DashboardView() {
           </div>
         )}
 
+      </div>
+
+      {/* Yields Bar Chart Section */}
+      <div className="bg-black/30 border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6">
+        <div className="flex items-center justify-between flex-wrap gap-4 border-b border-white/10 pb-4">
+          <div className="flex items-center gap-2.5">
+            <BarChart2 className="w-6 h-6 text-emerald-400" />
+            <div>
+              <h3 className="text-lg font-bold text-white uppercase tracking-wider">Dividend Yields por Ativo (%)</h3>
+              <p className="text-xs text-slate-400">Classificação de dividendos anuais de sua carteira ativa</p>
+            </div>
+          </div>
+          
+          {/* Sorting / View Toggles */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-400 font-bold hidden sm:inline">Ordenar por:</span>
+            <div className="inline-flex bg-black/45 p-1 border border-white/10 rounded-xl text-xs gap-1">
+              <button
+                type="button"
+                onClick={() => setYieldSortMode('yield')}
+                className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                  yieldSortMode === 'yield'
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                    : 'text-slate-400 hover:text-white border border-transparent'
+                }`}
+              >
+                Rendimento
+              </button>
+              <button
+                type="button"
+                onClick={() => setYieldSortMode('ticker')}
+                className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                  yieldSortMode === 'ticker'
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                    : 'text-slate-400 hover:text-white border border-transparent'
+                }`}
+              >
+                Nome (Ticker)
+              </button>
+              <button
+                type="button"
+                onClick={() => setYieldSortMode('weight')}
+                className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                  yieldSortMode === 'weight'
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                    : 'text-slate-400 hover:text-white border border-transparent'
+                }`}
+              >
+                Peso (%)
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Bar Chart Container */}
+        <div className="space-y-4">
+          {sortedAssetsForYield.map((asset) => {
+            const assetIdx = walletAssets.findIndex(a => a.ticker === asset.ticker);
+            const barColor = getColorForIndex(assetIdx !== -1 ? assetIdx : 0);
+            
+            const yieldVal = asset.yield * 100;
+            const weightVal = walletWeights[asset.ticker] || 0;
+            
+            // Calculate proportional bar width based on max yield in portfolio
+            const relativeWidth = Math.max(3, (asset.yield / maxYieldInPortfolio) * 100);
+            
+            return (
+              <div 
+                key={`yield-bar-${asset.ticker}`} 
+                className="group relative bg-black/15 hover:bg-white/5 border border-white/5 hover:border-white/10 rounded-2xl p-4 transition-all duration-300 flex flex-col md:flex-row md:items-center justify-between gap-4"
+              >
+                {/* Info block: Ticker, name, sector */}
+                <div className="flex items-center gap-3 min-w-[210px]">
+                  <span 
+                    className="w-3.5 h-3.5 rounded-full shrink-0 shadow-lg border border-white/10" 
+                    style={{ backgroundColor: barColor }}
+                  ></span>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-black text-white text-sm tracking-wide">{asset.ticker}</span>
+                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase ${
+                        asset.type === 'stocks'
+                          ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/10'
+                          : asset.type === 'fii'
+                            ? 'bg-indigo-500/10 text-indigo-300 border border-indigo-500/10'
+                            : 'bg-blue-500/10 text-blue-300 border-blue-500/10'
+                      }`}>
+                        {asset.type === 'stocks' ? 'Ação' : asset.type === 'fii' ? 'FII' : 'S&P'}
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-bold font-mono bg-white/5 px-1.5 py-0.5 rounded">
+                        {weightVal}% peso
+                      </span>
+                    </div>
+                    <span className="text-xs text-slate-400 font-medium truncate max-w-[170px] block mt-0.5">
+                      {asset.name}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Progress bar container */}
+                <div className="flex-1 space-y-1">
+                  <div className="w-full h-3.5 bg-black/35 rounded-full overflow-hidden border border-white/5 p-[2px]">
+                    <div 
+                      className="h-full rounded-full transition-all duration-1000 ease-out relative group-hover:brightness-110"
+                      style={{ 
+                        width: `${relativeWidth}%`,
+                        backgroundColor: barColor,
+                        boxShadow: `0 0 10px ${barColor}30`
+                      }}
+                    >
+                      {/* Subtle stripe effect for premium look */}
+                      <div className="absolute inset-0 bg-[linear-gradient(45deg,rgba(255,255,255,0.15)_25%,transparent_25%,transparent_50%,rgba(255,255,255,0.15)_50%,rgba(255,255,255,0.15)_75%,transparent_75%,transparent)] bg-[size:10px_10px] animate-[pulse_3s_infinite] opacity-30" />
+                    </div>
+                  </div>
+                  <div className="flex justify-between text-[10px] text-slate-500 font-semibold px-0.5">
+                    <span>{asset.sector}</span>
+                    <span>Proporção de rendimento</span>
+                  </div>
+                </div>
+
+                {/* Numerical Yield value flag badge */}
+                <div className="text-right flex items-center justify-between md:justify-end md:min-w-[120px] gap-2">
+                  <div className="md:hidden text-xs text-slate-400 font-semibold">Rendimento:</div>
+                  <div className="bg-emerald-500/10 border border-emerald-500/25 px-3 py-1.5 rounded-xl font-mono text-center shadow-inner">
+                    <span className="text-emerald-400 font-black text-sm">{yieldVal.toFixed(2)}%</span>
+                    <span className="text-[9px] text-emerald-300/80 block uppercase leading-none font-bold">Yield a.a.</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {/* Grid bottom row: Asset List with Growth Indicators */}

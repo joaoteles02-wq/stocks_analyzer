@@ -376,7 +376,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[url('/Azul1.png')] bg-cover bg-center bg-fixed text-slate-100 font-sans p-6 md:p-12 selection:bg-indigo-500/30">
+    <div className="min-h-screen bg-[url('/Azul1.png')] bg-cover bg-center bg-fixed text-slate-100 font-sans p-6 md:p-12 pb-36 md:pb-36 selection:bg-indigo-500/30">
       <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-3xl -z-10"></div>
       <div className="max-w-4xl mx-auto space-y-8 relative z-10">
         
@@ -392,21 +392,11 @@ export default function App() {
             </div>
           </div>
           {user && (
-            <button 
-              onClick={() => setCurrentView(currentView === 'analysis' ? 'settings' : 'analysis')} 
-              className="p-3 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl text-white backdrop-blur-md shadow-lg transition flex items-center gap-2"
-            >
-              {currentView === 'analysis' ? (
-                <>
-                  <Settings className="w-5 h-5" />
-                </>
-              ) : (
-                <>
-                  <ArrowLeft className="w-5 h-5" />
-                  <span className="hidden sm:inline text-sm font-medium">Voltar</span>
-                </>
-              )}
-            </button>
+            <div className="flex items-center gap-2">
+              <span className="hidden sm:inline-block text-xs text-slate-300 font-medium bg-white/5 border border-white/10 px-3 py-1.5 rounded-lg max-w-[200px] truncate">
+                {user.email}
+              </span>
+            </div>
           )}
         </header>
 
@@ -417,50 +407,6 @@ export default function App() {
               <div className="p-4 bg-red-950/80 text-red-200 rounded-xl text-sm font-medium border border-red-500/50 backdrop-blur-md shadow-2xl text-center">
                 {error}
               </div>
-            </div>
-          )}
-
-          {/* Menu de Páginas Primário (Análise vs Carteira) */}
-          {!needsAuth && currentView !== 'settings' && (
-            <div className="flex border-b border-white/10 pb-5 mb-8 gap-1 sm:gap-6 justify-center flex-wrap">
-              <button
-                type="button"
-                onClick={() => setCurrentView('analysis')}
-                className={`pb-2 px-3 sm:px-4 text-sm sm:text-base font-bold transition-all relative flex items-center gap-2 cursor-pointer ${
-                  currentView === 'analysis'
-                    ? 'text-white border-b-2 border-indigo-400 font-extrabold'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <FileSpreadsheet className="w-4 h-4 sm:w-5 h-5 text-indigo-400" />
-                Análise de Planilhas
-              </button>
-              
-              <button
-                type="button"
-                onClick={() => setCurrentView('wallet')}
-                className={`pb-2 px-3 sm:px-4 text-sm sm:text-base font-bold transition-all relative flex items-center gap-2 cursor-pointer ${
-                  currentView === 'wallet'
-                    ? 'text-white border-b-2 border-indigo-400 font-extrabold'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <Wallet className="w-4 h-4 sm:w-5 h-5 text-indigo-400" />
-                Minha Carteira (Wallet)
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setCurrentView('dashboard')}
-                className={`pb-2 px-3 sm:px-4 text-sm sm:text-base font-bold transition-all relative flex items-center gap-2 cursor-pointer ${
-                  currentView === 'dashboard'
-                    ? 'text-white border-b-2 border-indigo-400 font-extrabold'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <LayoutDashboard className="w-4 h-4 sm:w-5 h-5 text-indigo-400" />
-                Dashboard
-              </button>
             </div>
           )}
           
@@ -828,6 +774,81 @@ export default function App() {
           
         </main>
       </div>
+
+      {/* Floating Bottom capsule Navigation Dock (Estilo Cirene com Divisões) */}
+      {!needsAuth && user && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-lg bg-slate-900/90 border border-white/20 backdrop-blur-xl rounded-2xl shadow-[0_12px_40px_-4px_rgba(0,0,0,0.8)] z-50 overflow-hidden flex items-center justify-between">
+          
+          {/* Tab 1: Análise */}
+          <button
+            type="button"
+            onClick={() => setCurrentView('analysis')}
+            className={`flex-1 py-3 px-1 flex flex-col items-center justify-center gap-1 cursor-pointer group transition-all duration-300 relative ${
+              currentView === 'analysis' ? 'text-indigo-400 font-bold' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            {currentView === 'analysis' && (
+              <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-[3px] bg-indigo-400 rounded-b-md shadow-[0_2px_10px_rgba(129,140,248,0.5)] animate-bounce"></span>
+            )}
+            <FileSpreadsheet className={`w-5 h-5 transition-transform duration-300 group-hover:scale-110 ${currentView === 'analysis' ? 'text-indigo-400' : 'text-slate-400 group-hover:text-white'}`} />
+            <span className="text-[10px] sm:text-xs font-semibold tracking-tight">Análise</span>
+          </button>
+
+          {/* Divider */}
+          <div className="h-6 w-px bg-white/10 shrink-0"></div>
+
+          {/* Tab 2: Wallet */}
+          <button
+            type="button"
+            onClick={() => setCurrentView('wallet')}
+            className={`flex-1 py-3 px-1 flex flex-col items-center justify-center gap-1 cursor-pointer group transition-all duration-300 relative ${
+              currentView === 'wallet' ? 'text-indigo-400 font-bold' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            {currentView === 'wallet' && (
+              <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-[3px] bg-indigo-400 rounded-b-md shadow-[0_2px_10px_rgba(129,140,248,0.5)] animate-bounce"></span>
+            )}
+            <Wallet className={`w-5 h-5 transition-transform duration-300 group-hover:scale-110 ${currentView === 'wallet' ? 'text-indigo-400' : 'text-slate-400 group-hover:text-white'}`} />
+            <span className="text-[10px] sm:text-xs font-semibold tracking-tight">Wallet</span>
+          </button>
+
+          {/* Divider */}
+          <div className="h-6 w-px bg-white/10 shrink-0"></div>
+
+          {/* Tab 3: Dashboard */}
+          <button
+            type="button"
+            onClick={() => setCurrentView('dashboard')}
+            className={`flex-1 py-3 px-1 flex flex-col items-center justify-center gap-1 cursor-pointer group transition-all duration-300 relative ${
+              currentView === 'dashboard' ? 'text-indigo-400 font-bold' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            {currentView === 'dashboard' && (
+              <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-[3px] bg-indigo-400 rounded-b-md shadow-[0_2px_10px_rgba(129,140,248,0.5)] animate-bounce"></span>
+            )}
+            <LayoutDashboard className={`w-5 h-5 transition-transform duration-300 group-hover:scale-110 ${currentView === 'dashboard' ? 'text-indigo-400' : 'text-slate-400 group-hover:text-white'}`} />
+            <span className="text-[10px] sm:text-xs font-semibold tracking-tight">Dashboard</span>
+          </button>
+
+          {/* Divider */}
+          <div className="h-6 w-px bg-white/10 shrink-0"></div>
+
+          {/* Tab 4: Configurações */}
+          <button
+            type="button"
+            onClick={() => setCurrentView('settings')}
+            className={`flex-1 py-3 px-1 flex flex-col items-center justify-center gap-1 cursor-pointer group transition-all duration-300 relative ${
+              currentView === 'settings' ? 'text-indigo-400 font-bold' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            {currentView === 'settings' && (
+              <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-[3px] bg-indigo-400 rounded-b-md shadow-[0_2px_10px_rgba(129,140,248,0.5)] animate-bounce"></span>
+            )}
+            <Settings className={`w-5 h-5 transition-transform duration-300 group-hover:scale-110 ${currentView === 'settings' ? 'text-indigo-400' : 'text-slate-400 group-hover:text-white'}`} />
+            <span className="text-[10px] sm:text-xs font-semibold tracking-tight">Ajustes</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }
