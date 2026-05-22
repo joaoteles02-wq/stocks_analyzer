@@ -1,6 +1,6 @@
 export async function searchStocksFilterSheet(accessToken: string) {
-  const query = "mimeType='application/vnd.google-apps.spreadsheet' and (name contains 'Filtros' and name contains 'ações')";
-  const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id, name)&pageSize=10`;
+  const query = "mimeType='application/vnd.google-apps.spreadsheet'";
+  const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&orderBy=modifiedTime desc&fields=files(id, name)&pageSize=20`;
 
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${accessToken}` },

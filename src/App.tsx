@@ -72,8 +72,9 @@ export default function App() {
     } catch (err: any) {
       if (err.message.includes("insufficient authentication scopes") || err.message.includes("Insufficient Permission")) {
         setError("Erro de permissão: Você esqueceu de marcar as caixinhas de permissão do Google Drive/Sheets no login. Clique em 'Sair' lá no topo e faça login novamente, marcando todas as caixinhas.");
-      } else if (err.message.includes("401") || err.message.toLowerCase().includes("unauthenticated") || err.message.toLowerCase().includes("invalid credentials")) {
-        setError("Sua sessão do Google expirou (o login dura cerca de 1 hora). Por favor, clique em 'Sair' lá no topo e faça login novamente para atualizar seu acesso.");
+      } else if (err.message.includes("401") || err.message.toLowerCase().includes("unauthenticated") || err.message.toLowerCase().includes("invalid authentication") || err.message.toLowerCase().includes("invalid credentials")) {
+        handleLogout();
+        setError("Sua sessão do Google expirou. Desconectamos sua conta, por favor faça login novamente.");
       } else {
         setError("Erro ao buscar arquivos no Drive: " + err.message);
       }
@@ -95,13 +96,10 @@ export default function App() {
         actualId = match[1];
       }
 
-      const sheetData = await getSpreadsheetData(token, actualId);
-      
-      const apiUrl = import.meta.env.VITE_API_URL || "https://ais-pre-c4aflswir5ucpz3k3dsyzv-246125694896.us-west2.run.app";
-      const res = await fetch(`${apiUrl}/api/analyze`, {
+      const res = await fetch(`/api/process-data`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sheetData }),
+        body: JSON.stringify({ token, spreadsheetId: actualId }),
       });
       
       let data;
@@ -122,8 +120,9 @@ export default function App() {
         setError("Erro de permissão: O Google bloqueou o acesso. Clique em 'Sair' ali em cima e faça login novamente. Na tela do Google, role para baixo e MARQUE as caixinhas de permissão do Google Drive e Sheets.");
       } else if (err.message.includes("429") || err.message.includes("quota") || err.message.includes("RESOURCE_EXHAUSTED")) {
         setError("Erro de Cota do Gemini AI: O limite de tokens da chave de API foi excedido (a planilha pode ser muito grande). Tente fechar e abrir um pouco mais tarde ou verifique os limites de faturamento da sua chave da API do Gemini.");
-      } else if (err.message.includes("401") || err.message.toLowerCase().includes("unauthenticated") || err.message.toLowerCase().includes("invalid credentials")) {
-        setError("Sua sessão do Google expirou (o login dura cerca de 1 hora). Por favor, clique em 'Sair' lá no topo e faça login novamente para atualizar seu acesso.");
+      } else if (err.message.includes("401") || err.message.toLowerCase().includes("unauthenticated") || err.message.toLowerCase().includes("invalid authentication") || err.message.toLowerCase().includes("invalid credentials")) {
+        handleLogout();
+        setError("Sua sessão do Google expirou. Desconectamos sua conta, por favor faça login novamente.");
       } else {
         setError("Erro ao analisar a planilha: " + err.message);
       }
@@ -133,7 +132,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop')] bg-cover bg-center bg-fixed text-slate-100 font-sans p-6 md:p-12 selection:bg-indigo-500/30">
+    <div className="min-h-screen bg-[url('/Azul1.png')] bg-cover bg-center bg-fixed text-slate-100 font-sans p-6 md:p-12 selection:bg-indigo-500/30">
       <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-3xl -z-10"></div>
       <div className="max-w-4xl mx-auto space-y-8 relative z-10">
         
@@ -144,7 +143,7 @@ export default function App() {
               <FileSpreadsheet className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight text-white drop-shadow-sm">Stocks Analyzer</h1>
+              <h1 className="text-2xl tracking-tight text-white drop-shadow-sm"><strong className="font-bold">Stocks</strong> <span className="font-normal italic">Analyzer</span></h1>
               <p className="text-slate-300 text-sm">IA Financeira Integrada ao Google Sheets</p>
             </div>
           </div>
@@ -156,7 +155,6 @@ export default function App() {
               {currentView === 'analysis' ? (
                 <>
                   <Settings className="w-5 h-5" />
-                  <span className="hidden sm:inline text-sm font-medium">Configurações</span>
                 </>
               ) : (
                 <>
@@ -168,7 +166,15 @@ export default function App() {
           )}
         </header>
 
-        <main className="bg-white/10 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/20 p-8">
+        <main className="bg-white/10 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/20 p-8 relative">
+          
+          {error && (
+            <div className="absolute -top-4 left-1/2 -translate-x-1/2 w-11/12 max-w-2xl z-50">
+              <div className="p-4 bg-red-950/80 text-red-200 rounded-xl text-sm font-medium border border-red-500/50 backdrop-blur-md shadow-2xl text-center">
+                {error}
+              </div>
+            </div>
+          )}
           
           {needsAuth ? (
             <div className="text-center py-12 space-y-6">
@@ -293,8 +299,7 @@ export default function App() {
               ) : (
                 <div className="space-y-8">
                   <div className="text-center mb-8">
-                    <p className="text-indigo-300 text-sm font-semibold tracking-wider uppercase mb-2">Pronto para Analisar</p>
-                    <h2 className="text-3xl font-bold text-white tracking-tight">Avaliar as 10 Melhores Ações</h2>
+                    <h2 className="text-3xl font-bold text-white tracking-tight uppercase tracking-wider">Top 10 the best</h2>
                   </div>
 
                   <button 
@@ -303,17 +308,11 @@ export default function App() {
                     className="w-full p-5 bg-gradient-to-r from-indigo-500/80 to-purple-600/80 hover:from-indigo-500 hover:to-purple-500 border border-white/20 backdrop-blur-md text-white rounded-2xl font-bold text-lg transition flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed shadow-xl hover:shadow-indigo-500/25"
                   >
                     {analyzing ? <Loader2 className="w-6 h-6 animate-spin" /> : <Search className="w-6 h-6" />}
-                    {analyzing ? 'Analisando via IA (Isso pode levar alguns segundos)...' : analysisResult ? 'Atualizar Avaliação (Ler Novamente)' : 'Ler Planilha e Gerar Ranking'}
+                    {analyzing ? 'Analisando via IA (Isso pode levar alguns segundos)...' : analysisResult ? 'Reload' : 'Ler Planilha e Gerar Ranking'}
                   </button>
                 </div>
               )}
-
-              {error && (
-                <div className="p-5 bg-red-950/50 text-red-200 rounded-xl text-sm font-medium border border-red-500/30 backdrop-blur-sm shadow-inner text-center">
-                  {error}
-                </div>
-              )}
-
+              
               {analysisResult && (
                 <div className="pt-10 border-t border-white/10 mt-10 relative">
                   <h3 className="text-2xl font-bold mb-8 text-white flex items-center gap-3">

@@ -19,18 +19,48 @@ async function startServer() {
     res.json({ env: process.env.NODE_ENV, test: "ok" });
   });
 
-  app.all("/api/analyze", async (req, res) => {
-    console.log("=> HIT /api/analyze", req.method, req.url, "body type:", typeof req.body);
+  app.all("/api/process-data", async (req, res) => {
+    console.log("=> HIT /api/process-data", req.method, req.url);
     
     if (req.method !== "POST") {
       return res.status(405).json({ error: "Method Not Allowed. Must be POST." });
     }
 
     try {
-      const { sheetData } = req.body;
+      const { sheetData, token, spreadsheetId } = req.body;
 
+      let finalSheetData = sheetData;
+
+      // If token and spreadsheetId are provided, fetch the data on the server
+      if (token && spreadsheetId) {
+        // Fetch metadata
+        const metaUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets.properties.title`;
+        const metaRes = await fetch(metaUrl, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (!metaRes.ok) {
+          const errText = await metaRes.text();
+          throw new Error(`Google Sheets Auth/Meta Error (${metaRes.status}): ${errText}`);
+        }
+        const metaData = await metaRes.json();
+        const firstSheetName = metaData.sheets?.[0]?.properties?.title || "Sheet1";
+
+        // Fetch values
+        const valuesUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(firstSheetName)}!A1:Z500`;
+        const valuesRes = await fetch(valuesUrl, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (!valuesRes.ok) {
+          const errText = await valuesRes.text();
+          throw new Error(`Google Sheets Values Error (${valuesRes.status}): ${errText}`);
+        }
+        const valuesData = await valuesRes.json();
+        finalSheetData = valuesData.values || [];
+      }
       
-      if (!sheetData) {
+      if (!finalSheetData) {
         return res.status(400).json({ error: "No sheet data provided." });
       }
 
@@ -41,7 +71,7 @@ async function startServer() {
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       
       const maxRows = 200; // Limit to prevent hitting token quotas
-      const limitedData = Array.isArray(sheetData) ? sheetData.slice(0, maxRows) : sheetData;
+      const limitedData = Array.isArray(finalSheetData) ? finalSheetData.slice(0, maxRows) : finalSheetData;
 
       const prompt = `Você é um analista financeiro experiente.
       O usuário forneceu os dados de uma planilha contendo índices de ações e notas explicativas. 
