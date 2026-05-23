@@ -313,28 +313,23 @@ export function DashboardView() {
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       
-      {/* Banner / Header Row */}
-      <div className="bg-black/30 border border-white/10 rounded-3xl p-6 md:p-8 flex flex-col md:flex-row items-center justify-between gap-6 shadow-xl">
-        <div className="space-y-1.5 text-center md:text-left">
-          <h2 className="text-3xl font-extrabold text-white tracking-tight flex items-center justify-center md:justify-start gap-3">
-            <LineChart className="w-8 h-8 text-emerald-400" />
-            Painel de Desempenho (Dashboard)
-          </h2>
-          <p className="text-slate-300 max-w-xl text-sm leading-relaxed">
-            Monitore a valorização e a oscilação histórica dos ativos da sua carteira em tempo real. Alterne visualizações individuais ou a performance consolidada total de seu investimento.
-          </p>
-        </div>
-
-        {/* Period identifier */}
-        <div className="flex items-center gap-2 bg-indigo-500/10 border border-indigo-400/20 px-4.5 py-2.5 rounded-2xl shadow-inner">
-          <Calendar className="w-4 h-4 text-indigo-400 shrink-0" />
-          <span className="text-xs font-bold text-indigo-300">Acumulado No Ano (desde Jan/2026)</span>
-        </div>
-      </div>
-
       {/* Metrics Row */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         
+        {/* Metric - Patrimônio Inicial */}
+        <div className="bg-black/25 border border-white/10 rounded-2xl p-5 flex items-center justify-between shadow-lg">
+          <div>
+            <span className="text-xs text-slate-400 font-bold block uppercase tracking-wider mb-1">Patrimônio Inicial</span>
+            <span className="text-2xl font-black text-white">
+              R$ {initialTotalValuation.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+            <span className="text-[10px] text-slate-400 block mt-1">Valor inicial (Jan/2026)</span>
+          </div>
+          <div className="bg-blue-500/10 p-3 rounded-xl border border-blue-500/20 text-blue-400">
+            <DollarSign className="w-6 h-6" />
+          </div>
+        </div>
+
         {/* Metric 1 */}
         <div className="bg-black/25 border border-white/10 rounded-2xl p-5 flex items-center justify-between shadow-lg">
           <div>
@@ -1198,7 +1193,7 @@ export function DashboardView() {
               <span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
               Causa Raiz & Justificativa Financeira
             </h4>
-            <div className="text-xs text-slate-300 space-y-3 leading-relaxed">
+            <div className="text-sm text-slate-300 space-y-3 leading-relaxed">
               <p>
                 A atual taxa básica de juros (Selic) em patamares elevados força o benchmark <strong className="text-white">CDI</strong> a uma capitalização diária composta extremamente rigorosa e sem drawdowns (volatilidade neutra).
               </p>
@@ -1206,7 +1201,7 @@ export function DashboardView() {
                 Em contrapartida, nossa carteira tem alta exposição a <strong className="text-white">FIIs (Fundos Imobiliários) e Ações de Valor</strong>. No curto prazo, a elevação dos juros reais gera o efeito de <em className="text-slate-400">abertura da curva de juros</em>, diminuindo os valuations dos ativos de renda variável através do desconto de fluxos de caixa futuros e pressionando temporariamente os preços das cotas.
               </p>
               <p>
-                Ademais, os proventos acumulados (Dividend Yields exibidos em nosso novo gráfico de barras) são creditados periodicamente em caixa e levam alguns ciclos de reinvestimento para acelerar o efeito bola de neve no montante consolidade.
+                Ademais, os proventos acumulados (Dividend Yields exibidos em nosso novo gráfico de barras) são creditados periodicamente em caixa e levam alguns ciclos de reinvestimento para acelerar o efeito bola de neve no montante consolidado.
               </p>
             </div>
           </div>
@@ -1217,7 +1212,7 @@ export function DashboardView() {
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
               Plano de Ação & Ajuste de Alocação
             </h4>
-            <div className="text-xs text-slate-300 space-y-3 leading-relaxed">
+            <div className="text-sm text-slate-300 space-y-3 leading-relaxed">
               <p>
                 Para potencializar o retorno da carteira e convergir com o CDI (ou superá-lo no médio prazo), recomendamos as seguintes ações:
               </p>
@@ -1247,7 +1242,7 @@ export function DashboardView() {
         </div>
 
         {/* Dynamic warning footer indicator */}
-        <div className="flex items-center gap-2 bg-indigo-500/10 border border-indigo-500/20 p-3 rounded-xl text-[10px] text-indigo-300 font-medium">
+        <div className="flex items-center gap-2 bg-indigo-500/10 border border-indigo-500/20 p-3 rounded-xl text-sm text-indigo-300 font-medium">
           <Info className="w-4 h-4 text-indigo-400 shrink-0" />
           <span>Nota Técnica: Renda variável exige foco no crescimento orgânico dos ativos. Flutuações de curto prazo frente a taxas de juros de dois dígitos são normais e costumam anteceder períodos de forte recuperação nos ciclos de corte de juros.</span>
         </div>
