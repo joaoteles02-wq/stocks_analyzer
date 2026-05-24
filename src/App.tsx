@@ -237,6 +237,15 @@ export default function App() {
       } catch (err: any) {
         console.error("Failed to load sheet list:", err);
         setSheetNames([]);
+        const errMsg = err.message || '';
+        if (errMsg.includes("insufficient authentication scopes") || errMsg.includes("Insufficient Permission")) {
+          setError("Erro de permissão: Você esqueceu de marcar as caixinhas de permissão para ler arquivos do Google Drive e Sheets ao fazer login. Clique em 'Sair' lá no topo e faça login novamente marcando todas as permissões.");
+        } else if (errMsg.includes("401") || errMsg.toLowerCase().includes("unauthenticated") || errMsg.toLowerCase().includes("invalid authentication") || errMsg.toLowerCase().includes("invalid credentials")) {
+          setTokenExpired(true);
+          setError("Sua sessão de conexão do Google Planilhas expirou por segurança. Use o botão amarelo de reconexão 'Reconectar Google Drive' acima.");
+        } else {
+          setError(`Erro ao carregar lista de abas: ${errMsg}`);
+        }
       } finally {
         setLoadingSheets(false);
       }
@@ -253,7 +262,11 @@ export default function App() {
     }
 
     if (typeof window !== 'undefined') {
-      setIsInIframe(window.self !== window.top);
+      try {
+        setIsInIframe(window.self !== window.top);
+      } catch (e) {
+        setIsInIframe(true);
+      }
     }
 
     initAuth(

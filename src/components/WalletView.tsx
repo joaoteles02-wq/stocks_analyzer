@@ -719,10 +719,10 @@ export function WalletView() {
                           <span className="text-xs font-black text-white font-mono">{slot.asset.ticker}</span>
                           <span className={`text-[9.5px] px-1.5 py-0.2 rounded font-bold uppercase ${
                             slot.asset.type === 'fii' 
-                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
+                              ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' 
                               : slot.asset.type === 'stocks'
-                                ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
-                                : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
                           }`}>
                             {slot.asset.type === 'fii' ? 'FII' : slot.asset.type === 'stocks' ? 'Ação BR' : 'S&P 500'}
                           </span>
@@ -1005,7 +1005,7 @@ export function WalletView() {
                             slot.asset.type === 'stocks' 
                               ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20' 
                               : slot.asset.type === 'fii'
-                                ? 'bg-indigo-500/10 text-indigo-300 border-indigo-500/20'
+                                ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
                                 : 'bg-blue-500/10 text-blue-300 border-blue-500/20'
                           }`}>
                             {slot.asset.type === 'stocks' ? 'Ações BR' : slot.asset.type === 'fii' ? 'FII' : 'S&P 500'}
@@ -1152,12 +1152,12 @@ export function WalletView() {
                     />
                   )}
 
-                  {/* Arc FIIs (Indigo) */}
+                  {/* Arc FIIs (Amber) */}
                   {fiiWeight > 0 && (
                     <path
                       d={getPiePath(0, fiiWeight, 40)}
                       fill="none"
-                      stroke="#6366f1"
+                      stroke="#f59e0b"
                       strokeWidth="10"
                       strokeDasharray={`${(fiiWeight / 100) * 251.2} 251.2`}
                       strokeDashoffset={-((stocksWeight / 100) * 251.2)}
@@ -1194,7 +1194,7 @@ export function WalletView() {
                   <span className="text-xs font-bold text-white">{stocksWeight}%</span>
                 </div>
                 <div className="bg-black/20 p-2 rounded-xl border border-white/5">
-                  <span className="block w-2.5 h-2.5 rounded-full bg-indigo-500 mx-auto mb-1"></span>
+                  <span className="block w-2.5 h-2.5 rounded-full bg-amber-500 mx-auto mb-1"></span>
                   <span className="text-[10px] text-slate-400 block font-bold">FIIs BR</span>
                   <span className="text-xs font-bold text-white">{fiiWeight}%</span>
                 </div>

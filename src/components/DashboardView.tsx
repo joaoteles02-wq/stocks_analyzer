@@ -124,7 +124,10 @@ export function DashboardView() {
   const [showCdiBenchmark, setShowCdiBenchmark] = useState<boolean>(true);
   const [yieldSortMode, setYieldSortMode] = useState<'yield' | 'ticker' | 'weight'>('yield');
 
-  const maxYieldInPortfolio = Math.max(...walletAssets.map(a => a.yield), 0.01);
+  const maxYieldInPortfolio = Math.max(
+    ...walletAssets.map(a => typeof a.yield === 'number' && !isNaN(a.yield) ? a.yield : 0),
+    0.01
+  );
   const sortedAssetsForYield = [...walletAssets].sort((a, b) => {
     if (yieldSortMode === 'yield') {
       return b.yield - a.yield;
@@ -268,18 +271,35 @@ export function DashboardView() {
   }
 
   // Soft pad bounds for visual headrooms
-  const boundMargin = (maxVal - minVal) * 0.1 || 10;
+  let boundMargin = (maxVal - minVal) * 0.1;
+  if (isNaN(boundMargin) || !isFinite(boundMargin)) {
+    boundMargin = 10;
+  }
   minVal = Math.max(0, minVal - boundMargin);
   maxVal = maxVal + boundMargin;
 
+  // Safeguard bounds from invalid Y ranges
+  if (!isFinite(minVal) || isNaN(minVal)) minVal = 0;
+  if (!isFinite(maxVal) || isNaN(maxVal)) maxVal = 100;
+  if (minVal >= maxVal) {
+    minVal = 0;
+    maxVal = 100;
+  }
+
   // Mapping coordinate calculators
   const getX = (index: number) => {
-    return paddingLeft + (index / (dataPoints.length - 1)) * chartWidth;
+    if (dataPoints.length <= 1) return paddingLeft;
+    const xVal = paddingLeft + (index / (dataPoints.length - 1)) * chartWidth;
+    return isNaN(xVal) || !isFinite(xVal) ? paddingLeft : xVal;
   };
 
   const getY = (val: number) => {
-    const scale = (val - minVal) / (maxVal - minVal);
-    return svgHeight - paddingBottom - scale * chartHeight;
+    const denominator = maxVal - minVal;
+    if (denominator <= 0) return svgHeight - paddingBottom;
+    const valClipped = isNaN(val) || !isFinite(val) ? minVal : val;
+    const scale = (valClipped - minVal) / denominator;
+    const yVal = svgHeight - paddingBottom - scale * chartHeight;
+    return isNaN(yVal) || !isFinite(yVal) ? svgHeight - paddingBottom : yVal;
   };
 
   // Color mapping helper for up to 10 distinct high-contrast stocks
@@ -1006,8 +1026,8 @@ export function DashboardView() {
             <span className="text-emerald-300 font-bold">Ações (Dividendos)</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="w-3 h-3 rounded-md bg-gradient-to-t from-indigo-600 to-indigo-400 shadow-[0_0_8px_rgba(99,102,241,0.4)]"></span>
-            <span className="text-indigo-300 font-bold">FIIs (Rendimento Mensal)</span>
+            <span className="w-3 h-3 rounded-md bg-gradient-to-t from-amber-600 to-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.4)]"></span>
+            <span className="text-amber-300 font-bold">FIIs (Rendimento Mensal)</span>
           </div>
         </div>
 
@@ -1043,8 +1063,8 @@ export function DashboardView() {
                       
                       {/* Gradient for FIIs ("Rendimento") */}
                       <linearGradient id="grad-rendimento" x1="0" y1="1" x2="0" y2="0">
-                        <stop offset="0%" stopColor="#4f46e5" />
-                        <stop offset="100%" stopColor="#818cf8" />
+                        <stop offset="0%" stopColor="#d97706" />
+                        <stop offset="100%" stopColor="#f59e0b" />
                       </linearGradient>
 
                       {/* Backup scale gradient */}
@@ -1103,7 +1123,7 @@ export function DashboardView() {
 
                       const isStock = asset.type === 'stocks';
                       const gradientId = isStock ? 'url(#grad-dividendos)' : asset.type === 'fii' ? 'url(#grad-rendimento)' : 'url(#grad-backup)';
-                      const glowColor = isStock ? 'rgba(16,185,129,0.3)' : 'rgba(99,102,241,0.3)';
+                      const glowColor = isStock ? 'rgba(16,185,129,0.3)' : asset.type === 'fii' ? 'rgba(245,158,11,0.3)' : 'rgba(59,130,246,0.3)';
 
                       return (
                         <g key={`v-bar-${asset.ticker}`} className="group cursor-pointer">
@@ -1246,7 +1266,7 @@ export function DashboardView() {
                         asset.type === 'stocks' 
                           ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20' 
                           : asset.type === 'fii'
-                            ? 'bg-indigo-500/10 text-indigo-300 border-indigo-500/20'
+                            ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'
                             : 'bg-blue-500/10 text-blue-300 border-blue-500/20'
                       }`}>
                         {asset.type === 'stocks' ? 'Ação BR' : asset.type === 'fii' ? 'FII' : 'S&P 500'}
