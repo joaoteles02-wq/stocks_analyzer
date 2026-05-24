@@ -10,8 +10,33 @@ const provider = new GoogleAuthProvider();
 provider.addScope('https://www.googleapis.com/auth/drive.readonly');
 provider.addScope('https://www.googleapis.com/auth/spreadsheets.readonly');
 provider.setCustomParameters({
-  prompt: 'consent' // Forces consent screen so user can check missing boxes
+  prompt: 'select_account' // Let user pick account easily without forcing full consent prompts every time
 });
+
+export const saveTokenToServer = async (uid: string, token: string) => {
+  try {
+    await fetch('/api/save-token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uid, token })
+    });
+  } catch (err) {
+    console.error('Failed to save token to server:', err);
+  }
+};
+
+export const getTokenFromServer = async (uid: string): Promise<string | null> => {
+  try {
+    const res = await fetch(`/api/get-token?uid=${encodeURIComponent(uid)}`);
+    if (res.ok) {
+      const data = await res.json();
+      return data.token;
+    }
+  } catch (err) {
+    console.error('Failed to get token from server:', err);
+  }
+  return null;
+};
 
 let isSigningIn = false;
 let cachedAccessToken: string | null = localStorage.getItem('google_access_token') || sessionStorage.getItem('google_access_token');
@@ -29,6 +54,9 @@ export const initAuth = (
           cachedAccessToken = credential.accessToken;
           localStorage.setItem('google_access_token', cachedAccessToken);
           sessionStorage.setItem('google_access_token', cachedAccessToken);
+          if (result.user) {
+            saveTokenToServer(result.user.uid, cachedAccessToken);
+          }
           if (onAuthSuccess && result.user) {
             onAuthSuccess(result.user, cachedAccessToken);
           }
@@ -44,8 +72,24 @@ export const initAuth = (
         if (user) {
           if (currentToken) {
             cachedAccessToken = currentToken;
+            // Also update the server in the background to ensure it is always synced
+            saveTokenToServer(user.uid, currentToken);
             if (onAuthSuccess) onAuthSuccess(user, currentToken);
           } else {
+            // Try in background to resolve from server store
+            try {
+              const serverToken = await getTokenFromServer(user.uid);
+              if (serverToken) {
+                cachedAccessToken = serverToken;
+                localStorage.setItem('google_access_token', serverToken);
+                sessionStorage.setItem('google_access_token', serverToken);
+                if (onAuthSuccess) onAuthSuccess(user, serverToken);
+                return;
+              }
+            } catch (err) {
+              console.error('Error fetching token on auth state changed:', err);
+            }
+
             // We have a user but no Google Sheets/Drive OAuth token in storage. 
             // They need to click login again to grant specific Drive scopes.
             cachedAccessToken = null;
@@ -100,6 +144,9 @@ export const googleSignIn = async (method: 'popup' | 'redirect' = 'popup'): Prom
     cachedAccessToken = credential.accessToken;
     localStorage.setItem('google_access_token', cachedAccessToken);
     sessionStorage.setItem('google_access_token', cachedAccessToken);
+    if (result.user) {
+      await saveTokenToServer(result.user.uid, cachedAccessToken);
+    }
     return { user: result.user, accessToken: cachedAccessToken };
   } catch (error: any) {
     console.error('Sign in error:', error);

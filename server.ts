@@ -3,6 +3,7 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import cors from "cors";
+import fs from "fs";
 
 async function startServer() {
   const app = express();
@@ -103,6 +104,50 @@ Mantenha uma linguagem muito profissional, direta e sofisticada. Não use tabela
     }
   });
 
+  // Persistent server side session store for Google Access Tokens
+  const tokenFilePath = path.join(process.cwd(), "user_tokens.json");
+
+  const getStoredTokens = (): Record<string, string> => {
+    try {
+      if (fs.existsSync(tokenFilePath)) {
+        return JSON.parse(fs.readFileSync(tokenFilePath, "utf8"));
+      }
+    } catch (e) {
+      console.error("Error reading token file:", e);
+    }
+    return {};
+  };
+
+  const saveStoredTokens = (tokens: Record<string, string>) => {
+    try {
+      fs.writeFileSync(tokenFilePath, JSON.stringify(tokens, null, 2), "utf8");
+    } catch (e) {
+      console.error("Error writing token file:", e);
+    }
+  };
+
+  app.post("/api/save-token", (req, res) => {
+    const { uid, token } = req.body || {};
+    if (!uid || !token) {
+      return res.status(400).json({ error: "Missing uid or token" });
+    }
+    const tokens = getStoredTokens();
+    tokens[uid] = token;
+    saveStoredTokens(tokens);
+    console.log(`=> Saved Google OAuth token for user ${uid}`);
+    res.json({ success: true });
+  });
+
+  app.get("/api/get-token", (req, res) => {
+    const uid = req.query.uid as string;
+    if (!uid) {
+      return res.status(400).json({ error: "Missing uid parameter" });
+    }
+    const tokens = getStoredTokens();
+    const token = tokens[uid] || null;
+    res.json({ token });
+  });
+
   app.all("/api/process-data", async (req, res) => {
     console.log("=> HIT /api/process-data", req.method, req.url);
     
@@ -187,21 +232,21 @@ Mantenha uma linguagem muito profissional, direta e sofisticada. Não use tabela
       if (isFii) {
         prompt = `Você é um analista financeiro experiente especializado em Fundos de Investimentos Imobiliários (FIIs).
       O usuário forneceu os dados de uma planilha contendo índices e indicadores de Fundos Imobiliários (FIIs) e notas explicativas.
-      Sua tarefa é analisar os dados globalmente e identificar quais os melhores FIIs segundo esta planilha e criar um ranking completo das melhores opções.
+      Sua tarefa é analisar os dados globalmente de acordo com a planilha e criar um ranking completo com exatamente as 10 melhores opções (Top 10).
       
-      **REGRA DE PORTUGUÊS/INÍCIO OBRIGATÓRIA**: O relatório gerado deve **SEMPRE começar diretamente** com uma lista numerada estilo resumo contendo as marcas de todos os ativos únicos lidos na planilha enviada e seu respectivo segmento de atuação no seguinte formato exato (sem títulos grandes antes dela ou markdown de marcação no início do documento, comece direto no número 1):
+      **REGRA DE PORTUGUÊS/INÍCIO OBRIGATÓRIA**: O relatório gerado deve ser escrito inteiramente em português e **SEMPRE começar diretamente** com o título e em seguida um índice ou resumo numerado contendo estritamente e exclusivamente os 10 ativos selecionados para o ranking Top 10 (NÃO liste todos os 187 ativos ou todas as linhas lidas na planilha para não poluir o relatório, liste APENAS as 10 melhores opções selecionadas, um por linha), no seguinte formato exato (sem dilações antes, comece direto no número 1):
       1. TICKER - Tipo/Segmento (especificação curtíssima de 5-8 palavras)
       2. TICKER - Tipo/Segmento (especificação curtíssima de 5-8 palavras)
       ...
-      (Listar dessa maneira todos os ativos únicos lidos nos dados, um por linha, de forma extremamente enxuta. Se o mesmo ticker se repetir na planilha, liste-o apenas uma vez neste índice inicial).
+      (Listar dessa maneira apenas os 10 selecionados para o ranking Top 10).
       
-      Depois de listar a lista completa de ativos lidos no início, insira uma linha em branco e então prossiga obrigatoriamente com toda a análise detalhada tradicional (Avaliação geral de mercado, o ranking Top 10 completo, justificativas e as demais recomendações/ressalvas).
+      Depois de listar a lista reduzida de no máximo 10 ativos escolhidos no início, insira uma linha em branco e então prossiga obrigatoriamente com toda a análise detalhada tradicional (Avaliação geral de mercado, o ranking Top 10 completo, justificativas e as demais recomendações/ressalvas).
       
-      **ATENÇÃO CRÍTICA**: Você deve IMPRETERIVELMENTE gerar o ranking Top 10 completo. Nunca omita o ranking e nunca deixe a geração incompleta ou resumida! O ranking sob o título "Top 10 the best FII's" com as 10 melhores posições detalhadas uma a uma é a entrega mais importante exigida pelo usuário.
+      **ATENÇÃO CRÍTICA**: Você deve IMPRETERIVELMENTE gerar o ranking de apenas 10 ativos sob o título "Top 10 Melhores FIIs". Nunca exceda 10 posições no detalhamento nem liste todos os ativos da planilha! O ranking detalhado de 1 a 10 é o que o usuário quer.
       
       Por favor, forneça nos tópicos subsequentes:
       1. Uma breve avaliação geral sobre o mercado de FIIs atual, analisando o equilíbrio entre fundos de papel e fundos de tijolo (logística, shoppings, escritórios) com base nos dados fornecidos na tabela.
-      2. O ranking dos 10 melhores FIIs (ou os melhores disponíveis se forem menos de 10) sob o título "Top 10 the best FII's". **OBRIGATÓRIO: NÃO use tabelas. Apresente o ranking de forma visualmente agradável usando títulos, listas e parágrafos.** Para cada FII, crie uma seção contendo:
+      2. O ranking dos 10 melhores FIIs (ou os melhores disponíveis se forem menos de 10) sob o título "Top 10 Melhores FIIs". **OBRIGATÓRIO: NÃO use tabelas. Apresente o ranking de forma visualmente agradável usando títulos, listas e parágrafos.** Para cada FII, crie uma seção contendo:
          - **Posição e FII/Ticker** (Exemplo: ### 1º Lugar - HGLG11)
          - **Tipo/Segmento:** (Segmento de atuação: Papel, Tijolo-Galpões Logísticos, Tijolo-Shoppings, Tijolo-Lajes, Fundos de Fundos, etc.)
          - **Motivo/Destaque:** Um parágrafo bem redigido explicando de forma fundamentada a escolha (considerando dividend yield, p/vp, vacância, liquidez ou outros dados fornecidos na planilha) e o motivo da escolha.
@@ -216,7 +261,7 @@ Mantenha uma linguagem muito profissional, direta e sofisticada. Não use tabela
       } else if (isSp500) {
         prompt = `Você é um analista financeiro experiente de investimentos globais, especializado no mercado norte-americano e no índice S&P 500.
       O usuário forneceu os dados de uma planilha contendo índices, métricas financeiras e notas explicativas de empresas listadas no S&P 500.
-      Sua tarefa é analisar os dados globalmente e identificar quais as melhores ações do S&P 500 de acordo com os critérios dessa planilha e criar um ranking completo das melhores opções focando no crescimento real do patrimônio a médio e longo prazo.
+      Sua tarefa é analisar os dados globalmente e identificar as 10 melhores ações do S&P 500 de acordo com os critérios dessa planilha e criar um ranking completo com exatamente as 10 melhores opções (Top 10) focando no crescimento real do patrimônio a médio e longo prazo.
       
       A planilha fornecida contém métricas essenciais de análise em colunas específicas: Dividend Yield (Coluna I / Index 8 de cada linha de dados), EV/EBITDA (Coluna K / Index 10) e ROE (Coluna L / Index 11). Como analista experiente focado no crescimento do Patrimônio Consolidado e proteção em mercados adversos, você deve estruturar suas escolhas de forma estritamente fundamentada aplicando uma estratégia clássica de Fatores e Valor (QARP - Quality at a Reasonable Price) usando estes dados:
       - **Margem de Segurança (EV/EBITDA na Coluna K)**: Evite ativos com valuation inflacionado. Priorize múltiplos de EV/EBITDA saudáveis e descontados (ex: entre 4x e 12x), descartando empresas com múltiplos absurdamente altos ou negativos que indiquem estresse real.
@@ -224,22 +269,22 @@ Mantenha uma linguagem muito profissional, direta e sofisticada. Não use tabela
       - **Previsibilidade e Cushion de Caixa (Dividend Yield na Coluna I)**: Considere o retorno de dividendos como um colchão defensivo em tempos de juros altos ou inflação, impulsionando os dividendos reinvestidos na página Wallet.
       - **Ausência de Beta**: Já que a planilha não possui coluna de Beta, avalie o risco baseando-se no setor de atuação e na estabilidade operacional do negócio (preferindo setores resilientes como utilidades públicas, saúde e consumo não-cíclico se os múltiplos e eficiência forem semelhantes).
 
-      **REGRA DE PORTUGUÊS/INÍCIO OBRIGATÓRIA**: O relatório gerado deve **SEMPRE começar diretamente** com uma lista numerada estilo resumo contendo todos os ativos únicos lidos na planilha enviada e seu respectivo setor/indústria principal no seguinte formato exato (sem títulos grandes antes dela ou markdown de marcação no início do documento, comece direto no número 1):
+      **REGRA DE PORTUGUÊS/INÍCIO OBRIGATÓRIA**: O relatório gerado deve ser escrito inteiramente em português e **SEMPRE começar diretamente** com o título e em seguida um índice ou resumo numerado contendo estritamente e exclusivamente os 10 ativos selecionados para o ranking Top 10 (NÃO liste todos os 187 ativos ou todas as linhas lidas na planilha para não poluir o relatório, liste APENAS as 10 melhores opções selecionadas, uma por linha), no seguinte formato exato (sem dilações antes, comece direto no número 1):
       1. TICKER - Setor (especificação curtíssima de 5-8 palavras)
       2. TICKER - Setor (especificação curtíssima de 5-8 palavras)
       ...
-      (Listar dessa maneira todos os ativos únicos lidos nos dados, um por linha, de forma extremamente enxuta. Se o mesmo ticker se repetir na planilha, liste-o apenas uma vez neste índice inicial).
+      (Listar dessa maneira apenas as 10 melhores ações do S&P 500 selecionadas para o ranking).
       
-      Depois de listar a lista completa de ativos lidos no início, insira uma linha em branco e então prossiga obrigatoriamente com toda a análise detalhada tradicional (Avaliação geral de mercado, o ranking Top 10 completo, justificativas e as demais recomendações/ressalvas).
+      Depois de listar a lista reduzida de no máximo 10 ações escolhidas no início, insira uma linha em branco e então prossiga obrigatoriamente com toda a análise detalhada tradicional (Avaliação geral de mercado, o ranking Top 10 completo, justificativas e as demais recomendações/ressalvas).
       
-      **ATENÇÃO CRÍTICA**: Você deve IMPRETERIVELMENTE gerar o ranking Top 10 completo. Nunca omita o ranking e nunca deixe a geração incompleta ou resumida! O ranking sob o título "Top 10 the best S&P 500" com as 10 melhores posições detalhadas uma a uma é a entrega mais importante exigida pelo usuário.
+      **ATENÇÃO CRÍTICA**: Você deve IMPRETERIVELMENTE gerar o ranking de apenas 10 ações do S&P 500 sob o título "Top 10 Melhores Ações S&P 500". Nunca exceda 10 posições no detalhamento nem liste todos os ativos da planilha de entrada! O ranking detalhado de 1 a 10 é o que o usuário quer.
       
       Por favor, forneça nos tópicos subsequentes:
       1. Uma breve avaliação geral sobre o mercado norte-americano atual e o desempenho geral do índice S&P 500 com base nos dados fornecidos na planilha, explicando como a combinação do ROE elevado com EV/EBITDA atrativo protege o capital do investidor em cenários de juros altos ou volatilidade.
-      2. O ranking das 10 melhores ações do S&P 500 (ou as melhores disponíveis se forem menos de 10) sob o título "Top 10 the best S&P 500". **OBRIGATÓRIO: NÃO use tabelas. Apresente o ranking de forma visualmente agradável usando títulos, listas e parágrafos.** Para cada empresa, crie uma seção contendo:
+      2. O ranking das 10 melhores ações do S&P 500 (ou as melhores disponíveis se forem menos de 10) sob o título "Top 10 Melhores Ações S&P 500". **OBRIGATÓRIO: NÃO use tabelas. Apresente o ranking de forma visualmente agradável usando títulos, listas e parágrafos.** Para cada empresa, crie uma seção contendo:
          - **Posição, Empresa e Ticker** (Exemplo: ### 1º Lugar - Apple Inc. (AAPL))
          - **Setor / Indústria:** (Exemplo: Tecnologia, Saúde, Financeiro, etc.)
-         - **Fundamentos Identificados:** Mencione o EV/EBITDA, o ROE e o Dividend Yield reais lidos na planilha para esta ação.
+         - **Fundamentos Identificados:** Mencione o EV/EBITDA, the ROE e o Dividend Yield reais lidos na planilha para esta ação.
          - **Motivo/Destaque:** Um parágrafo bem redigido explicando de forma fundamentada e qualitativa/quantitativa os motivos da escolha à luz da estratégia de qualidade e valor.
       3. Uma explicação do motivo pelo qual o 1º colocado é o mais promissor.
       4. Um conselho prático ou comentário sobre diversificação setorial no mercado norte-americano, explicando o papel de setores defensivos versus setores de crescimento cíclicos no S&P 500.
@@ -250,9 +295,9 @@ Mantenha uma linguagem muito profissional, direta e sofisticada. Não use tabela
       ${JSON.stringify(limitedData, null, 2)}
       `;
       } else {
-        prompt = `Você é um analista financeiro experiente de ações.
+        prompt = `Você é um analista financeiro experiente de ações Brasileiras.
       O usuário forneceu os dados de uma planilha contendo índices de ações e notas explicativas. 
-      Sua tarefa é analisar os dados globalmente e identificar quais as melhores ações segundo esta planilha e criar um ranking completo das melhores opções focando no crescimento real do patrimônio a médio e longo prazo.
+      Sua tarefa é analisar os dados globalmente e identificar quais as melhores ações segundo esta planilha e criar um ranking completo com exatamente as 10 melhores opções (Top 10) focando no crescimento real do patrimônio a médio e longo prazo.
       
       A planilha fornecida contém métricas essenciais de análise em colunas correspondentes: Dividend Yield (Coluna I / Index 8 de cada linha de dados), EV/EBITDA (Coluna K / Index 10) e ROE (Coluna L / Index 11). Como analista experiente focado no crescimento do Patrimônio Consolidado e proteção em mercados adversos, você deve estruturar suas escolhas de forma estritamente fundamentada aplicando uma estratégia clássica de Fatores e Valor (QARP - Quality at a Reasonable Price) usando estes dados:
       - **Margem de Segurança (EV/EBITDA na Coluna K)**: Evite ativos com valuation inflacionado. Priorize múltiplos de EV/EBITDA saudáveis e descontados (ex: entre 4x e 12x), descartando empresas com múltiplos absurdamente altos ou negativos que indiquem estresse real.
@@ -260,19 +305,19 @@ Mantenha uma linguagem muito profissional, direta e sofisticada. Não use tabela
       - **Previsibilidade e Cushion de Caixa (Dividend Yield na Coluna I)**: Considere o retorno de dividendos como um colchão defensivo em tempos de juros altos ou inflação, impulsionando os dividendos reinvestidos na página Wallet.
       - **Ausência de Beta**: Já que a planilha não possui coluna de Beta, avalie o risco baseando-se no setor de atuação e na estabilidade operacional do negócio (preferindo setores resilientes como utilidades públicas, saúde e consumo não-cíclico se os múltiplos e eficiência forem semelhantes).
 
-      **REGRA DE PORTUGUÊS/INÍCIO OBRIGATÓRIA**: O relatório gerado deve **SEMPRE começar diretamente** com uma lista numerada estilo resumo contendo todos os ativos únicos lidos na planilha enviada e seu respectivo setor/subsetor no seguinte formato exato (sem títulos grandes antes dela ou markdown de marcação no início do documento, comece direto no número 1):
+      **REGRA DE PORTUGUÊS/INÍCIO OBRIGATÓRIA**: O relatório gerado deve ser escrito inteiramente em português e **SEMPRE começar diretamente** com o título e em seguida um índice ou resumo numerado contendo estritamente e exclusivamente os 10 ativos selecionados para o ranking Top 10 (NÃO liste todos os 187 ativos ou todas as linhas lidas na planilha para não poluir o relatório, liste APENAS as 10 melhores opções selecionadas, uma por linha), no seguinte formato exato (sem dilações antes, comece direto no número 1):
       1. TICKER - Setor (especificação curtíssima de 5-8 palavras)
       2. TICKER - Setor (especificação curtíssima de 5-8 palavras)
       ...
-      (Listar dessa maneira todos os ativos únicos lidos nos dados, um por linha, de forma extremamente enxuta. Se o mesmo ticker se repetir na planilha, liste-o apenas uma vez neste índice inicial).
+      (Listar dessa maneira apenas as 10 melhores ações selecionadas para o ranking).
       
-      Depois de listar a lista completa de ativos lidos no início, insira uma linha em branco e então prossiga obrigatoriamente com toda a análise detalhada tradicional (Avaliação geral de mercado, o ranking Top 10 completo, justificativas e as demais recomendações/ressalvas).
+      Depois de listar a lista reduzida de no máximo 10 ações escolhidas no início, insira uma linha em branco e então prossiga obrigatoriamente com toda a análise detalhada tradicional (Avaliação geral de mercado, o ranking Top 10 completo, justificativas e as demais recomendações/ressalvas).
       
-      **ATENÇÃO CRÍTICA**: Você deve IMPRETERIVELMENTE gerar o ranking Top 10 completo. Nunca omita o ranking e nunca deixe a geração incompleta ou resumida! O ranking sob o título "Top 10 the best Stocks" com as 10 melhores posições detalhadas uma a uma é a entrega mais importante exigida pelo usuário.
+      **ATENÇÃO CRÍTICA**: Você deve IMPRETERIVELMENTE gerar o ranking de apenas 10 ações sob o título "Top 10 Melhores Ações". Nunca exceda 10 posições no detalhamento nem liste todos os ativos da planilha de entrada! O ranking detalhado de 1 a 10 é o que o usuário quer.
       
       Por favor, forneça nos tópicos subsequentes:
       1. Uma breve avaliação geral sobre a situação do mercado refletida nestes dados, explicando como a combinação do ROE elevado com EV/EBITDA atrativo protege o capital do investidor em cenários de juros altos ou volatilidade.
-      2. O ranking das 10 melhores ações (ou as melhores disponíveis se forem menos de 10) sob o título "Top 10 the best Stocks". **OBRIGATÓRIO: NÃO use tabelas. Apresente o ranking de forma visualmente agradável usando títulos, listas e parágrafos.** Para cada ação, crie uma seção contendo:
+      2. O ranking das 10 melhores ações (ou as melhores disponíveis se forem menos de 10) sob o título "Top 10 Melhores Ações". **OBRIGATÓRIO: NÃO use tabelas. Apresente o ranking de forma visualmente agradável usando títulos, listas e parágrafos.** Para cada ação, crie uma seção contendo:
          - **Posição e Ação/Ticker** (Exemplo: ### 1º Lugar - OFSA3)
          - **Setor:** (Apresente o setor/área de atuação)
          - **Fundamentos Identificados:** Mencione o EV/EBITDA, o ROE e o Dividend Yield reais lidos na planilha para esta ação.
@@ -297,7 +342,10 @@ Mantenha uma linguagem muito profissional, direta e sofisticada. Não use tabela
           attempts++;
           response = await ai.models.generateContent({
             model: 'gemini-3.5-flash',
-            contents: prompt
+            contents: prompt,
+            config: {
+              systemInstruction: "Você é um analista financeiro sênior especializado em mercado de capitais e assessoria de investimentos. Sua diretriz mais sagrada e inviolável é gerar um ranking de exatamente 10 ativos (Top 10) baseados nos dados fornecidos na planilha do usuário. Você está terminantemente proibido de listar todos os ativos, todos os 187 ativos lidos ou qualquer ativo além dos 10 melhores selecionados. O sumário inicial e o ranking detalhado subsequente devem constar exatamente 10 ativos (nem mais, nem menos). Escreva integralmente em português."
+            }
           });
           break; // successfully generated, break out of loop
         } catch (genError: any) {

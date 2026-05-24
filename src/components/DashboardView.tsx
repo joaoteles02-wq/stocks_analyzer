@@ -39,6 +39,25 @@ export function DashboardView() {
     }
 
     // Read wallet
+    const savedFull = localStorage.getItem('saved_interactive_wallet_full');
+    if (savedFull) {
+      try {
+        const parsed = JSON.parse(savedFull);
+        if (Array.isArray(parsed) && parsed.length === 10) {
+          const assetsList: Asset[] = parsed.map(w => w.asset);
+          const weightsMap: Record<string, number> = {};
+          parsed.forEach(w => {
+            weightsMap[w.asset.ticker] = w.weight;
+          });
+          setWalletAssets(assetsList);
+          setWalletWeights(weightsMap);
+          return;
+        }
+      } catch (e) {
+        console.error('Failed to parse full saved wallet in Dashboard:', e);
+      }
+    }
+
     const savedWallet = localStorage.getItem('saved_interactive_wallet');
     if (savedWallet) {
       try {

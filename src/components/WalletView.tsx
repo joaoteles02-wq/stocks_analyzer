@@ -84,7 +84,20 @@ export function WalletView() {
   const USD_BRL_RATE = 5.15; // Simulated dollar exchange rate for realistic calculations
 
   const [wallet, setWallet] = useState<{ asset: Asset; weight: number }[]>(() => {
-    // Attempt local storage load
+    // Attempt full local storage load first
+    const savedFull = localStorage.getItem('saved_interactive_wallet_full');
+    if (savedFull) {
+      try {
+        const parsed = JSON.parse(savedFull);
+        if (Array.isArray(parsed) && parsed.length === 10) {
+          return parsed;
+        }
+      } catch (e) {
+        console.error('Failed to parse full saved wallet:', e);
+      }
+    }
+
+    // Attempt backup/compact local storage load
     const saved = localStorage.getItem('saved_interactive_wallet');
     if (saved) {
       try {
@@ -121,9 +134,230 @@ export function WalletView() {
   });
   const [loadingAi, setLoadingAi] = useState(false);
   const [walletError, setWalletError] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [confirmModal, setConfirmModal] = useState<{
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  } | null>(null);
+
+  const hasStocksAnalysis = typeof window !== 'undefined' && !!localStorage.getItem('stocks_analysis_result');
+  const hasFiiAnalysis = typeof window !== 'undefined' && !!localStorage.getItem('fii_analysis_result');
+  const hasSp500Analysis = typeof window !== 'undefined' && !!localStorage.getItem('sp500_analysis_result');
+
+  const applyTop10 = (type: 'stocks' | 'fii' | 'sp500') => {
+    const rawMarkdown = localStorage.getItem(`${type}_analysis_result`);
+    if (!rawMarkdown) {
+      setWalletError("Nenhuma recomendação recente encontrada para esta categoria.");
+      return;
+    }
+
+    const lines = rawMarkdown.split('\n');
+    const parsedTickers: string[] = [];
+
+    // Helper to filter out common financial acronyms we don't want to parse as US tickers
+    const ignoreList = new Set([
+      'TOP', 'ROE', 'EBITDA', 'PVP', 'PV', 'P/VP', 'FII', 'FIIS', 'ACOES', 'S&P', 'EV', 'DY', 'CDI', 'IPCA', 
+      'BRL', 'USD', 'MEI', 'PIX', 'DRE', 'IRPF', 'CEO', 'EUA', 'USA', 'II', 'III', 'IV', 'V', 
+      'VI', 'VII', 'VIII', 'IX', 'X', 'DIVIDEND', 'YIELD', 'RENT', 'TAXA', 'DIVIDENDOS', 
+      'VALOR', 'PRECO', 'GRAHAM', 'GRAHAN', 'PL', 'LPA', 'VPA', 'SETOR', 'DICAS', 'DICA'
+    ]);
+
+    const extractTickerFromLine = (line: string): string | null => {
+      // 1. Clean markdown elements
+      const cleanLine = line.replace(/[\*\_\#\-\+\•\=\:\(\)]/g, ' ').trim();
+      
+      // 2. Check for B3 stock patterns (4 letters + 1 or 2 digits)
+      if (type === 'stocks' || type === 'fii') {
+        const b3Match = cleanLine.match(/\b([A-Z]{4}\d{1,2})\b/);
+        if (b3Match) {
+          return b3Match[1].toUpperCase();
+        }
+      }
+
+      // 3. For S&P500 or general, look for words inside original parentheses, e.g. "Apple Inc. (AAPL)"
+      const parenMatch = line.match(/\(([A-Z]{1,5})\)/);
+      if (parenMatch) {
+        const t = parenMatch[1].toUpperCase();
+        if (!ignoreList.has(t)) {
+          return t;
+        }
+      }
+
+      // 4. Split and verify each word
+      const words = cleanLine.split(/[\s\-ºª\,]+/);
+      for (const word of words) {
+        const w = word.trim().toUpperCase();
+        if (!w || /^\d+$/.test(w) || ignoreList.has(w)) continue;
+
+        if (type === 'sp500') {
+          // General US Tickers are 1-5 letters
+          if (w.length >= 1 && w.length <= 5 && /^[A-Z]+$/.test(w)) {
+            return w;
+          }
+        } else {
+          // Brazilian Tickers are typically 3-6 chars (mostly letters and optionally numbers)
+          if (w.length >= 3 && w.length <= 6 && /^[A-Z0-9]+$/.test(w)) {
+            return w;
+          }
+        }
+      }
+      return null;
+    };
+    
+    for (const line of lines) {
+      // Checks if line is a potential ranking line or section heading
+      const isRankingLine = 
+        /^\s*[\-\*\+\#\s]*\d+[\.\)\º\ª\s\-]/i.test(line) || 
+        /lugar|posição|ranking/i.test(line) ||
+        /^\s*[\-\*\+]\s+/.test(line); // list bullet points
+
+      if (isRankingLine) {
+        const t = extractTickerFromLine(line);
+        if (t && !parsedTickers.includes(t)) {
+          parsedTickers.push(t);
+        }
+      }
+    }
+
+    // Fallback 1: If we have not found enough tickers, look for B3 patterns anywhere in the markdown
+    if (parsedTickers.length < 5 && (type === 'stocks' || type === 'fii')) {
+      const b3Matches = rawMarkdown.match(/\b([A-Z]{4}\d{1,2})\b/g);
+      if (b3Matches) {
+        for (const m of b3Matches) {
+          const cleanM = m.toUpperCase();
+          if (!ignoreList.has(cleanM) && !parsedTickers.includes(cleanM)) {
+            parsedTickers.push(cleanM);
+          }
+        }
+      }
+    }
+
+    // Fallback 2: For S&P 500, scan text to see if any of our known best S&P tickers is featured
+    if (parsedTickers.length < 5 && type === 'sp500') {
+      const knownSp500Tickers = ALL_BEST_30_ASSETS.filter(a => a.type === 'sp500').map(a => a.ticker);
+      for (const kt of knownSp500Tickers) {
+        if (rawMarkdown.toUpperCase().includes(kt) && !parsedTickers.includes(kt)) {
+          parsedTickers.push(kt);
+        }
+      }
+    }
+
+    if (parsedTickers.length === 0) {
+      setWalletError("Não foi possível identificar os tickers recomendados no relatório da IA. Verifique se o relatório foi gerado corretamente.");
+      return;
+    }
+
+    const top10 = parsedTickers.slice(0, 10);
+    let localRows: any[][] = [];
+    try {
+      const savedLocal = localStorage.getItem('local_uploaded_sheet_data');
+      if (savedLocal) {
+        localRows = JSON.parse(savedLocal);
+      }
+    } catch (e) {}
+
+    const newSlots = top10.map((ticker) => {
+      // 1. Search in ALL_BEST_30_ASSETS
+      const existing = ALL_BEST_30_ASSETS.find(a => a.ticker.toUpperCase() === ticker);
+      if (existing) {
+        return { asset: existing, weight: 10 };
+      }
+
+      // 2. Search in local sheet rows if available
+      if (Array.isArray(localRows) && localRows.length > 0) {
+        const matchedRow = localRows.find(row => 
+          Array.isArray(row) && row.some(cell => String(cell).trim().toUpperCase() === ticker)
+        );
+
+        if (matchedRow) {
+          let matchedName = ticker;
+          for (const cell of matchedRow) {
+            if (typeof cell === 'string' && cell.trim() && cell.toUpperCase() !== ticker && isNaN(Number(cell.replace(',', '.')))) {
+              matchedName = cell.trim();
+              break;
+            }
+          }
+
+          let matchedPrice = 10.0;
+          for (const cell of matchedRow) {
+            const num = Number(String(cell).replace('R$', '').replace('$', '').replace(',', '.').trim());
+            if (!isNaN(num) && num > 1 && num < 10000) {
+              matchedPrice = num;
+              break;
+            }
+          }
+
+          let matchedYield = 0.08;
+          if (matchedRow[8]) {
+            const cleanVal = String(matchedRow[8]).replace('%', '').replace(',', '.').trim();
+            const num = Number(cleanVal);
+            if (!isNaN(num)) {
+              matchedYield = num > 1 ? num / 100 : num;
+            }
+          }
+
+          let matchedSector = 'Análise Personalizada';
+          if (matchedRow[2] && typeof matchedRow[2] === 'string' && matchedRow[2].length > 3) {
+            matchedSector = matchedRow[2];
+          }
+
+          return {
+            asset: {
+              ticker,
+              name: matchedName,
+              type,
+              price: matchedPrice,
+              currency: type === 'sp500' ? 'USD' as const : 'BRL' as const,
+              yield: matchedYield,
+              sector: matchedSector,
+              description: 'Ativo adicionado automaticamente a partir da análise da planilha.'
+            },
+            weight: 10
+          };
+        }
+      }
+
+      // 3. Dynamic placeholder fallback
+      return {
+        asset: {
+          ticker,
+          name: `${type === 'stocks' ? 'Ação' : type === 'fii' ? 'Fundo Imobiliário' : 'Ação S&P 500'} ${ticker}`,
+          type,
+          price: type === 'sp500' ? 100.00 : 15.00,
+          currency: type === 'sp500' ? 'USD' as const : 'BRL' as const,
+          yield: type === 'sp500' ? 0.015 : type === 'fii' ? 0.10 : 0.06,
+          sector: 'Selecionado por IA',
+          description: 'Ativo selecionado dinamicamente a partir de seu ranking gerado pelo Gemini.'
+        },
+        weight: 10
+      };
+    });
+
+    while (newSlots.length < 10) {
+      const fallbackTicker = type === 'stocks' ? 'ITUB4' : type === 'fii' ? 'HGLG11' : 'AAPL';
+      const fallbackAsset = ALL_BEST_30_ASSETS.find(a => a.ticker === fallbackTicker)!;
+      const isAlreadyIn = newSlots.some(s => s.asset.ticker === fallbackTicker);
+      if (!isAlreadyIn) {
+        newSlots.push({ asset: fallbackAsset, weight: 10 });
+      } else {
+        const replacement = ALL_BEST_30_ASSETS.find(a => a.type === type && !newSlots.some(s => s.asset.ticker === a.ticker));
+        if (replacement) {
+          newSlots.push({ asset: replacement, weight: 10 });
+        } else {
+          newSlots.push({ asset: ALL_BEST_30_ASSETS[0], weight: 10 });
+        }
+      }
+    }
+
+    setWallet(newSlots);
+    setSuccessMsg(`Top 10 ativos recomendados da categoria [${type === 'stocks' ? 'Ações BR' : type === 'fii' ? 'FIIs' : 'S&P 500'}] aplicados à sua carteira com peso igual de 10% cada!`);
+    setTimeout(() => setSuccessMsg(null), 8500);
+  };
 
   // Persistence effects
   useEffect(() => {
+    localStorage.setItem('saved_interactive_wallet_full', JSON.stringify(wallet));
     const compactFormat = wallet.map(w => ({ ticker: w.asset.ticker, weight: w.weight }));
     localStorage.setItem('saved_interactive_wallet', JSON.stringify(compactFormat));
   }, [wallet]);
@@ -285,9 +519,65 @@ export function WalletView() {
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       
+      {/* Custom Premium Non-Blocking Confirmation Dialog */}
+      {confirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="relative w-full max-w-md p-6 bg-slate-900 border border-slate-700/85 rounded-3xl shadow-2xl space-y-5 animate-in zoom-in-95 duration-200">
+            <div className="flex items-start gap-4">
+              <div className="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center shrink-0 text-amber-400 border border-amber-500/20">
+                <Sparkles className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <h4 className="text-base font-bold text-white leading-tight">
+                  {confirmModal.title}
+                </h4>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  {confirmModal.message}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 mt-4">
+              <button
+                type="button"
+                onClick={() => setConfirmModal(null)}
+                className="px-4 py-2 bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white rounded-xl text-xs font-bold transition cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  confirmModal.onConfirm();
+                  setConfirmModal(null);
+                }}
+                className="px-5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black rounded-xl text-xs font-black uppercase tracking-wider transition duration-200 shadow-md shadow-amber-500/20 cursor-pointer"
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Dynamic Success Toast / Banner */}
+      {successMsg && (
+        <div className="bg-emerald-950/85 text-emerald-200 border border-emerald-500/50 rounded-2xl p-4 text-sm font-medium flex items-center gap-3 backdrop-blur-md shadow-lg animate-in fade-in slide-in-from-top-4 duration-300">
+          <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0" />
+          <p className="flex-1 font-medium">{successMsg}</p>
+          <button 
+            type="button"
+            onClick={() => setSuccessMsg(null)}
+            className="text-xs hover:text-white text-emerald-400 font-bold underline ml-2 cursor-pointer"
+          >
+            Fechar
+          </button>
+        </div>
+      )}
+
       {/* Visual Alert Banner for Wallet Errors */}
       {walletError && (
-        <div className="bg-red-950/80 text-red-200 border border-red-500/50 rounded-2xl p-4 text-sm font-medium flex items-center gap-3 backdrop-blur-md shadow-lg">
+        <div className="bg-red-950/80 text-red-200 border border-red-500/50 rounded-2xl p-4 text-sm font-medium flex items-center gap-3 backdrop-blur-md shadow-lg animate-in fade-in duration-300">
           <AlertCircle className="w-5 h-5 text-red-400 shrink-0" />
           <p>{walletError}</p>
         </div>
@@ -324,6 +614,106 @@ export function WalletView() {
           )}
         </div>
       </div>
+
+      {/* Quick Option to Rebuild / Overwrite Portfolio with Top 10 recommendations */}
+      {(hasStocksAnalysis || hasFiiAnalysis || hasSp500Analysis) ? (
+        <div className="bg-amber-500/10 border border-amber-500/30 rounded-3xl p-6 shadow-xl flex flex-col md:flex-row items-center justify-between gap-6 backdrop-blur-sm relative overflow-hidden animate-in fade-in duration-300">
+          <div className="absolute top-0 right-0 w-[200px] h-[150px] bg-amber-500/5 blur-[50px] rounded-full -z-10"></div>
+          
+          <div className="space-y-1.5 text-center md:text-left">
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] uppercase font-black text-amber-300 bg-amber-500/20 border border-amber-500/30">
+              <Sparkles className="w-3 h-3 text-amber-400 animate-pulse" /> Recomendações de IA Disponíveis
+            </span>
+            <h3 className="text-lg font-bold text-white">
+              Remontar Carteira via Inteligência Artificial
+            </h3>
+            <p className="text-xs text-slate-300 max-w-xl leading-relaxed">
+              Deseja redefinir sua carteira de investimentos? Aplique os <strong className="text-white font-bold">10 ativos do topo do ranking</strong> de seu último relatório de análise de dados com pesos igualmente distribuídos de forma automática.
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                const latestType = (localStorage.getItem('latest_analysis_type') as 'stocks' | 'fii' | 'sp500' | null) 
+                  || (hasStocksAnalysis ? 'stocks' : hasFiiAnalysis ? 'fii' : 'sp500');
+                const categoryName = latestType === 'stocks' ? 'Ações Brasileiras' : latestType === 'fii' ? 'FIIs' : 'S&P 500';
+                setConfirmModal({
+                  title: "Confirmar AI Reload",
+                  message: `Esta ação irá substituir todos os 10 ativos atuais de sua carteira pelos top 10 recomendados pela análise de IA na categoria [${categoryName}]. Deseja prosseguir?`,
+                  onConfirm: () => applyTop10(latestType)
+                });
+              }}
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold text-xs uppercase tracking-wider rounded-xl transition duration-300 active:scale-95 shadow-lg shadow-amber-500/20 cursor-pointer border border-amber-300/30 font-sans"
+            >
+              📥 AI Reload da carteira
+            </button>
+
+            {/* Selector dropdown/list if they want to choose a specific category */}
+            <div className="flex gap-1.5 flex-wrap justify-center">
+              {hasStocksAnalysis && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConfirmModal({
+                      title: "Confirmar Top 10 Ações BR",
+                      message: "Deseja substituir sua carteira atual pelas 10 melhores Ações Brasileiras recomendadas pelo relatório de inteligência artificial?",
+                      onConfirm: () => applyTop10('stocks')
+                    });
+                  }}
+                  className="px-3 py-2 bg-white/5 hover:bg-white/10 hover:border-amber-500/30 border border-white/10 rounded-lg text-[10px] font-bold text-slate-300 hover:text-white transition cursor-pointer"
+                  title="Aplicar Ações BR"
+                >
+                  Ações BR
+                </button>
+              )}
+              {hasFiiAnalysis && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConfirmModal({
+                      title: "Confirmar Top 10 FIIs BR",
+                      message: "Deseja substituir sua carteira atual pelos 10 melhores Fundos Imobiliários recomendados pelo relatório de inteligência artificial?",
+                      onConfirm: () => applyTop10('fii')
+                    });
+                  }}
+                  className="px-3 py-2 bg-white/5 hover:bg-white/10 hover:border-amber-500/30 border border-white/10 rounded-lg text-[10px] font-bold text-slate-300 hover:text-white transition cursor-pointer"
+                  title="Aplicar FIIs BR"
+                >
+                  FIIs BR
+                </button>
+              )}
+              {hasSp500Analysis && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConfirmModal({
+                      title: "Confirmar Top 10 S&P 500",
+                      message: "Deseja substituir sua carteira atual pelos 10 melhores ativos americanos do S&P 500 recomendados pelo relatório de inteligência artificial?",
+                      onConfirm: () => applyTop10('sp500')
+                    });
+                  }}
+                  className="px-3 py-2 bg-white/5 hover:bg-white/10 hover:border-amber-500/30 border border-white/10 rounded-lg text-[10px] font-bold text-slate-300 hover:text-white transition cursor-pointer"
+                  title="Aplicar S&P 500"
+                >
+                  S&P 500
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="bg-white/5 border border-white/10 rounded-3xl p-5 shadow-inner flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left animate-in fade-in duration-300">
+          <div className="flex items-center gap-3 justify-center sm:justify-start">
+            <Sparkles className="w-5 h-5 text-indigo-400 shrink-0 animate-pulse" />
+            <div className="text-xs">
+              <p className="font-bold text-slate-200">Dica de Praticidade</p>
+              <p className="text-slate-400 leading-relaxed">Você pode preencher esta carteira inteira clicando em um único botão! Para isso, vá até a aba <strong className="text-white font-semibold">"Análise Geral"</strong> e faça o upload e análise de sua planilha financeira de ações, FIIs ou ativos americanos.</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Grid: Left Column (Otimização & Slots) & Right Column (Métricas e Visualização) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

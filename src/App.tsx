@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import Markdown from 'react-markdown';
 import { User } from 'firebase/auth';
-import { LogIn, FileSpreadsheet, Search, Loader2, Settings, ArrowLeft, Briefcase, Wallet, LayoutDashboard } from 'lucide-react';
+import { LogIn, FileSpreadsheet, Search, Loader2, Settings, ArrowLeft, Briefcase, Wallet, LayoutDashboard, Upload, Database, Copy, Check, AlertTriangle, RefreshCw } from 'lucide-react';
 import { googleSignIn, initAuth, logout } from './lib/auth';
 import { searchStocksFilterSheet } from './lib/drive';
 import { getSpreadsheetData, getSpreadsheetSheets } from './lib/sheets';
@@ -10,6 +10,7 @@ import { DashboardView } from './components/DashboardView';
 
 export default function App() {
   const [needsAuth, setNeedsAuth] = useState(true);
+  const [tokenExpired, setTokenExpired] = useState(false);
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
@@ -20,6 +21,107 @@ export default function App() {
   const [selectedFileId, setSelectedFileId] = useState<string>(() => {
     return localStorage.getItem('saved_spreadsheet_id') || '';
   });
+
+  const [dataSource, setDataSource] = useState<'google' | 'local'>(() => {
+    return (localStorage.getItem('data_source') as 'google' | 'local') || 'google';
+  });
+
+  const [localUploadedSheetData, setLocalUploadedSheetData] = useState<any[][] | null>(() => {
+    const saved = localStorage.getItem('local_uploaded_sheet_data');
+    return saved ? JSON.parse(saved) : null;
+  });
+
+  const [localSourceName, setLocalSourceName] = useState<string>(() => {
+    return localStorage.getItem('local_source_name') || 'Dados Importados (Local)';
+  });
+
+  const [rawPasteText, setRawPasteText] = useState('');
+  const [pasteSuccess, setPasteSuccess] = useState(false);
+
+  useEffect(() => {
+    localStorage.setItem('data_source', dataSource);
+  }, [dataSource]);
+
+  useEffect(() => {
+    if (localUploadedSheetData) {
+      localStorage.setItem('local_uploaded_sheet_data', JSON.stringify(localUploadedSheetData));
+    } else {
+      localStorage.removeItem('local_uploaded_sheet_data');
+    }
+  }, [localUploadedSheetData]);
+
+  useEffect(() => {
+    localStorage.setItem('local_source_name', localSourceName);
+  }, [localSourceName]);
+
+  const handleLocalDataParse = (text: string, name: string) => {
+    if (!text.trim()) {
+      setError("O conteúdo colado ou arquivo está vazio.");
+      return;
+    }
+
+    try {
+      // Split lines and filter empty lines
+      const tempLines = text.split(/\r?\n/).map(line => line.trim()).filter(line => line !== '');
+      if (tempLines.length === 0) {
+        throw new Error("Nenhuma linha identificada.");
+      }
+
+      // Identify delimiter: tab, semicolon, comma
+      const parsedRows = tempLines.map((line) => {
+        let delimiter = ',';
+        if (line.includes('\t')) {
+          delimiter = '\t';
+        } else if (line.includes(';')) {
+          delimiter = ';';
+        }
+
+        // Easy and fast custom parse with quotes support
+        const columns: string[] = [];
+        let current = '';
+        let insideQuotes = false;
+
+        for (let i = 0; i < line.length; i++) {
+          const char = line[i];
+          if (char === '"') {
+            insideQuotes = !insideQuotes;
+          } else if (char === delimiter && !insideQuotes) {
+            columns.push(current.trim());
+            current = '';
+          } else {
+            current += char;
+          }
+        }
+        columns.push(current.trim());
+        return columns.map(c => {
+          if (c.startsWith('"') && c.endsWith('"')) {
+            return c.slice(1, -1).trim();
+          }
+          return c;
+        });
+      });
+
+      setLocalUploadedSheetData(parsedRows);
+      setLocalSourceName(name || 'Planilha Colada');
+      setPasteSuccess(true);
+      setTimeout(() => setPasteSuccess(false), 3500);
+      setError(null);
+    } catch (err: any) {
+      setError("Erro ao processar dados copiados/importados: " + err.message);
+    }
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      handleLocalDataParse(text, file.name);
+    };
+    reader.readAsText(file);
+  };
 
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -172,9 +274,36 @@ export default function App() {
         setToken(result.accessToken);
         setUser(result.user);
         setNeedsAuth(false);
+        setTokenExpired(false);
       }
     } catch (err) {
       console.error('Login failed:', err);
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
+  const handleQuickTokenRefresh = async () => {
+    setIsLoggingIn(true);
+    try {
+      const result = await googleSignIn('popup');
+      if (result) {
+        setToken(result.accessToken);
+        setUser(result.user);
+        setNeedsAuth(false);
+        setTokenExpired(false);
+        setError(null);
+        // Silently reload the file tree
+        try {
+          const found = await searchStocksFilterSheet(result.accessToken);
+          setFiles(found);
+        } catch (e) {
+          console.error("Failed to re-search Drive on refresh:", e);
+        }
+      }
+    } catch (err: any) {
+      console.error('Quick refresh failed:', err);
+      setError("Falha ao atualizar a conexão. Por favor tente novamente.");
     } finally {
       setIsLoggingIn(false);
     }
@@ -227,8 +356,8 @@ export default function App() {
       if (err.message.includes("insufficient authentication scopes") || err.message.includes("Insufficient Permission")) {
         setError("Erro de permissão: Você esqueceu de marcar as caixinhas de permissão do Google Drive/Sheets no login. Clique em 'Sair' lá no topo e faça login novamente, marcando todas as caixinhas.");
       } else if (err.message.includes("401") || err.message.toLowerCase().includes("unauthenticated") || err.message.toLowerCase().includes("invalid authentication") || err.message.toLowerCase().includes("invalid credentials")) {
-        handleLogout();
-        setError("Sua sessão do Google expirou. Desconectamos sua conta, por favor faça login novamente.");
+        setTokenExpired(true);
+        setError("Sua sessão de conexão do Google Planilhas expirou por segurança. Use o botão amarelo de reconexão acima.");
       } else {
         setError("Erro ao buscar arquivos no Drive: " + err.message);
       }
@@ -238,13 +367,24 @@ export default function App() {
   };
 
   const analyzeSelected = async () => {
-    if (!token || !selectedFileId) return;
+    const isLocalMode = dataSource === 'local';
+    
+    if (!isLocalMode && (!token || !selectedFileId)) {
+      setError("Por favor, conecte ao Google Drive nas Configurações e selecione uma planilha.");
+      return;
+    }
+    
+    if (isLocalMode && (!localUploadedSheetData || localUploadedSheetData.length === 0)) {
+      setError("Por favor, importe um arquivo CSV ou cole os dados da planilha nas Configurações.");
+      return;
+    }
+
     setAnalyzing(true);
     setError(null);
 
     const isFiiMode = analysisType === 'fii';
     const isSp500Mode = analysisType === 'sp500';
-    const activeSheetName = selectedSheetName;
+    const activeSheetName = isLocalMode ? localSourceName : selectedSheetName;
     const currentRes = isFiiMode 
       ? fiiAnalysisResult 
       : isSp500Mode 
@@ -254,22 +394,21 @@ export default function App() {
     try {
       // Extrair ID se o usuário colar a URL completa
       let actualId = selectedFileId;
-      const match = selectedFileId.match(/\/d\/([a-zA-Z0-9-_]+)/);
-      if (match && match[1]) {
-        actualId = match[1];
+      if (!isLocalMode) {
+        const match = selectedFileId.match(/\/d\/([a-zA-Z0-9-_]+)/);
+        if (match && match[1]) {
+          actualId = match[1];
+        }
       }
 
       // Ensure we hit HTTPS directly to avoid HTTP -> HTTPS redirects which convert POST to GET on mobile browsers.
       const isLocalhost = typeof window !== 'undefined' && window.location.hostname.includes('localhost');
       const apiHost = isLocalhost ? '' : `https://${window.location.host}`;
       
-      // We pass parameters inside both the URL query string and headers, in addition to the POST body.
-      // If a mobile Webview (like Microsoft OneNote) intercepts and converts the request to GET or strips the body,
-      // the server will still have redundant, robust access channels to find the active sheet ID & credentials!
       const params = new URLSearchParams({
-        token: token || '',
-        spreadsheetId: actualId || '',
-        sheetName: activeSheetName || '',
+        token: isLocalMode ? '' : (token || ''),
+        spreadsheetId: isLocalMode ? 'local' : (actualId || ''),
+        sheetName: isLocalMode ? 'local' : (activeSheetName || ''),
         analysisType: analysisType || ''
       });
       const apiUrl = `${apiHost}/api/process-data?${params.toString()}`;
@@ -278,16 +417,17 @@ export default function App() {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
-          "X-Google-Token": token || '',
-          "X-Spreadsheet-Id": actualId || '',
-          "X-Sheet-Name": activeSheetName || '',
+          "X-Google-Token": isLocalMode ? '' : (token || ''),
+          "X-Spreadsheet-Id": isLocalMode ? 'local' : (actualId || ''),
+          "X-Sheet-Name": isLocalMode ? 'local' : (activeSheetName || ''),
           "X-Analysis-Type": analysisType || ''
         },
         body: JSON.stringify({ 
-          token, 
-          spreadsheetId: actualId, 
-          sheetName: activeSheetName, 
-          analysisType 
+          token: isLocalMode ? null : token, 
+          spreadsheetId: isLocalMode ? null : actualId, 
+          sheetName: isLocalMode ? 'local' : activeSheetName, 
+          analysisType,
+          sheetData: isLocalMode ? localUploadedSheetData : undefined
         }),
       });
       
@@ -320,6 +460,7 @@ export default function App() {
         }
         setFiiAnalysisResult(newResult);
         localStorage.setItem('fii_analysis_result', newResult);
+        localStorage.setItem('latest_analysis_type', 'fii');
       } else if (isSp500Mode) {
         if (currentRes && currentRes !== newResult) {
           setSp500PreviousResult(currentRes);
@@ -335,6 +476,7 @@ export default function App() {
         }
         setSp500AnalysisResult(newResult);
         localStorage.setItem('sp500_analysis_result', newResult);
+        localStorage.setItem('latest_analysis_type', 'sp500');
       } else {
         if (currentRes && currentRes !== newResult) {
           setStocksPreviousResult(currentRes);
@@ -350,6 +492,7 @@ export default function App() {
         }
         setStocksAnalysisResult(newResult);
         localStorage.setItem('stocks_analysis_result', newResult);
+        localStorage.setItem('latest_analysis_type', 'stocks');
       }
     } catch (err: any) {
       if (err.message.includes("insufficient authentication scopes") || err.message.includes("Insufficient Permission")) {
@@ -357,8 +500,8 @@ export default function App() {
       } else if (err.message.includes("429") || err.message.includes("quota") || err.message.includes("RESOURCE_EXHAUSTED")) {
         setError("Erro de Cota do Gemini AI: O limite de tokens da chave de API foi excedido (a planilha pode ser muito grande). Tente fechar e abrir um pouco mais tarde ou verifique os limites de faturamento da sua chave da API do Gemini.");
       } else if (err.message.includes("401") || err.message.toLowerCase().includes("unauthenticated") || err.message.toLowerCase().includes("invalid authentication") || err.message.toLowerCase().includes("invalid credentials")) {
-        handleLogout();
-        setError("Sua sessão do Google expirou. Desconectamos sua conta, por favor faça login novamente.");
+        setTokenExpired(true);
+        setError("Sua sessão de conexão do Google Planilhas expirou. Por favor reconecte usando o botão amarelo acima para reanalisar sem perder nada.");
       } else if (err.message.toLowerCase().includes("load failed") || err.message.toLowerCase().includes("failed to fetch")) {
         setError(
           "O navegador do celular (especialmente o Safari no iPhone) às vezes interrompe conexões de longa duração por motivos de economia de bateria ou segurança (Load Failed). " +
@@ -402,6 +545,27 @@ export default function App() {
 
         <main className="bg-white/10 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/20 p-8 relative">
           
+          {tokenExpired && (
+            <div className="mb-6 p-4 bg-amber-500/15 border border-amber-300/30 text-amber-200 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-lg backdrop-blur-sm">
+              <div className="flex items-center gap-3 text-sm text-left">
+                <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
+                <div>
+                  <p className="font-bold text-amber-300">Conexão do Google Planilhas Expirada</p>
+                  <p className="text-xs text-slate-300">Sua sessão do Google dura 1 hora. Toque ao lado para reestabelecer o acesso em 1 segundo sem perder suas seleções ou configurações atuais.</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleQuickTokenRefresh}
+                disabled={isLoggingIn}
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-black font-extrabold text-xs rounded-xl transition shrink-0 active:scale-95 disabled:opacity-50 cursor-pointer shadow-md border border-amber-300/30"
+              >
+                {isLoggingIn ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                Reconectar Agora
+              </button>
+            </div>
+          )}
+
           {error && (
             <div className="absolute -top-4 left-1/2 -translate-x-1/2 w-11/12 max-w-2xl z-50">
               <div className="p-4 bg-red-950/80 text-red-200 rounded-xl text-sm font-medium border border-red-500/50 backdrop-blur-md shadow-2xl text-center">
@@ -410,7 +574,7 @@ export default function App() {
             </div>
           )}
           
-          {needsAuth ? (
+          {needsAuth && dataSource !== 'local' ? (
             <div className="text-center py-12 space-y-6 max-w-xl mx-auto">
               <div className="mx-auto w-16 h-16 bg-white/10 backdrop-blur-md rounded-full flex items-center justify-center border border-white/20 shadow-inner">
                 <LogIn className="w-8 h-8 text-white" />
@@ -462,141 +626,316 @@ export default function App() {
               <div className="space-y-4 pt-2">
                 <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Escolha a forma de conexão no celular:</p>
                 
-                <div className="flex flex-col sm:flex-row gap-3 justify-center max-w-sm mx-auto">
-                  {/* POPUP METHOD - highly recommended for safari mobile tabs */}
-                  <button 
-                    onClick={() => handleLogin('popup')}
-                    disabled={isLoggingIn}
-                    className="flex-1 flex items-center justify-center gap-2 px-5 py-3.5 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-bold text-xs rounded-xl transition shadow-md border border-indigo-400/20 cursor-pointer disabled:opacity-50"
-                  >
-                    {isLoggingIn ? <Loader2 className="w-4 h-4 animate-spin" /> : (
-                      <svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" className="w-4 h-4 shrink-0">
-                        <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path>
-                        <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"></path>
-                        <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"></path>
-                        <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"></path>
-                        <path fill="none" d="M0 0h48v48H0z"></path>
-                      </svg>
-                    )}
-                    <span>Entrar (Nova Caixa)</span>
-                  </button>
+                <div className="flex flex-col gap-3 max-w-sm mx-auto">
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    {/* POPUP METHOD - highly recommended for safari mobile tabs */}
+                    <button 
+                      type="button"
+                      onClick={() => handleLogin('popup')}
+                      disabled={isLoggingIn}
+                      className="flex-1 flex items-center justify-center gap-2 px-5 py-3.5 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-bold text-xs rounded-xl transition shadow-md border border-indigo-400/20 cursor-pointer disabled:opacity-50"
+                    >
+                      {isLoggingIn ? <Loader2 className="w-4 h-4 animate-spin" /> : (
+                        <svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" className="w-4 h-4 shrink-0">
+                          <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path>
+                          <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"></path>
+                          <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"></path>
+                          <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"></path>
+                          <path fill="none" d="M0 0h48v48H0z"></path>
+                        </svg>
+                      )}
+                      <span>Entrar (Nova Caixa)</span>
+                    </button>
 
-                  {/* REDIRECT METHOD - alternative fallback */}
-                  <button 
-                    onClick={() => handleLogin('redirect')}
-                    disabled={isLoggingIn}
-                    className="flex-1 flex items-center justify-center gap-2 px-5 py-3.5 bg-black/40 hover:bg-slate-800 text-slate-200 hover:text-white font-bold text-xs rounded-xl transition shadow border border-white/10 cursor-pointer disabled:opacity-50"
-                  >
-                    {isLoggingIn ? <Loader2 className="w-4 h-4 animate-spin" /> : (
-                      <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full shrink-0"></span>
-                    )}
-                    <span>Entrar (Redirecionar)</span>
-                  </button>
+                    {/* REDIRECT METHOD - alternative fallback */}
+                    <button 
+                      type="button"
+                      onClick={() => handleLogin('redirect')}
+                      disabled={isLoggingIn}
+                      className="flex-1 flex items-center justify-center gap-2 px-5 py-3.5 bg-black/40 hover:bg-slate-800 text-slate-200 hover:text-white font-bold text-xs rounded-xl transition shadow border border-white/10 cursor-pointer disabled:opacity-50"
+                    >
+                      {isLoggingIn ? <Loader2 className="w-4 h-4 animate-spin" /> : (
+                        <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full shrink-0"></span>
+                      )}
+                      <span>Entrar (Redirecionar)</span>
+                    </button>
+                  </div>
+
+                  {/* BYPASS LOGIN FOR CELLPHONE / OFFLINE / MANUAL FLOWS */}
+                  <div className="pt-4 border-t border-white/10 mt-2">
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-2 flex items-center justify-center gap-1">
+                      <span>Burlar erro do Google ou usar offline</span>
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDataSource('local');
+                        setNeedsAuth(false);
+                      }}
+                      className="w-full flex items-center justify-center gap-2.5 px-5 py-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-95 text-white font-extrabold text-xs rounded-xl transition shadow border border-emerald-500/20 cursor-pointer"
+                    >
+                      <Upload className="w-4 h-4 shrink-0 text-emerald-200" />
+                      <span>Ver Aplicativo / Usar Planilha Local (Celular)</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
           ) : currentView === 'settings' ? (
-            <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
               
-              <div>
-                <h2 className="text-xl font-bold mb-4 text-white flex items-center gap-2">
-                  <span className="w-1.5 h-6 bg-indigo-500 rounded-full inline-block"></span>
-                  Sua Conta
-                </h2>
-                <div className="bg-black/30 backdrop-blur-md rounded-2xl p-6 border border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-lg">
-                  <div className="text-center sm:text-left">
-                    <p className="text-sm text-slate-400 mb-1">Logado como</p>
-                    <p className="font-medium text-white">{user?.email}</p>
-                  </div>
-                  <button onClick={handleLogout} className="px-5 py-2.5 bg-red-500/10 text-red-300 hover:bg-red-500/20 border border-red-500/30 rounded-xl transition font-semibold w-full sm:w-auto">
-                    Sair da Conta
+              {/* Seletor de Origem de Dados */}
+              <div className="bg-black/30 backdrop-blur-md rounded-2xl p-6 border border-white/10 shadow-lg space-y-4">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-slate-300">Origem dos Dados das Planilhas</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDataSource('google');
+                      if (!token) {
+                        setNeedsAuth(true);
+                      }
+                    }}
+                    className={`p-4 rounded-xl border text-left flex items-start gap-3 transition-all duration-300 ${
+                      dataSource === 'google'
+                        ? 'bg-indigo-600/20 border-indigo-500 text-white shadow-lg shadow-indigo-500/10'
+                        : 'bg-black/20 border-white/5 text-slate-300 hover:bg-white/5'
+                    }`}
+                  >
+                    <div className="p-2.5 bg-indigo-500/20 rounded-xl text-indigo-300">
+                      <FileSpreadsheet className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <p className="font-bold text-sm">Google Drive (Online / Nuvem)</p>
+                      <p className="text-xs text-slate-400 mt-1">Busca e lê diretamente as tabelas do seu Google Drive.</p>
+                      {dataSource === 'google' && (
+                        <span className="inline-block mt-2 text-[10px] bg-indigo-500/30 text-indigo-200 px-2 py-0.5 rounded-full font-bold">Ativo</span>
+                      )}
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDataSource('local');
+                      setNeedsAuth(false);
+                    }}
+                    className={`p-4 rounded-xl border text-left flex items-start gap-3 transition-all duration-300 ${
+                      dataSource === 'local'
+                        ? 'bg-emerald-600/20 border-emerald-500 text-white shadow-lg shadow-emerald-500/10'
+                        : 'bg-black/20 border-white/5 text-slate-300 hover:bg-white/5'
+                    }`}
+                  >
+                    <div className="p-2.5 bg-emerald-500/20 rounded-xl text-emerald-300">
+                      <Upload className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <p className="font-bold text-sm">Importação Direta (Celular / Offline)</p>
+                      <p className="text-xs text-slate-400 mt-1">📱 Excelente para dispositivos móveis. Sem login, basta colar ou enviar o CSV.</p>
+                      {dataSource === 'local' && (
+                        <span className="inline-block mt-2 text-[10px] bg-emerald-500/30 text-emerald-200 px-2 py-0.5 rounded-full font-bold">Ativo</span>
+                      )}
+                    </div>
                   </button>
                 </div>
               </div>
 
-              <div>
-                <h2 className="text-xl font-bold mb-4 text-white flex items-center gap-2">
-                  <span className="w-1.5 h-6 bg-indigo-500 rounded-full inline-block"></span>
-                  Configurar Planilha de Dados
-                </h2>
-                <div className="bg-black/30 backdrop-blur-md rounded-2xl p-6 border border-white/10 space-y-6 shadow-lg">
-                  
-                  <div className="space-y-3">
-                    <label className="text-sm font-medium text-slate-300">Buscar automaticamente no Drive</label>
-                    <div className="flex flex-col sm:flex-row gap-4">
-                      <button 
-                        onClick={findSpreadsheets}
-                        disabled={loadingFiles}
-                        className="px-5 py-3 bg-indigo-500/80 backdrop-blur-sm text-white rounded-xl font-medium hover:bg-indigo-600/80 border border-indigo-400/30 transition disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg whitespace-nowrap"
-                      >
-                        {loadingFiles && <Loader2 className="w-4 h-4 animate-spin" />}
-                        Buscar no Drive
-                      </button>
-
-                      {files.length > 0 && (
-                        <select 
-                            value={selectedFileId} 
-                            onChange={e => setSelectedFileId(e.target.value)}
-                            className="p-3 border border-white/20 rounded-xl flex-1 bg-black/40 text-white outline-none focus:ring-2 focus:ring-indigo-400/50 focus:border-indigo-400 transition min-w-0"
-                          >
-                          {files.map(f => (
-                            <option key={f.id} value={f.id}>{f.name}</option>
-                          ))}
-                        </select>
-                      )}
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-4 text-slate-400 text-sm font-medium opacity-50">
-                    <hr className="flex-1 border-white/20" />
-                    ou
-                    <hr className="flex-1 border-white/20" />
-                  </div>
-
-                  <div className="space-y-3">
-                    <label className="text-sm font-medium text-slate-300">Cole o link completo ou o ID da planilha</label>
-                    <input 
-                      type="text"
-                      placeholder="Ex: 1BxiMvs0XRYFgwnAKB..."
-                      value={selectedFileId}
-                      onChange={e => setSelectedFileId(e.target.value)}
-                      className="w-full p-3 border border-white/20 rounded-xl bg-black/40 text-white placeholder:text-slate-500 outline-none focus:ring-2 focus:ring-indigo-400/50 focus:border-indigo-400 transition font-mono text-sm"
-                    />
-                  </div>
-
-                  <div className="flex items-center gap-4 text-slate-400 text-sm font-medium opacity-50">
-                    <hr className="flex-1 border-white/20" />
-                  </div>
-
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <label className="text-sm font-bold text-slate-300">Aba</label>
-                      {loadingSheets && (
-                        <span className="text-xs text-indigo-400 flex items-center gap-1">
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" /> Carregando abas...
-                        </span>
-                      )}
-                    </div>
-
-                    {sheetNames.length > 0 ? (
-                      <select 
-                        value={selectedSheetName} 
-                        onChange={e => setSelectedSheetName(e.target.value)}
-                        className="w-full p-3 border border-white/10 rounded-xl bg-black/40 text-white outline-none focus:ring-2 focus:ring-indigo-400/50 focus:border-indigo-400 transition"
-                      >
-                        {sheetNames.map(name => (
-                          <option key={name} value={name}>{name}</option>
-                        ))}
-                      </select>
-                    ) : (
-                      <div className="p-3 border border-white/10 rounded-xl bg-black/20 text-slate-400 text-xs italic">
-                        {selectedFileId ? "Nenhuma aba carregada..." : "Selecione uma planilha acima."}
+              {dataSource === 'google' ? (
+                <>
+                  <div>
+                    <h2 className="text-xl font-bold mb-4 text-white flex items-center gap-2">
+                      <span className="w-1.5 h-6 bg-indigo-500 rounded-full inline-block"></span>
+                      Sua Conta Google
+                    </h2>
+                    <div className="bg-black/30 backdrop-blur-md rounded-2xl p-6 border border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-lg">
+                      <div className="text-center sm:text-left">
+                        <p className="text-sm text-slate-400 mb-1">Logado como</p>
+                        <p className="font-medium text-white">{user?.email || "Nenhum usuário conectado"}</p>
                       </div>
-                    )}
+                      <button onClick={handleLogout} className="px-5 py-2.5 bg-red-500/10 text-red-300 hover:bg-red-500/20 border border-red-500/30 rounded-xl transition font-semibold w-full sm:w-auto">
+                        Sair da Conta
+                      </button>
+                    </div>
                   </div>
 
-                </div>
-              </div>
+                  <div>
+                    <h2 className="text-xl font-bold mb-4 text-white flex items-center gap-2">
+                      <span className="w-1.5 h-6 bg-indigo-500 rounded-full inline-block"></span>
+                      Configurar Planilha de Dados
+                    </h2>
+                    <div className="bg-black/30 backdrop-blur-md rounded-2xl p-6 border border-white/10 space-y-6 shadow-lg">
+                      
+                      <div className="space-y-3">
+                        <label className="text-sm font-medium text-slate-300">Buscar automaticamente no Drive</label>
+                        <div className="flex flex-col sm:flex-row gap-4">
+                          <button 
+                            onClick={findSpreadsheets}
+                            disabled={loadingFiles || !token}
+                            className="px-5 py-3 bg-indigo-500/80 backdrop-blur-sm text-white rounded-xl font-medium hover:bg-indigo-600/80 border border-indigo-400/30 transition disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg whitespace-nowrap cursor-pointer"
+                          >
+                            {loadingFiles && <Loader2 className="w-4 h-4 animate-spin" />}
+                            Buscar no Drive
+                          </button>
+
+                          {files.length > 0 && (
+                            <select 
+                                value={selectedFileId} 
+                                onChange={e => setSelectedFileId(e.target.value)}
+                                className="p-3 border border-white/20 rounded-xl flex-1 bg-black/40 text-white outline-none focus:ring-2 focus:ring-indigo-400/50 focus:border-indigo-400 transition min-w-0"
+                              >
+                              {files.map(f => (
+                                <option key={f.id} value={f.id}>{f.name}</option>
+                              ))}
+                            </select>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-4 text-slate-400 text-sm font-medium opacity-50">
+                        <hr className="flex-1 border-white/20" />
+                        ou
+                        <hr className="flex-1 border-white/20" />
+                      </div>
+
+                      <div className="space-y-3">
+                        <label className="text-sm font-medium text-slate-300">Cole o link completo ou o ID da planilha</label>
+                        <input 
+                          type="text"
+                          placeholder="Ex: 1BxiMvs0XRYFgwnAKB..."
+                          value={selectedFileId}
+                          onChange={e => setSelectedFileId(e.target.value)}
+                          className="w-full p-3 border border-white/20 rounded-xl bg-black/40 text-white placeholder:text-slate-500 outline-none focus:ring-2 focus:ring-indigo-400/50 focus:border-indigo-400 transition font-mono text-sm"
+                        />
+                      </div>
+
+                      <div className="flex items-center gap-4 text-slate-400 text-sm font-medium opacity-50">
+                        <hr className="flex-1 border-white/20" />
+                      </div>
+
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <label className="text-sm font-bold text-slate-300">Aba</label>
+                          {loadingSheets && (
+                            <span className="text-xs text-indigo-400 flex items-center gap-1">
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" /> Carregando abas...
+                            </span>
+                          )}
+                        </div>
+
+                        {sheetNames.length > 0 ? (
+                          <select 
+                            value={selectedSheetName} 
+                            onChange={e => setSelectedSheetName(e.target.value)}
+                            className="w-full p-3 border border-white/10 rounded-xl bg-black/40 text-white outline-none focus:ring-2 focus:ring-indigo-400/50 focus:border-indigo-400 transition"
+                          >
+                            {sheetNames.map(name => (
+                              <option key={name} value={name}>{name}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <div className="p-3 border border-white/10 rounded-xl bg-black/20 text-slate-400 text-xs italic">
+                            {selectedFileId ? "Nenhuma aba carregada..." : "Selecione uma planilha acima."}
+                          </div>
+                        )}
+                      </div>
+
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <h2 className="text-xl font-bold mb-4 text-white flex items-center gap-2">
+                      <span className="w-1.5 h-6 bg-emerald-500 rounded-full inline-block"></span>
+                      Planilha Local (Sem Dependência de Login)
+                    </h2>
+                    
+                    <div className="bg-black/30 backdrop-blur-md rounded-2xl p-6 border border-white/10 space-y-6 shadow-lg">
+                      <div className="bg-slate-900/50 p-4 rounded-xl text-xs text-slate-300 leading-relaxed space-y-2 border border-white/5">
+                        <p className="font-bold text-white text-sm flex items-center gap-1.5">
+                          💡 Por que usar este método?
+                        </p>
+                        <p>
+                          Navegadores móveis integrados (como do WhatsApp, Instagram ou navegadores do iPhone Safari) frequentemente impedem logins do Google devido a restrições em iframe ou de cookies de terceiros.
+                        </p>
+                        <p>
+                          <strong>Como fazer:</strong> Abra sua tabela em outro app ou aba, selecione todas as células incluindo o cabeçalho (com dados de Ticker/Ativo, EV/EBITDA, ROE, Dividend Yield, etc.), copie-as e cole abaixo! O app identificará tudo automaticamente.
+                        </p>
+                      </div>
+
+                      {localUploadedSheetData && (
+                        <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl space-y-2 text-emerald-300">
+                          <p className="text-sm font-bold flex items-center gap-2">
+                             <Check className="w-4 h-4 text-emerald-400" /> Planilha Carregada com Sucesso!
+                          </p>
+                          <ul className="text-xs list-disc pl-4 space-y-1 text-slate-300">
+                            <li>Origem: <strong>{localSourceName}</strong></li>
+                            <li>Registros identificados: <strong>{localUploadedSheetData.length} linhas</strong></li>
+                            <li>Colunas detectadas por linha: <strong>{localUploadedSheetData[0]?.length || 0} colunas</strong></li>
+                          </ul>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setLocalUploadedSheetData(null);
+                              setLocalSourceName('Dados Importados (Local)');
+                            }}
+                            className="mt-1 px-3 py-1.5 bg-red-500/15 hover:bg-red-500/35 text-red-200 text-[11px] rounded transition font-medium cursor-pointer"
+                          >
+                            Limpar Dados Importados
+                          </button>
+                        </div>
+                      )}
+
+                      {/* File Upload Selector */}
+                      <div className="space-y-3">
+                        <label className="text-sm font-medium text-slate-300 block">Opção A: Enviar arquivo de Planilha (.csv)</label>
+                        <div className="relative border border-dashed border-white/20 rounded-xl p-6 text-center hover:bg-white/5 transition group">
+                          <input 
+                            type="file" 
+                            accept=".csv"
+                            onChange={handleFileUpload}
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
+                          />
+                          <div className="space-y-2 flex flex-col items-center">
+                            <Upload className="w-8 h-8 text-slate-400 group-hover:text-indigo-400 transition" />
+                            <p className="text-sm text-slate-300 font-medium">Toque para selecionar ou arraste o arquivo CSV</p>
+                            <p className="text-xs text-slate-500">Suporta arquivos separados por vírgula (,), ponto e vírgula (;) ou tabulações.</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-4 text-slate-500 text-xs font-semibold opacity-40">
+                        <hr className="flex-1 border-white/20" />
+                        ou
+                        <hr className="flex-1 border-white/20" />
+                      </div>
+
+                      {/* Copiar e Colar TextArea */}
+                      <div className="space-y-3">
+                        <label className="text-sm font-medium text-slate-300 block">Opção B: Copiar & Colar células diretamente do Excel ou Google Sheets</label>
+                        <textarea
+                          placeholder="Cole as colunas/linhas copiadas da sua planilha aqui... (Ex: Ticker \t Dividend Yield \t ROE...)"
+                          value={rawPasteText}
+                          onChange={e => setRawPasteText(e.target.value)}
+                          className="w-full h-32 p-3 border border-white/20 rounded-xl bg-black/40 text-white placeholder:text-slate-500 outline-none focus:ring-2 focus:ring-indigo-400/50 focus:border-indigo-400 transition font-mono text-xs"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleLocalDataParse(rawPasteText, "Planilha Colada (" + new Date().toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'}) + ")");
+                            setRawPasteText('');
+                          }}
+                          disabled={!rawPasteText.trim()}
+                          className="w-full py-3 bg-indigo-500/80 backdrop-blur-sm text-white rounded-xl font-bold text-sm hover:bg-indigo-600 border border-indigo-400/30 transition disabled:opacity-40 cursor-pointer text-center"
+                        >
+                          Processar Células Coladas
+                        </button>
+                      </div>
+
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           ) : currentView === 'wallet' ? (
             <WalletView />
@@ -644,24 +983,26 @@ export default function App() {
                 </div>
               </div>
 
-              {!selectedFileId ? (
+              {((dataSource === 'google' && !selectedFileId) || (dataSource === 'local' && (!localUploadedSheetData || localUploadedSheetData.length === 0))) ? (
                 <div className="text-center py-16 space-y-4">
                   <div className="mx-auto w-20 h-20 bg-white/5 rounded-full flex items-center justify-center border border-white/10 mb-6 shadow-inner">
                     <FileSpreadsheet className="w-10 h-10 text-indigo-400/50" />
                   </div>
                   <h2 className="text-2xl font-bold text-white">Nenhuma planilha configurada</h2>
                   <p className="text-slate-400 max-w-sm mx-auto">
-                    Para usar o assistente, vá nas Configurações e selecione a planilha de dados do seu Google Drive.
+                    {dataSource === 'google' 
+                      ? "Para usar o assistente, vá nas Configurações e selecione a planilha de dados do seu Google Drive."
+                      : "Para usar o assistente, vá nas Configurações e faça upload ou cole os dados da sua planilha local."}
                   </p>
                   <button 
                     onClick={() => setCurrentView('settings')}
-                    className="mt-6 px-8 py-3 bg-indigo-500/80 backdrop-blur-sm text-white rounded-xl font-medium hover:bg-indigo-600/80 border border-indigo-400/30 transition shadow-lg inline-flex items-center gap-2"
+                    className="mt-6 px-8 py-3 bg-indigo-500/80 backdrop-blur-sm text-white rounded-xl font-medium hover:bg-indigo-600/80 border border-indigo-400/30 transition shadow-lg inline-flex items-center gap-2 cursor-pointer"
                   >
                     <Settings className="w-5 h-5"/> Abrir Configurações
                   </button>
                 </div>
               ) : (
-                <div className="space-y-8">
+                <div className="space-y-8 animate-in fade-in duration-300">
                   <div className="text-center mb-8">
                     <h2 className="text-3xl font-bold text-white tracking-tight uppercase tracking-wider font-sans">
                       {analysisType === 'stocks' 
@@ -673,7 +1014,7 @@ export default function App() {
                     
                     <div className="mt-3">
                       <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-white/5 text-indigo-200 border border-white/10">
-                        Aba ativa: <span className="text-white font-mono font-bold">{selectedSheetName || "Não configurada"}</span>
+                        {dataSource === 'google' ? 'Aba ativa' : 'Origem'}: <span className="text-white font-mono font-bold">{dataSource === 'google' ? (selectedSheetName || "Não configurada") : `${localSourceName} (${localUploadedSheetData?.length || 0} linhas lidas)`}</span>
                       </span>
                     </div>
                   </div>
