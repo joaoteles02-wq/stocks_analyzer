@@ -193,13 +193,15 @@ export function DashboardView() {
   // Computed Portfolio Aggregate Data points
   const getPortfolioValueAtPoint = (point: HistoricalPoint): number => {
     let sumVal = 0;
+    const initialPoint = dataPoints[0];
     walletAssets.forEach(item => {
       const weight = walletWeights[item.ticker] || 0;
       const priceAtPoint = point.prices[item.ticker] || item.price;
       const brlPriceAtPoint = getBRLPrice(item.ticker, priceAtPoint);
-      const initialBrlPrice = getBRLPrice(item.ticker, item.price);
+      const initialPrice = initialPoint ? (initialPoint.prices[item.ticker] || item.price) : item.price;
+      const initialBrlPrice = getBRLPrice(item.ticker, initialPrice);
       
-      // Calculate appreciation percentage from this point
+      // Calculate appreciation percentage from the initial point
       const appreciation = brlPriceAtPoint / initialBrlPrice;
       const allocatedMoney = investmentBudget * (weight / 100);
       sumVal += allocatedMoney * appreciation;
