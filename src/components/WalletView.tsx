@@ -145,14 +145,12 @@ export function WalletView() {
   const hasFiiAnalysis = typeof window !== 'undefined' && !!localStorage.getItem('fii_analysis_result');
   const hasSp500Analysis = typeof window !== 'undefined' && !!localStorage.getItem('sp500_analysis_result');
 
-  const applyTop10 = (type: 'stocks' | 'fii' | 'sp500') => {
-    const rawMarkdown = localStorage.getItem(`${type}_analysis_result`);
-    if (!rawMarkdown) {
-      setWalletError("Nenhuma recomendação recente encontrada para esta categoria.");
-      return;
-    }
+  const [isReloadModalOpen, setIsReloadModalOpen] = useState(false);
+  const [selectedStrategy, setSelectedStrategy] = useState<'income' | 'balanced' | 'growth'>('balanced');
 
-    const lines = rawMarkdown.split('\n');
+  // Parses the 10 ranked assets for a given type, using reports if available, falling back to static/definitions to get exactly 10
+  const getRankedAssetsFromCategory = (type: 'stocks' | 'fii' | 'sp500'): Asset[] => {
+    const rawMarkdown = localStorage.getItem(`${type}_analysis_result`);
     const parsedTickers: string[] = [];
 
     // Helper to filter out common financial acronyms we don't want to parse as US tickers
@@ -204,51 +202,48 @@ export function WalletView() {
       }
       return null;
     };
-    
-    for (const line of lines) {
-      // Checks if line is a potential ranking line or section heading
-      const isRankingLine = 
-        /^\s*[\-\*\+\#\s]*\d+[\.\)\º\ª\s\-]/i.test(line) || 
-        /lugar|posição|ranking/i.test(line) ||
-        /^\s*[\-\*\+]\s+/.test(line); // list bullet points
 
-      if (isRankingLine) {
-        const t = extractTickerFromLine(line);
-        if (t && !parsedTickers.includes(t)) {
-          parsedTickers.push(t);
+    if (rawMarkdown) {
+      const lines = rawMarkdown.split('\n');
+      for (const line of lines) {
+        // Checks if line is a potential ranking line or section heading
+        const isRankingLine = 
+          /^\s*[\-\*\+\#\s]*\d+[\.\)\º\ª\s\-]/i.test(line) || 
+          /lugar|posição|ranking/i.test(line) ||
+          /^\s*[\-\*\+]\s+/.test(line); // list bullet points
+
+        if (isRankingLine) {
+          const t = extractTickerFromLine(line);
+          if (t && !parsedTickers.includes(t)) {
+            parsedTickers.push(t);
+          }
         }
       }
-    }
 
-    // Fallback 1: If we have not found enough tickers, look for B3 patterns anywhere in the markdown
-    if (parsedTickers.length < 5 && (type === 'stocks' || type === 'fii')) {
-      const b3Matches = rawMarkdown.match(/\b([A-Z]{4}\d{1,2})\b/g);
-      if (b3Matches) {
-        for (const m of b3Matches) {
-          const cleanM = m.toUpperCase();
-          if (!ignoreList.has(cleanM) && !parsedTickers.includes(cleanM)) {
-            parsedTickers.push(cleanM);
+      // Fallback 1: If we have not found enough tickers, look for B3 patterns anywhere in the markdown
+      if (parsedTickers.length < 5 && (type === 'stocks' || type === 'fii')) {
+        const b3Matches = rawMarkdown.match(/\b([A-Z]{4}\d{1,2})\b/g);
+        if (b3Matches) {
+          for (const m of b3Matches) {
+            const cleanM = m.toUpperCase();
+            if (!ignoreList.has(cleanM) && !parsedTickers.includes(cleanM)) {
+              parsedTickers.push(cleanM);
+            }
+          }
+        }
+      }
+
+      // Fallback 2: For S&P 500, scan text to see if any of our known best S&P tickers is featured
+      if (parsedTickers.length < 5 && type === 'sp500') {
+        const knownSp500Tickers = ALL_BEST_30_ASSETS.filter(a => a.type === 'sp500').map(a => a.ticker);
+        for (const kt of knownSp500Tickers) {
+          if (rawMarkdown.toUpperCase().includes(kt) && !parsedTickers.includes(kt)) {
+            parsedTickers.push(kt);
           }
         }
       }
     }
 
-    // Fallback 2: For S&P 500, scan text to see if any of our known best S&P tickers is featured
-    if (parsedTickers.length < 5 && type === 'sp500') {
-      const knownSp500Tickers = ALL_BEST_30_ASSETS.filter(a => a.type === 'sp500').map(a => a.ticker);
-      for (const kt of knownSp500Tickers) {
-        if (rawMarkdown.toUpperCase().includes(kt) && !parsedTickers.includes(kt)) {
-          parsedTickers.push(kt);
-        }
-      }
-    }
-
-    if (parsedTickers.length === 0) {
-      setWalletError("Não foi possível identificar os tickers recomendados no relatório da IA. Verifique se o relatório foi gerado corretamente.");
-      return;
-    }
-
-    const top10 = parsedTickers.slice(0, 10);
     let localRows: any[][] = [];
     try {
       const savedLocal = localStorage.getItem('local_uploaded_sheet_data');
@@ -257,14 +252,19 @@ export function WalletView() {
       }
     } catch (e) {}
 
-    const newSlots = top10.map((ticker) => {
+    const resultList: Asset[] = [];
+
+    // Map found tickers to Asset objects
+    for (const ticker of parsedTickers) {
       // 1. Search in ALL_BEST_30_ASSETS
       const existing = ALL_BEST_30_ASSETS.find(a => a.ticker.toUpperCase() === ticker);
       if (existing) {
-        return { asset: existing, weight: 10 };
+        resultList.push(existing);
+        continue;
       }
 
       // 2. Search in local sheet rows if available
+      let matchedInSheet = false;
       if (Array.isArray(localRows) && localRows.length > 0) {
         const matchedRow = localRows.find(row => 
           Array.isArray(row) && row.some(cell => String(cell).trim().toUpperCase() === ticker)
@@ -302,54 +302,148 @@ export function WalletView() {
             matchedSector = matchedRow[2];
           }
 
-          return {
-            asset: {
-              ticker,
-              name: matchedName,
-              type,
-              price: matchedPrice,
-              currency: type === 'sp500' ? 'USD' as const : 'BRL' as const,
-              yield: matchedYield,
-              sector: matchedSector,
-              description: 'Ativo adicionado automaticamente a partir da análise da planilha.'
-            },
-            weight: 10
-          };
+          resultList.push({
+            ticker,
+            name: matchedName,
+            type,
+            price: matchedPrice,
+            currency: type === 'sp500' ? 'USD' as const : 'BRL' as const,
+            yield: matchedYield,
+            sector: matchedSector,
+            description: 'Ativo adicionado automaticamente a partir da análise da planilha.'
+          });
+          matchedInSheet = true;
         }
       }
 
+      if (matchedInSheet) continue;
+
       // 3. Dynamic placeholder fallback
+      resultList.push({
+        ticker,
+        name: `${type === 'stocks' ? 'Ação' : type === 'fii' ? 'Fundo Imobiliário' : 'Ação S&P 500'} ${ticker}`,
+        type,
+        price: type === 'sp500' ? 100.00 : 15.00,
+        currency: type === 'sp500' ? 'USD' as const : 'BRL' as const,
+        yield: type === 'sp500' ? 0.015 : type === 'fii' ? 0.10 : 0.06,
+        sector: 'Selecionado por IA',
+        description: 'Ativo selecionado dinamicamente a partir de seu ranking gerado pelo Gemini.'
+      });
+    }
+
+    // Ensure we have exactly 10 by filling from the static list of that type
+    const staticList = ALL_BEST_30_ASSETS.filter(a => a.type === type);
+    for (const staticAsset of staticList) {
+      if (resultList.length >= 10) break;
+      if (!resultList.some(a => a.ticker === staticAsset.ticker)) {
+        resultList.push(staticAsset);
+      }
+    }
+
+    return resultList.slice(0, 10);
+  };
+
+  const getStrategyPreview = (strategyType: 'income' | 'balanced' | 'growth'): { asset: Asset; weight: number }[] => {
+    const stocksRanked = getRankedAssetsFromCategory('stocks');
+    const fiiRanked = getRankedAssetsFromCategory('fii');
+    const sp500Ranked = getRankedAssetsFromCategory('sp500');
+
+    const selectedSlots: { asset: Asset; weight: number }[] = [];
+
+    if (strategyType === 'income') {
+      // 5 FIIs (60%), 3 Ações BR (30%), 2 S&P 500 (10%)
+      const selectedFiis = fiiRanked.slice(0, 5);
+      const selectedStocks = stocksRanked.slice(0, 3);
+      const selectedSp500 = sp500Ranked.slice(0, 2);
+
+      const fiiWeights = [15, 15, 10, 10, 10];
+      const stockWeights = [10, 10, 10];
+      const sp500Weights = [5, 5];
+
+      selectedFiis.forEach((asset, idx) => {
+        selectedSlots.push({ asset, weight: fiiWeights[idx] || 10 });
+      });
+      selectedStocks.forEach((asset, idx) => {
+        selectedSlots.push({ asset, weight: stockWeights[idx] || 10 });
+      });
+      selectedSp500.forEach((asset, idx) => {
+        selectedSlots.push({ asset, weight: sp500Weights[idx] || 5 });
+      });
+    } else if (strategyType === 'growth') {
+      // 5 S&P 500 (60%), 3 Ações BR (30%), 2 FIIs (10%)
+      const selectedSp500 = sp500Ranked.slice(0, 5);
+      const selectedStocks = stocksRanked.slice(0, 3);
+      const selectedFiis = fiiRanked.slice(0, 2);
+
+      const sp500Weights = [15, 15, 10, 10, 10];
+      const stockWeights = [10, 10, 10];
+      const fiiWeights = [5, 5];
+
+      selectedSp500.forEach((asset, idx) => {
+        selectedSlots.push({ asset, weight: sp500Weights[idx] || 10 });
+      });
+      selectedStocks.forEach((asset, idx) => {
+        selectedSlots.push({ asset, weight: stockWeights[idx] || 10 });
+      });
+      selectedFiis.forEach((asset, idx) => {
+        selectedSlots.push({ asset, weight: fiiWeights[idx] || 5 });
+      });
+    } else {
+      // balanced: 4 FIIs (40%), 3 Ações BR (30%), 3 S&P 500 (30%)
+      const selectedFiis = fiiRanked.slice(0, 4);
+      const selectedStocks = stocksRanked.slice(0, 3);
+      const selectedSp500 = sp500Ranked.slice(0, 3);
+
+      const fiiWeights = [10, 10, 10, 10];
+      const stockWeights = [10, 10, 10];
+      const sp500Weights = [10, 10, 10];
+
+      selectedFiis.forEach((asset, idx) => {
+        selectedSlots.push({ asset, weight: fiiWeights[idx] || 10 });
+      });
+      selectedStocks.forEach((asset, idx) => {
+        selectedSlots.push({ asset, weight: stockWeights[idx] || 10 });
+      });
+      selectedSp500.forEach((asset, idx) => {
+        selectedSlots.push({ asset, weight: sp500Weights[idx] || 10 });
+      });
+    }
+
+    return selectedSlots;
+  };
+
+  const applyStrategyReload = (strategyType: 'income' | 'balanced' | 'growth') => {
+    const slots = getStrategyPreview(strategyType);
+    if (!slots || slots.length === 0) {
+      setWalletError("Não foi possível gerar a carteira baseada nas recomendações.");
+      return;
+    }
+    setWallet(slots);
+    
+    const strategyName = strategyType === 'income' ? 'Renda & Dividendos' 
+      : strategyType === 'growth' ? 'Crescimento Tecnológico' 
+      : 'Equilíbrio Global';
+
+    setSuccessMsg(`AI Reload Completo! Sua carteira foi reestruturada na estratégia [${strategyName}] com base nos top ativos recomendados da IA. O total soma 100%!`);
+    setTimeout(() => setSuccessMsg(null), 8500);
+    setIsReloadModalOpen(false);
+  };
+
+  const applyTop10 = (type: 'stocks' | 'fii' | 'sp500') => {
+    const assets = getRankedAssetsFromCategory(type);
+    if (!assets || assets.length === 0) {
+      setWalletError("Nenhuma recomendação recente encontrada para esta categoria.");
+      return;
+    }
+
+    const newSlots = assets.map((asset) => {
       return {
-        asset: {
-          ticker,
-          name: `${type === 'stocks' ? 'Ação' : type === 'fii' ? 'Fundo Imobiliário' : 'Ação S&P 500'} ${ticker}`,
-          type,
-          price: type === 'sp500' ? 100.00 : 15.00,
-          currency: type === 'sp500' ? 'USD' as const : 'BRL' as const,
-          yield: type === 'sp500' ? 0.015 : type === 'fii' ? 0.10 : 0.06,
-          sector: 'Selecionado por IA',
-          description: 'Ativo selecionado dinamicamente a partir de seu ranking gerado pelo Gemini.'
-        },
+        asset,
         weight: 10
       };
     });
 
-    while (newSlots.length < 10) {
-      const fallbackTicker = type === 'stocks' ? 'ITUB4' : type === 'fii' ? 'HGLG11' : 'AAPL';
-      const fallbackAsset = ALL_BEST_30_ASSETS.find(a => a.ticker === fallbackTicker)!;
-      const isAlreadyIn = newSlots.some(s => s.asset.ticker === fallbackTicker);
-      if (!isAlreadyIn) {
-        newSlots.push({ asset: fallbackAsset, weight: 10 });
-      } else {
-        const replacement = ALL_BEST_30_ASSETS.find(a => a.type === type && !newSlots.some(s => s.asset.ticker === a.ticker));
-        if (replacement) {
-          newSlots.push({ asset: replacement, weight: 10 });
-        } else {
-          newSlots.push({ asset: ALL_BEST_30_ASSETS[0], weight: 10 });
-        }
-      }
-    }
-
+    // We can directly set after filling up to 10 fallback if needed, which getRankedAssetsFromCategory already guarantees
     setWallet(newSlots);
     setSuccessMsg(`Top 10 ativos recomendados da categoria [${type === 'stocks' ? 'Ações BR' : type === 'fii' ? 'FIIs' : 'S&P 500'}] aplicados à sua carteira com peso igual de 10% cada!`);
     setTimeout(() => setSuccessMsg(null), 8500);
@@ -518,7 +612,152 @@ export function WalletView() {
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      
+
+      {/* Strategy Selection Modal for AI Reload */}
+      {isReloadModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="relative w-full max-w-2xl p-6 sm:p-8 bg-slate-900 border border-slate-700/80 rounded-3xl shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center shrink-0 text-amber-400 border border-amber-500/20">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white">
+                    AI Reload da Carteira
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Selecione a melhor estratégia para mesclar as 30 ações de melhor ranking recomendadas pela IA
+                  </p>
+                </div>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => setIsReloadModalOpen(false)}
+                className="p-1 rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Strategy Selectors */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {[
+                {
+                  id: 'balanced' as const,
+                  title: 'Equilíbrio Global',
+                  desc: '40% FIIs, 30% Ações BR, 30% S&P 500',
+                  color: 'border-blue-500 bg-blue-500/5 text-blue-300',
+                  badge: 'Moderado',
+                  distribution: '4 FIIs + 3 Ações + 3 S&P 500'
+                },
+                {
+                  id: 'income' as const,
+                  title: 'Renda & Dividendos',
+                  desc: '60% FIIs, 30% Ações BR, 10% S&P 500',
+                  color: 'border-emerald-500 bg-emerald-500/5 text-emerald-300',
+                  badge: 'Renda Passiva',
+                  distribution: '5 FIIs + 3 Ações + 2 S&P 500'
+                },
+                {
+                  id: 'growth' as const,
+                  title: 'Crescimento Global',
+                  desc: '60% S&P 500, 30% Ações BR, 10% FIIs',
+                  color: 'border-amber-500 bg-amber-500/5 text-amber-300',
+                  badge: 'Alto Upside',
+                  distribution: '5 S&P 500 + 3 Ações + 2 FIIs'
+                }
+              ].map((strat) => (
+                <button
+                  key={strat.id}
+                  type="button"
+                  onClick={() => setSelectedStrategy(strat.id)}
+                  className={`flex flex-col text-left p-4 rounded-2xl border-2 transition cursor-pointer relative ${
+                    selectedStrategy === strat.id 
+                    ? `${strat.color} ring-4 ring-offset-2 ring-offset-slate-900 border-transparent` 
+                    : 'border-slate-800 bg-slate-800/40 hover:border-slate-700 hover:bg-slate-800/80'
+                  }`}
+                >
+                  <div className="flex items-center justify-between w-full h-fit gap-1 mb-1">
+                    <span className="text-xs font-black text-white">{strat.title}</span>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-white/10 text-slate-300 font-bold uppercase tracking-wider">{strat.badge}</span>
+                  </div>
+                  <span className="text-[10px] text-slate-400 mt-1 mb-2 leading-relaxed">{strat.desc}</span>
+                  <span className="text-[9px] text-slate-500 font-mono font-medium mt-auto">{strat.distribution}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Asset Preview Section */}
+            <div className="space-y-3 bg-slate-950/40 p-5 rounded-2xl border border-white/5">
+              <h4 className="text-xs font-black uppercase tracking-wider text-slate-300 flex items-center justify-between">
+                <span>Ativos Selecionados (Top 10 Mesclados)</span>
+                <span className="text-[10px] text-slate-500 lowercase">Ordenados conforme ranking de recomendação</span>
+              </h4>
+              
+              <div className="max-h-[220px] overflow-y-auto space-y-2 pr-1 scrollbar-none">
+                {getStrategyPreview(selectedStrategy).map((slot, index) => (
+                  <div 
+                    key={slot.asset.ticker + index}
+                    className="flex items-center justify-between p-2.5 bg-slate-900 border border-white/5 rounded-xl transition"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs font-bold text-slate-500 font-mono">
+                        #{index + 1}
+                      </span>
+                      <div className="flex flex-col">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-black text-white font-mono">{slot.asset.ticker}</span>
+                          <span className={`text-[9.5px] px-1.5 py-0.2 rounded font-bold uppercase ${
+                            slot.asset.type === 'fii' 
+                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
+                              : slot.asset.type === 'stocks'
+                                ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                                : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                          }`}>
+                            {slot.asset.type === 'fii' ? 'FII' : slot.asset.type === 'stocks' ? 'Ação BR' : 'S&P 500'}
+                          </span>
+                        </div>
+                        <span className="text-[10.5px] text-slate-400 truncate max-w-[280px]">{slot.asset.name}</span>
+                      </div>
+                    </div>
+
+                    <div className="text-right flex items-center gap-3 shrink-0">
+                      <div className="flex flex-col items-end">
+                        <span className="text-xs font-black text-white">{slot.weight}%</span>
+                        <span className="text-[9px] text-slate-500 font-mono">alocação</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-4 mt-2">
+              <span className="text-[10px] text-slate-400 max-w-[340px] leading-relaxed">
+                * Os pesos foram estrategicamente alocados com pesos de até 15% nos ativos de topo e 5% nos complementares de forma a fechar <strong>100%</strong> de alocação exata.
+              </span>
+              <div className="flex items-center gap-3 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setIsReloadModalOpen(false)}
+                  className="px-4 py-2 hover:bg-white/5 border border-white/10 text-slate-300 hover:text-white rounded-xl text-xs font-bold transition cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyStrategyReload(selectedStrategy)}
+                  className="px-6 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black rounded-xl text-xs font-black uppercase tracking-wider transition duration-200 shadow-md shadow-amber-500/20 cursor-pointer"
+                >
+                  ✓ Executar AI Reload
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Custom Premium Non-Blocking Confirmation Dialog */}
       {confirmModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
@@ -616,7 +855,7 @@ export function WalletView() {
       </div>
 
       {/* Quick Option to Rebuild / Overwrite Portfolio with Top 10 recommendations */}
-      {(hasStocksAnalysis || hasFiiAnalysis || hasSp500Analysis) ? (
+       {(hasStocksAnalysis || hasFiiAnalysis || hasSp500Analysis) ? (
         <div className="bg-amber-500/10 border border-amber-500/30 rounded-3xl p-6 shadow-xl flex flex-col md:flex-row items-center justify-between gap-6 backdrop-blur-sm relative overflow-hidden animate-in fade-in duration-300">
           <div className="absolute top-0 right-0 w-[200px] h-[150px] bg-amber-500/5 blur-[50px] rounded-full -z-10"></div>
           
@@ -625,25 +864,18 @@ export function WalletView() {
               <Sparkles className="w-3 h-3 text-amber-400 animate-pulse" /> Recomendações de IA Disponíveis
             </span>
             <h3 className="text-lg font-bold text-white">
-              Remontar Carteira via Inteligência Artificial
+              AI Reload da Carteira
             </h3>
-            <p className="text-xs text-slate-300 max-w-xl leading-relaxed">
-              Deseja redefinir sua carteira de investimentos? Aplique os <strong className="text-white font-bold">10 ativos do topo do ranking</strong> de seu último relatório de análise de dados com pesos igualmente distribuídos de forma automática.
+            <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
+              Deseja redefinir sua carteira de investimentos? Mescle automaticamente as <strong className="text-white font-bold">30 recomendações rankeadas pela IA</strong> (10 Ações, 10 FIIs e 10 S&P) selecionando a estratégia ideal com alocação otimizada.
             </p>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto shrink-0">
+          <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto shrink-0 animate-pulse-slow">
             <button
               type="button"
               onClick={() => {
-                const latestType = (localStorage.getItem('latest_analysis_type') as 'stocks' | 'fii' | 'sp500' | null) 
-                  || (hasStocksAnalysis ? 'stocks' : hasFiiAnalysis ? 'fii' : 'sp500');
-                const categoryName = latestType === 'stocks' ? 'Ações Brasileiras' : latestType === 'fii' ? 'FIIs' : 'S&P 500';
-                setConfirmModal({
-                  title: "Confirmar AI Reload",
-                  message: `Esta ação irá substituir todos os 10 ativos atuais de sua carteira pelos top 10 recomendados pela análise de IA na categoria [${categoryName}]. Deseja prosseguir?`,
-                  onConfirm: () => applyTop10(latestType)
-                });
+                setIsReloadModalOpen(true);
               }}
               className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold text-xs uppercase tracking-wider rounded-xl transition duration-300 active:scale-95 shadow-lg shadow-amber-500/20 cursor-pointer border border-amber-300/30 font-sans"
             >
