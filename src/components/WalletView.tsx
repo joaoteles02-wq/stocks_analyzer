@@ -125,7 +125,16 @@ export function WalletView() {
   });
 
   const [investmentBudget, setInvestmentBudget] = useState<number>(() => {
-    return Number(localStorage.getItem('saved_wallet_budget')) || 25000;
+    const saved = localStorage.getItem('saved_wallet_budget');
+    if (saved) {
+      const parsed = Number(saved);
+      if (parsed === 25000) {
+        localStorage.setItem('saved_wallet_budget', '125000');
+        return 125000;
+      }
+      return parsed;
+    }
+    return 125000;
   });
 
   const [activeReplaceIndex, setActiveReplaceIndex] = useState<number | null>(null);

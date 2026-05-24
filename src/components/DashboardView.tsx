@@ -29,13 +29,21 @@ export function DashboardView() {
   // 1. Load active wallet assets from local storage or fallback to defaults
   const [walletAssets, setWalletAssets] = useState<Asset[]>([]);
   const [walletWeights, setWalletWeights] = useState<Record<string, number>>({});
-  const [investmentBudget, setInvestmentBudget] = useState<number>(25000);
+  const [investmentBudget, setInvestmentBudget] = useState<number>(125000);
 
   useEffect(() => {
     // Read budget
     const savedBudget = localStorage.getItem('saved_wallet_budget');
     if (savedBudget) {
-      setInvestmentBudget(Number(savedBudget));
+      const parsed = Number(savedBudget);
+      if (parsed === 25000) {
+        setInvestmentBudget(125000);
+        localStorage.setItem('saved_wallet_budget', '125000');
+      } else {
+        setInvestmentBudget(parsed);
+      }
+    } else {
+      localStorage.setItem('saved_wallet_budget', '125000');
     }
 
     // Read wallet
