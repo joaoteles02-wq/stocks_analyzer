@@ -340,6 +340,25 @@ export function DashboardView() {
   const appreciationPercent = ((currentTotalValuation - initialTotalValuation) / initialTotalValuation) * 100;
   const isPositiveGrowth = appreciationPercent >= 0;
 
+  // Dynamic portfolio performance rating compared to CDI (Jan/26 to Mai/26 = 3.39%)
+  const cdiBench = 3.39;
+  let ratingText = 'Média';
+  let ratingColor = 'text-emerald-400';
+
+  if (appreciationPercent < 0) {
+    ratingText = 'Baixa (Negativa)';
+    ratingColor = 'text-rose-400';
+  } else if (appreciationPercent < cdiBench) {
+    ratingText = 'Baixa (Abaixo do CDI)';
+    ratingColor = 'text-amber-400';
+  } else if (appreciationPercent < cdiBench * 1.5) {
+    ratingText = 'Alta (Acima do CDI)';
+    ratingColor = 'text-emerald-400 font-bold';
+  } else {
+    ratingText = 'Excelente (Outperformance)';
+    ratingColor = 'text-teal-400 font-black';
+  }
+
   // Weighted Yield and Dividends Simulator
   const weightedAnnualYield = walletAssets.reduce((sum, asset) => {
     const weight = walletWeights[asset.ticker] || 0;
@@ -396,8 +415,8 @@ export function DashboardView() {
                 <span className={`text-2xl font-black ${isPositiveGrowth ? 'text-emerald-400' : 'text-rose-400'}`}>
                   {isPositiveGrowth ? '+' : ''}{appreciationPercent.toFixed(2)}%
                 </span>
-                <span className="text-[11px] text-slate-300 font-medium font-mono">
-                  {isPositiveGrowth ? 'Alta' : 'Baixa'}
+                <span className={`text-[11px] font-bold font-mono ${ratingColor}`}>
+                  {ratingText}
                 </span>
               </div>
               <span className="text-[10px] text-slate-400 block mt-1">Confrontado desde ponto de partida</span>
