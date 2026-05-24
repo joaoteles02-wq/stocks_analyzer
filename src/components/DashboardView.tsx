@@ -15,7 +15,8 @@ import {
   ChevronRight,
   Info,
   BarChart2,
-  Percent
+  Percent,
+  Coins
 } from 'lucide-react';
 
 interface HistoricalPoint {
@@ -339,77 +340,127 @@ export function DashboardView() {
   const appreciationPercent = ((currentTotalValuation - initialTotalValuation) / initialTotalValuation) * 100;
   const isPositiveGrowth = appreciationPercent >= 0;
 
+  // Weighted Yield and Dividends Simulator
+  const weightedAnnualYield = walletAssets.reduce((sum, asset) => {
+    const weight = walletWeights[asset.ticker] || 0;
+    return sum + (asset.yield * (weight / 100));
+  }, 0);
+  const yearlyDividendsSimulated = investmentBudget * weightedAnnualYield;
+
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       
-      {/* Metrics Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        
-        {/* Metric - Patrimônio Inicial */}
-        <div className="bg-black/25 border border-white/10 rounded-2xl p-5 flex items-center justify-between shadow-lg">
-          <div>
-            <span className="text-xs text-slate-400 font-bold block uppercase tracking-wider mb-1">Patrimônio Inicial</span>
-            <span className="text-2xl font-black text-white">
-              R$ {initialTotalValuation.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </span>
-            <span className="text-[10px] text-slate-400 block mt-1">Valor inicial (Jan/2026)</span>
-          </div>
-          <div className="bg-blue-500/10 p-3 rounded-xl border border-blue-500/20 text-blue-400">
-            <DollarSign className="w-6 h-6" />
-          </div>
+      {/* Simulation Header and Cards section wrapper */}
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 pb-1">
+          <Coins className="w-5 h-5 text-amber-400" />
+          <h2 className="text-base sm:text-lg font-bold text-white uppercase tracking-wider">Simulador de Carteira</h2>
         </div>
 
-        {/* Metric 1 */}
-        <div className="bg-black/25 border border-white/10 rounded-2xl p-5 flex items-center justify-between shadow-lg">
-          <div>
-            <span className="text-xs text-slate-400 font-bold block uppercase tracking-wider mb-1">Patrimônio Consolidado</span>
-            <span className="text-2xl font-black text-white">
-              R$ {currentTotalValuation.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </span>
-            <span className="text-[10px] text-slate-400 block mt-1">Estimado com base em aportes</span>
-          </div>
-          <div className="bg-indigo-500/10 p-3 rounded-xl border border-indigo-500/20 text-indigo-400">
-            <DollarSign className="w-6 h-6" />
-          </div>
-        </div>
-
-        {/* Metric 2 */}
-        <div className="bg-black/25 border border-white/10 rounded-2xl p-5 flex items-center justify-between shadow-lg">
-          <div>
-            <span className="text-xs text-slate-400 font-bold block uppercase tracking-wider mb-1">Rentabilidade do Período</span>
-            <div className="flex items-baseline gap-2">
-              <span className={`text-2xl font-black ${isPositiveGrowth ? 'text-emerald-400' : 'text-rose-400'}`}>
-                {isPositiveGrowth ? '+' : ''}{appreciationPercent.toFixed(2)}%
+        {/* Metrics Row */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          
+          {/* Metric - Patrimônio Inicial */}
+          <div className="bg-black/25 border border-white/10 rounded-2xl p-5 flex items-center justify-between shadow-lg">
+            <div>
+              <span className="text-xs text-slate-400 font-bold block uppercase tracking-wider mb-1">Patrimônio Inicial</span>
+              <span className="text-2xl font-black text-white">
+                R$ {initialTotalValuation.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
-              <span className="text-[11px] text-slate-300 font-medium font-mono">
-                {isPositiveGrowth ? 'Alta' : 'Baixa'}
+              <span className="text-[10px] text-slate-400 block mt-1">Valor inicial (Jan/2026)</span>
+            </div>
+            <div className="bg-blue-500/10 p-3 rounded-xl border border-blue-500/20 text-blue-400">
+              <DollarSign className="w-6 h-6" />
+            </div>
+          </div>
+
+          {/* Metric 1 */}
+          <div className="bg-black/25 border border-white/10 rounded-2xl p-5 flex items-center justify-between shadow-lg">
+            <div>
+              <span className="text-xs text-slate-400 font-bold block uppercase tracking-wider mb-1">Patrimônio Consolidado</span>
+              <span className="text-2xl font-black text-white">
+                R$ {currentTotalValuation.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+              <span className="text-[10px] text-slate-400 block mt-1">Estimado com base em aportes</span>
+            </div>
+            <div className="bg-indigo-500/10 p-3 rounded-xl border border-indigo-500/20 text-indigo-400">
+              <DollarSign className="w-6 h-6" />
+            </div>
+          </div>
+
+          {/* Metric 2 */}
+          <div className="bg-black/25 border border-white/10 rounded-2xl p-5 flex items-center justify-between shadow-lg">
+            <div>
+              <span className="text-xs text-slate-400 font-bold block uppercase tracking-wider mb-1">Rentabilidade do Período</span>
+              <div className="flex items-baseline gap-2">
+                <span className={`text-2xl font-black ${isPositiveGrowth ? 'text-emerald-400' : 'text-rose-400'}`}>
+                  {isPositiveGrowth ? '+' : ''}{appreciationPercent.toFixed(2)}%
+                </span>
+                <span className="text-[11px] text-slate-300 font-medium font-mono">
+                  {isPositiveGrowth ? 'Alta' : 'Baixa'}
+                </span>
+              </div>
+              <span className="text-[10px] text-slate-400 block mt-1">Confrontado desde ponto de partida</span>
+            </div>
+            <div className={`p-3 rounded-xl border ${
+              isPositiveGrowth 
+                ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' 
+                : 'bg-rose-500/10 border-rose-500/20 text-rose-400'
+            }`}>
+              {isPositiveGrowth ? <TrendingUp className="w-6 h-6" /> : <TrendingDown className="w-6 h-6" />}
+            </div>
+          </div>
+
+          {/* Metric 3 */}
+          <div className="bg-black/25 border border-white/10 rounded-2xl p-5 flex items-center justify-between shadow-lg">
+            <div>
+              <span className="text-xs text-slate-400 font-bold block uppercase tracking-wider mb-1">Balanço do Período (R$)</span>
+              <span className={`text-2xl font-black ${isPositiveGrowth ? 'text-emerald-400' : 'text-rose-400'}`}>
+                R$ {(currentTotalValuation - initialTotalValuation).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+              <span className="text-[10px] text-slate-400 block mt-1">Lucro/Prejuízo flutuante sobre aporte</span>
+            </div>
+            <div className="bg-amber-500/10 p-3 rounded-xl border border-amber-500/20 text-amber-400">
+              <Calendar className="w-6 h-6" />
+            </div>
+          </div>
+
+        </div>
+
+        {/* Metrics Row 2 - Yield & Renda Passiva Ponderados */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 -mt-2">
+          <div className="hidden lg:block lg:col-span-2"></div>
+          
+          {/* Yield Médio Ponderado Card */}
+          <div className="bg-black/25 border border-white/10 rounded-2xl p-5 flex items-center justify-between shadow-lg">
+            <div>
+              <span className="text-xs text-slate-400 font-bold block uppercase tracking-wider mb-1">Yield Médio Ponderado</span>
+              <span className="text-2xl font-black text-emerald-400">
+                {(weightedAnnualYield * 100).toFixed(2)}% a.a.
+              </span>
+              <span className="text-[10px] text-slate-400 block mt-1">Retorno ponderado em dividendos</span>
+            </div>
+            <div className="bg-emerald-500/10 p-3 rounded-xl border border-emerald-500/20 text-emerald-400">
+              <Percent className="w-6 h-6" />
+            </div>
+          </div>
+
+          {/* Renda Passiva Anual Ponderada Card */}
+          <div className="bg-black/25 border border-white/10 rounded-2xl p-5 flex items-center justify-between shadow-lg">
+            <div>
+              <span className="text-xs text-slate-400 font-bold block uppercase tracking-wider mb-1">Renda Passiva Anual Ponderada</span>
+              <span className="text-2xl font-black text-white">
+                R$ {yearlyDividendsSimulated.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+              <span className="text-[10px] text-indigo-300 block mt-1">
+                ~R$ {(yearlyDividendsSimulated / 12).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / mês
               </span>
             </div>
-            <span className="text-[10px] text-slate-400 block mt-1">Confrontado desde ponto de partida</span>
-          </div>
-          <div className={`p-3 rounded-xl border ${
-            isPositiveGrowth 
-              ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' 
-              : 'bg-rose-500/10 border-rose-500/20 text-rose-400'
-          }`}>
-            {isPositiveGrowth ? <TrendingUp className="w-6 h-6" /> : <TrendingDown className="w-6 h-6" />}
+            <div className="bg-amber-500/10 p-3 rounded-xl border border-amber-500/20 text-amber-400">
+              <TrendingUp className="w-6 h-6" />
+            </div>
           </div>
         </div>
-
-        {/* Metric 3 */}
-        <div className="bg-black/25 border border-white/10 rounded-2xl p-5 flex items-center justify-between shadow-lg">
-          <div>
-            <span className="text-xs text-slate-400 font-bold block uppercase tracking-wider mb-1">Balanço do Período (R$)</span>
-            <span className={`text-2xl font-black ${isPositiveGrowth ? 'text-emerald-400' : 'text-rose-400'}`}>
-              R$ {(currentTotalValuation - initialTotalValuation).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </span>
-            <span className="text-[10px] text-slate-400 block mt-1">Lucro/Prejuízo flutuante sobre aporte</span>
-          </div>
-          <div className="bg-amber-500/10 p-3 rounded-xl border border-amber-500/20 text-amber-400">
-            <Calendar className="w-6 h-6" />
-          </div>
-        </div>
-
       </div>
 
       {/* Main Graph Card */}

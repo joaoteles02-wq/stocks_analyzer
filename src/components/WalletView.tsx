@@ -1107,60 +1107,6 @@ export function WalletView() {
         {/* RIGHT COLUMN: Performance simulators & Allocation Graphic breakdown */}
         <div className="space-y-6">
 
-          {/* Core Simulator Calculation Box */}
-          <div className="bg-black/30 border border-white/10 rounded-3xl p-6 shadow-lg space-y-6">
-            <h3 className="text-lg font-bold text-white flex items-center gap-2 border-b border-white/10 pb-3">
-              <Coins className="w-5 h-5 text-amber-400" />
-              Simulador de Carteira
-            </h3>
-
-            {/* Total Budget Input */}
-            <div className="space-y-2">
-              <label className="text-xs text-slate-400 block font-semibold uppercase tracking-wider">Aporte Financeiro Total</label>
-              <div className="relative">
-                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">R$</span>
-                <input 
-                  type="text"
-                  value={investmentBudget}
-                  onChange={e => {
-                    const val = Number(e.target.value.replace(/\D/g, ''));
-                    setInvestmentBudget(val > 10000000 ? 10000000 : val);
-                  }}
-                  className="w-full p-3 pl-10 border border-white/20 rounded-xl bg-black/40 text-white font-bold"
-                />
-              </div>
-              <p className="text-[10px] text-slate-400 italic">Preço base do Dólar computado a R$ {USD_BRL_RATE.toFixed(2)}</p>
-            </div>
-
-            {/* Key visual metrics list */}
-            <div className="space-y-4">
-              
-              {/* Estimated Yield */}
-              <div className="bg-black/20 border border-white/5 rounded-xl p-4 flex items-center justify-between">
-                <div>
-                  <span className="text-xs text-slate-400 font-semibold block">Yield Médio Ponderado</span>
-                  <span className="text-md font-bold text-emerald-400">{(weightedAnnualYield * 100).toFixed(2)}% a.a.</span>
-                </div>
-                <div className="bg-emerald-500/10 p-2.5 rounded-lg border border-emerald-500/20 text-emerald-400">
-                  <Percent className="w-5 h-5" />
-                </div>
-              </div>
-
-              {/* Estimated Yearly Cashflow */}
-              <div className="bg-black/20 border border-white/5 rounded-xl p-4 flex items-center justify-between">
-                <div>
-                  <span className="text-xs text-slate-400 font-semibold block">Renda Passiva Anual Estimada</span>
-                  <span className="text-lg font-black text-white">R$ {yearlyDividendsSimulated.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                  <span className="text-[10px] text-indigo-300 block">~R$ {(yearlyDividendsSimulated / 12).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / mês</span>
-                </div>
-                <div className="bg-amber-500/10 p-2.5 rounded-lg border border-amber-500/20 text-amber-400">
-                  <TrendingUp className="w-5 h-5" />
-                </div>
-              </div>
-
-            </div>
-          </div>
-
           {/* Custom Graphical Charts Panel */}
           <div className="bg-black/30 border border-white/10 rounded-3xl p-6 shadow-lg space-y-6">
             <h3 className="text-lg font-bold text-white flex items-center gap-2 border-b border-white/10 pb-3">
