@@ -156,6 +156,12 @@ export function WalletView() {
 
   const [isReloadModalOpen, setIsReloadModalOpen] = useState(false);
   const [selectedStrategy, setSelectedStrategy] = useState<'income' | 'balanced' | 'growth'>('balanced');
+  const [activeStrategy, setActiveStrategy] = useState<'income' | 'balanced' | 'growth'>(() => {
+    if (typeof window !== 'undefined') {
+      return (localStorage.getItem('active_strategy') as any) || 'balanced';
+    }
+    return 'balanced';
+  });
 
   // Parses the 10 ranked assets for a given type, using reports if available, falling back to static/definitions to get exactly 10
   const getRankedAssetsFromCategory = (type: 'stocks' | 'fii' | 'sp500'): Asset[] => {
@@ -432,6 +438,11 @@ export function WalletView() {
     const strategyName = strategyType === 'income' ? 'Renda & Dividendos' 
       : strategyType === 'growth' ? 'Crescimento Tecnológico' 
       : 'Equilíbrio Global';
+
+    setActiveStrategy(strategyType);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('active_strategy', strategyType);
+    }
 
     setSuccessMsg(`AI Reload Completo! Sua carteira foi reestruturada na estratégia [${strategyName}] com base nos top ativos recomendados da IA. O total soma 100%!`);
     setTimeout(() => setSuccessMsg(null), 8500);
@@ -964,24 +975,47 @@ export function WalletView() {
           <div className="bg-black/20 border border-white/10 rounded-3xl p-6 shadow-md space-y-6">
             
             {/* Header Control row */}
-            <div className="flex items-center justify-between flex-wrap gap-4 border-b border-white/10 pb-4">
-              <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                <Sliders className="w-5 h-5 text-indigo-400" />
-                Alocação e Balanceamento
-              </h3>
-              <div className="flex items-center gap-2">
-                <button 
-                  onClick={equalizeWeights} 
-                  className="px-3 py-1.5 bg-white/5 border border-white/10 rounded-xl text-xs font-semibold hover:bg-white/10 text-slate-300 transition"
-                >
-                  Distribuir Igual (10%)
-                </button>
-                <button 
-                  onClick={rebalanceWeights} 
-                  className="px-3 py-1.5 bg-indigo-500/10 border border-indigo-400/20 text-indigo-300 rounded-xl text-xs font-bold hover:bg-indigo-500/25 transition flex items-center gap-1"
-                >
-                  <RefreshCw className="w-3.5 h-3.5" /> Rebalancear 100%
-                </button>
+            <div className="border-b border-white/10 pb-4 space-y-3">
+              {/* Active Strategy Indicator */}
+              {(() => {
+                const stratInfo = activeStrategy === 'income' 
+                  ? { title: 'Renda & Dividendos', badge: 'Renda Passiva', color: 'border-amber-500/20 bg-amber-500/10 text-amber-400' }
+                  : activeStrategy === 'growth'
+                    ? { title: 'Crescimento Global', badge: 'Alto Upside', color: 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400' }
+                    : { title: 'Equilíbrio Global', badge: 'Moderado', color: 'border-blue-500/20 bg-blue-500/10 text-blue-400' };
+                
+                return (
+                  <div className="flex items-center gap-2 flex-wrap text-left">
+                    <span className="text-[10px] uppercase font-bold tracking-widest text-slate-500">Estratégia Selecionada:</span>
+                    <div className={`inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-xs font-black border ${stratInfo.color}`}>
+                      <span className="w-1.5 h-1.5 rounded-full bg-current"></span>
+                      <span>{stratInfo.title}</span>
+                      <span className="opacity-45">|</span>
+                      <span>{stratInfo.badge}</span>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              <div className="flex items-center justify-between flex-wrap gap-4 pt-1">
+                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                  <Sliders className="w-5 h-5 text-indigo-400" />
+                  Alocação e Balanceamento
+                </h3>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={equalizeWeights} 
+                    className="px-3 py-1.5 bg-white/5 border border-white/10 rounded-xl text-xs font-semibold hover:bg-white/10 text-slate-300 transition"
+                  >
+                    Distribuir Igual (10%)
+                  </button>
+                  <button 
+                    onClick={rebalanceWeights} 
+                    className="px-3 py-1.5 bg-indigo-500/10 border border-indigo-400/20 text-indigo-300 rounded-xl text-xs font-bold hover:bg-indigo-500/25 transition flex items-center gap-1"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" /> Rebalancear 100%
+                  </button>
+                </div>
               </div>
             </div>
 
