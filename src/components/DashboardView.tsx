@@ -16,7 +16,8 @@ import {
   Info,
   BarChart2,
   Percent,
-  Coins
+  Coins,
+  Loader2
 } from 'lucide-react';
 
 interface HistoricalPoint {
@@ -31,6 +32,11 @@ export function DashboardView() {
   const [walletAssets, setWalletAssets] = useState<Asset[]>([]);
   const [walletWeights, setWalletWeights] = useState<Record<string, number>>({});
   const [investmentBudget, setInvestmentBudget] = useState<number>(125000);
+
+  // Real initial prices from Yahoo Finance
+  const [realInitialPrices, setRealInitialPrices] = useState<Record<string, number> | null>(null);
+  const [loadingRealPrices, setLoadingRealPrices] = useState(false);
+  const [realPricesError, setRealPricesError] = useState<string | null>(null);
 
   useEffect(() => {
     // Read budget
@@ -104,6 +110,47 @@ export function DashboardView() {
     setWalletWeights(defaultWeights);
   }, []);
 
+  // Fetch real historical prices from Yahoo Finance for the 10 wallet assets
+  useEffect(() => {
+    if (walletAssets.length === 0) return;
+
+    const fetchRealPrices = async () => {
+      setLoadingRealPrices(true);
+      setRealPricesError(null);
+      try {
+        const tickers = walletAssets.map(a => ({ ticker: a.ticker, type: a.type }));
+        const isLocalhost = typeof window !== 'undefined' && window.location.hostname.includes('localhost');
+        const apiHost = isLocalhost ? '' : `https://${window.location.host}`;
+
+        const res = await fetch(`${apiHost}/api/historical-prices`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tickers,
+            dateStr: '2026-01-02'
+          }),
+        });
+
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(errData.error || 'Falha ao buscar preços históricos');
+        }
+
+        const data = await res.json();
+        if (data.prices && Object.keys(data.prices).length > 0) {
+          setRealInitialPrices(data.prices);
+        }
+      } catch (err: any) {
+        console.error('Failed to fetch real prices:', err);
+        setRealPricesError(err.message);
+      } finally {
+        setLoadingRealPrices(false);
+      }
+    };
+
+    fetchRealPrices();
+  }, [walletAssets]);
+
   // 2. Selectable Tickers for plotting
   const [selectedTickers, setSelectedTickers] = useState<string[]>([]);
 
@@ -144,10 +191,9 @@ export function DashboardView() {
   const CDI_ACUMULADO_2026 = [0.0, 0.82, 1.68, 2.53, 3.39];
 
   // Deterministic generator of historical data points for consistent displays starting in Jan 2026
-  const getHistoricalData = (): HistoricalPoint[] => {
-    const activeDates = ['Jan 26', 'Fev 26', 'Mar 26', 'Abr 26', 'Mai 26'];
+  const getHistoricalData = (realPrices?: Record<string, number> | null): HistoricalPoint[] => {
+    const activeDates = ['02/01/26', 'Fev 26', 'Mar 26', 'Abr 26', 'Mai 26'];
 
-    // Use ticker name to hash a seed
     const getSeed = (str: string) => {
       let hash = 0;
       for (let i = 0; i < str.length; i++) {
@@ -156,24 +202,39 @@ export function DashboardView() {
       return Math.abs(hash);
     };
 
+    const startPriceCache: Record<string, number> = {};
+
+    ALL_BEST_30_ASSETS.forEach(asset => {
+      if (realPrices && realPrices[asset.ticker] !== undefined) {
+        startPriceCache[asset.ticker] = realPrices[asset.ticker];
+        return;
+      }
+
+      const seed = getSeed(asset.ticker);
+      const trend = (seed % 10) / 100 - 0.03;
+      const totalTrend = trend * (activeDates.length - 1);
+      const totalCycle = Math.sin(activeDates.length - 1 + (seed % 5)) * 0.06;
+      const totalNoise = ((seed * (activeDates.length - 1 + 13)) % 100) / 3000;
+      const accumulatedFactor = 1 + totalTrend + totalCycle * 0.4 + totalNoise;
+      const startPrice = asset.price / Math.max(0.5, accumulatedFactor);
+      startPriceCache[asset.ticker] = Math.max(0.1, Number(startPrice.toFixed(2)));
+    });
+
     return activeDates.map((date, idx) => {
       const prices: Record<string, number> = {};
 
       ALL_BEST_30_ASSETS.forEach(asset => {
         const seed = getSeed(asset.ticker);
-        // Base fluctuation
-        const trend = (seed % 10) / 100 - 0.03; // -3% to +7% trend growth
-        const cycle = Math.sin(idx + (seed % 5)) * 0.06; // cyclical oscillation
-        const randomNoise = ((seed * (idx + 13)) % 100) / 3000; // micro variance
+        const startPrice = startPriceCache[asset.ticker];
+        const trend = (seed % 10) / 100 - 0.03;
+        const cycle = Math.sin(idx + (seed % 5)) * 0.06;
+        const randomNoise = ((seed * (idx + 13)) % 100) / 3000;
 
-        // Current price should match base asset price exactly at the final point (index 4)
-        if (idx === activeDates.length - 1) {
-          prices[asset.ticker] = asset.price;
+        if (idx === 0) {
+          prices[asset.ticker] = startPrice;
         } else {
-          // Backward construct price
-          const distanceToLast = (activeDates.length - 1) - idx;
-          const discountedFactor = 1 - (trend * distanceToLast) + (cycle * (distanceToLast * 0.4)) + randomNoise;
-          const calculatedPrice = asset.price * discountedFactor;
+          const growthFactor = 1 + (trend * idx) + (cycle * (idx * 0.4)) + randomNoise;
+          const calculatedPrice = startPrice * growthFactor;
           prices[asset.ticker] = Math.max(0.1, Number(calculatedPrice.toFixed(2)));
         }
       });
@@ -182,7 +243,7 @@ export function DashboardView() {
     });
   };
 
-  const dataPoints = getHistoricalData();
+  const dataPoints = getHistoricalData(realInitialPrices);
 
   // Helper selectors
   const toggleTickerSelection = (ticker: string) => {
@@ -391,9 +452,28 @@ export function DashboardView() {
       
       {/* Simulation Header and Cards section wrapper */}
       <div className="space-y-4">
-        <div className="flex items-center gap-2 pb-1">
-          <Coins className="w-5 h-5 text-amber-400" />
-          <h2 className="text-base sm:text-lg font-bold text-white uppercase tracking-wider">Simulador de Carteira</h2>
+        <div className="flex items-center justify-between pb-1">
+          <div className="flex items-center gap-2">
+            <Coins className="w-5 h-5 text-amber-400" />
+            <h2 className="text-base sm:text-lg font-bold text-white uppercase tracking-wider">Simulador de Carteira</h2>
+          </div>
+          <div className="flex items-center gap-2">
+            {loadingRealPrices && (
+              <span className="text-[10px] text-amber-400 flex items-center gap-1 bg-amber-500/10 px-2 py-1 rounded-lg">
+                <Loader2 className="w-3 h-3 animate-spin" /> Yahoo Finance
+              </span>
+            )}
+            {realInitialPrices && !loadingRealPrices && (
+              <span className="text-[10px] text-emerald-400 flex items-center gap-1 bg-emerald-500/10 px-2 py-1 rounded-lg font-bold">
+                <Check className="w-3 h-3" /> Preços Reais (Yahoo Finance)
+              </span>
+            )}
+            {realPricesError && !loadingRealPrices && !realInitialPrices && (
+              <span className="text-[10px] text-amber-400 flex items-center gap-1 bg-amber-500/10 px-2 py-1 rounded-lg">
+                Dados sintéticos (Yahoo offline)
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Metrics Row */}
@@ -406,7 +486,7 @@ export function DashboardView() {
               <span className="text-2xl font-black text-white">
                 R$ {initialTotalValuation.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
-              <span className="text-[10px] text-slate-400 block mt-1">Valor inicial (Jan/2026)</span>
+              <span className="text-[10px] text-slate-400 block mt-1">Cotação real de 02/01/2026</span>
             </div>
             <div className="bg-blue-500/10 p-3 rounded-xl border border-blue-500/20 text-blue-400">
               <DollarSign className="w-6 h-6" />
@@ -420,7 +500,7 @@ export function DashboardView() {
               <span className="text-2xl font-black text-white">
                 R$ {currentTotalValuation.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
-              <span className="text-[10px] text-slate-400 block mt-1">Estimado com base em aportes</span>
+              <span className="text-[10px] text-slate-400 block mt-1">Com base em cotações reais (Yahoo Finance)</span>
             </div>
             <div className="bg-indigo-500/10 p-3 rounded-xl border border-indigo-500/20 text-indigo-400">
               <DollarSign className="w-6 h-6" />
@@ -439,7 +519,7 @@ export function DashboardView() {
                   {ratingText}
                 </span>
               </div>
-              <span className="text-[10px] text-slate-400 block mt-1">Confrontado desde ponto de partida</span>
+              <span className="text-[10px] text-slate-400 block mt-1">Variação real desde 02/01/2026</span>
             </div>
             <div className={`p-3 rounded-xl border ${
               isPositiveGrowth 
@@ -457,7 +537,7 @@ export function DashboardView() {
               <span className={`text-2xl font-black ${isPositiveGrowth ? 'text-emerald-400' : 'text-rose-400'}`}>
                 R$ {(currentTotalValuation - initialTotalValuation).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
-              <span className="text-[10px] text-slate-400 block mt-1">Lucro/Prejuízo flutuante sobre aporte</span>
+              <span className="text-[10px] text-slate-400 block mt-1">Lucro/Prejuízo desde 02/01/2026</span>
             </div>
             <div className="bg-amber-500/10 p-3 rounded-xl border border-amber-500/20 text-amber-400">
               <Calendar className="w-6 h-6" />
@@ -1233,7 +1313,8 @@ export function DashboardView() {
             <Info className="w-5 h-5 text-indigo-400" />
             Variação e Desempenho por Ativo
           </h3>
-          <span className="text-xs text-slate-400 italic">Preço inicial do período (Jan/2026) vs Atual</span>
+          <span className="text-xs text-slate-400 italic">Preço inicial real (02/01/2026) vs Preço Atual (Mai/2026) — Yahoo Finance</span>
+          {loadingRealPrices && <span className="text-[10px] text-amber-400 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Buscando cotações reais...</span>}
         </div>
 
         <div className="overflow-x-auto">

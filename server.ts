@@ -375,6 +375,71 @@ Mantenha uma linguagem muito profissional, direta e sofisticada. Não use tabela
     }
   });
 
+  // Endpoint to fetch real historical prices from Yahoo Finance
+  app.post("/api/historical-prices", async (req, res) => {
+    try {
+      const { tickers, dateStr } = req.body || {};
+      if (!tickers || !Array.isArray(tickers) || tickers.length === 0) {
+        return res.status(400).json({ error: "Lista de tickers inválida." });
+      }
+
+      const targetDate = dateStr ? new Date(dateStr) : new Date("2026-01-02");
+      const period1 = Math.floor(targetDate.getTime() / 1000);
+      const period2 = period1 + 86400; // 1 day later
+
+      const prices: Record<string, number> = {};
+      const errors: Record<string, string> = {};
+
+      await Promise.all(tickers.map(async (item: { ticker: string; type: string }) => {
+        const yahooTicker = item.type === 'sp500' ? item.ticker : `${item.ticker}.SA`;
+
+        try {
+          const url = `https://query1.finance.yahoo.com/v8/finance/chart/${yahooTicker}?period1=${period1}&period2=${period2}&interval=1d`;
+          const response = await fetch(url, {
+            headers: { "User-Agent": "Mozilla/5.0" },
+          });
+
+          if (!response.ok) {
+            errors[item.ticker] = `Yahoo Finance HTTP ${response.status}`;
+            return;
+          }
+
+          const data = await response.json();
+          const result = data.chart?.result?.[0];
+          if (!result) {
+            errors[item.ticker] = "Nenhum dado retornado";
+            return;
+          }
+
+          const timestamps: number[] = result.timestamp || [];
+          const closes: number[] = result.indicators?.quote?.[0]?.close || [];
+
+          // Find the closest trading day on or after targetDate
+          let closePrice: number | null = null;
+          for (let i = 0; i < timestamps.length; i++) {
+            if (closes[i] !== null && closes[i] !== undefined) {
+              closePrice = closes[i];
+              break;
+            }
+          }
+
+          if (closePrice !== null) {
+            prices[item.ticker] = Number(closePrice.toFixed(2));
+          } else {
+            errors[item.ticker] = "Preço de fechamento não disponível";
+          }
+        } catch (err: any) {
+          errors[item.ticker] = err.message || "Erro desconhecido";
+        }
+      }));
+
+      res.json({ prices, errors, date: dateStr || "2026-01-02" });
+    } catch (error: any) {
+      console.error("Historical Prices Error:", error);
+      res.status(500).json({ error: error.message || "Erro ao buscar preços históricos" });
+    }
+  });
+
   // Log if anything falls through past API routes
   app.use((req, res, next) => {
     if (req.path.startsWith('/api')) {
