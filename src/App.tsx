@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import Markdown from 'react-markdown';
 import { User } from 'firebase/auth';
 import { LogIn, FileSpreadsheet, Search, Loader2, Settings, ArrowLeft, Briefcase, Wallet, LayoutDashboard, Upload, Database, Copy, Check, AlertTriangle, RefreshCw } from 'lucide-react';
-import { googleSignIn, initAuth, logout } from './lib/auth';
+import { googleSignIn, initAuth, logout, clearCachedToken } from './lib/auth';
 import { searchStocksFilterSheet } from './lib/drive';
 import { getSpreadsheetData, getSpreadsheetSheets } from './lib/sheets';
 import { WalletView } from './components/WalletView';
@@ -241,7 +241,7 @@ export default function App() {
         if (errMsg.includes("insufficient authentication scopes") || errMsg.includes("Insufficient Permission")) {
           setError("Erro de permissão: Você esqueceu de marcar as caixinhas de permissão para ler arquivos do Google Drive e Sheets ao fazer login. Clique em 'Sair' lá no topo e faça login novamente marcando todas as permissões.");
         } else if (errMsg.includes("401") || errMsg.toLowerCase().includes("unauthenticated") || errMsg.toLowerCase().includes("invalid authentication") || errMsg.toLowerCase().includes("invalid credentials")) {
-          setTokenExpired(true);
+          handleTokenInvalidation(errMsg);
           setError("Sua sessão de conexão do Google Planilhas expirou por segurança. Use o botão amarelo de reconexão 'Reconectar Google Drive' acima.");
         } else {
           setError(`Erro ao carregar lista de abas: ${errMsg}`);
@@ -253,6 +253,32 @@ export default function App() {
 
     fetchSheets();
   }, [selectedFileId, token]);
+
+  // Synchronize Google Sheet raw values to local state for local calculations on Dashboard/Wallet
+  useEffect(() => {
+    const fetchRawData = async () => {
+      if (dataSource === 'google' && token && selectedFileId && selectedSheetName) {
+        try {
+          let actualId = selectedFileId;
+          const match = selectedFileId.match(/\/d\/([a-zA-Z0-9-_]+)/);
+          if (match && match[1]) {
+            actualId = match[1];
+          }
+          const fetched = await getSpreadsheetData(token, actualId, selectedSheetName);
+          if (fetched && fetched.length > 0) {
+            setLocalUploadedSheetData(fetched);
+          }
+        } catch (e: any) {
+          console.error("Auto fetch Google Sheet raw values failed:", e);
+          const errMsg = e.message || '';
+          if (errMsg.includes("401") || errMsg.toLowerCase().includes("unauthenticated") || errMsg.toLowerCase().includes("invalid authentication") || errMsg.toLowerCase().includes("invalid credentials")) {
+            handleTokenInvalidation(errMsg);
+          }
+        }
+      }
+    };
+    fetchRawData();
+  }, [dataSource, token, selectedFileId, selectedSheetName]);
 
   useEffect(() => {
     // Redirect HTTP to HTTPS for secure cookie, authentication APIs, and POST persistence on mobile
@@ -279,6 +305,13 @@ export default function App() {
     );
   }, []);
 
+  const handleTokenInvalidation = (reason: string) => {
+    console.warn("Invalid or expired Google OAuth token detected:", reason);
+    clearCachedToken();
+    setToken(null);
+    setTokenExpired(true);
+  };
+
   const handleLogin = async (method: 'popup' | 'redirect' = 'popup') => {
     setIsLoggingIn(true);
     try {
@@ -296,10 +329,24 @@ export default function App() {
     }
   };
 
-  const handleQuickTokenRefresh = async () => {
+  const handleQuickTokenRefresh = async (method: 'popup' | 'redirect' = 'popup') => {
     setIsLoggingIn(true);
+    setError(null);
+    
+    // Safety timer: browser popup blockers often freeze the sign-in promise indefinitely.
+    // We clear isLoggingIn after 15 seconds so they can retry or try another method.
+    const timeoutId = setTimeout(() => {
+      setIsLoggingIn(false);
+      setError(
+        "A tentativa de login demorou muito. Se estiver usando o celular dentro de um aplicativo " +
+          "como o WhatsApp/Instagram ou painel do AI Studio, use o botão azul para 'Abrir em Nova Aba' " +
+          "ou tente com o método 'Reconectar (Redirecionar)'."
+      );
+    }, 15000);
+
     try {
-      const result = await googleSignIn('popup');
+      const result = await googleSignIn(method);
+      clearTimeout(timeoutId);
       if (result) {
         setToken(result.accessToken);
         setUser(result.user);
@@ -315,8 +362,9 @@ export default function App() {
         }
       }
     } catch (err: any) {
+      clearTimeout(timeoutId);
       console.error('Quick refresh failed:', err);
-      setError("Falha ao atualizar a conexão. Por favor tente novamente.");
+      setError("Falha ao atualizar a conexão. Erro: " + (err.message || err));
     } finally {
       setIsLoggingIn(false);
     }
@@ -369,7 +417,7 @@ export default function App() {
       if (err.message.includes("insufficient authentication scopes") || err.message.includes("Insufficient Permission")) {
         setError("Erro de permissão: Você esqueceu de marcar as caixinhas de permissão do Google Drive/Sheets no login. Clique em 'Sair' lá no topo e faça login novamente, marcando todas as caixinhas.");
       } else if (err.message.includes("401") || err.message.toLowerCase().includes("unauthenticated") || err.message.toLowerCase().includes("invalid authentication") || err.message.toLowerCase().includes("invalid credentials")) {
-        setTokenExpired(true);
+        handleTokenInvalidation(err.message || '');
         setError("Sua sessão de conexão do Google Planilhas expirou por segurança. Use o botão amarelo de reconexão acima.");
       } else {
         setError("Erro ao buscar arquivos no Drive: " + err.message);
@@ -513,7 +561,7 @@ export default function App() {
       } else if (err.message.includes("429") || err.message.includes("quota") || err.message.includes("RESOURCE_EXHAUSTED")) {
         setError("Erro de Cota do Gemini AI: O limite de tokens da chave de API foi excedido (a planilha pode ser muito grande). Tente fechar e abrir um pouco mais tarde ou verifique os limites de faturamento da sua chave da API do Gemini.");
       } else if (err.message.includes("401") || err.message.toLowerCase().includes("unauthenticated") || err.message.toLowerCase().includes("invalid authentication") || err.message.toLowerCase().includes("invalid credentials")) {
-        setTokenExpired(true);
+        handleTokenInvalidation(err.message || '');
         setError("Sua sessão de conexão do Google Planilhas expirou. Por favor reconecte usando o botão amarelo acima para reanalisar sem perder nada.");
       } else if (err.message.toLowerCase().includes("load failed") || err.message.toLowerCase().includes("failed to fetch")) {
         setError(
@@ -559,23 +607,62 @@ export default function App() {
         <main className="bg-white/10 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/20 p-8 relative">
           
           {tokenExpired && (
-            <div className="mb-6 p-4 bg-amber-500/15 border border-amber-300/30 text-amber-200 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-lg backdrop-blur-sm">
-              <div className="flex items-center gap-3 text-sm text-left">
-                <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
-                <div>
-                  <p className="font-bold text-amber-300">Conexão do Google Planilhas Expirada</p>
-                  <p className="text-xs text-slate-300">Sua sessão do Google dura 1 hora. Toque ao lado para reestabelecer o acesso em 1 segundo sem perder suas seleções ou configurações atuais.</p>
+            <div className="mb-6 p-5 bg-amber-500/15 border border-amber-400/30 text-amber-200 rounded-2xl flex flex-col gap-4 shadow-xl backdrop-blur-md animate-in fade-in slide-in-from-top-4 duration-300">
+              <div className="flex items-start gap-3 text-sm text-left">
+                <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="font-extrabold text-amber-300 text-base">Sua conexão com o Google Planilhas expirou</p>
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    A sessão de acesso do Google expira a cada 1 hora por segurança.
+                    Reconecte rapidamente abaixo para continuar atualizando os dados dinâmicos da planilha sem perder seus filtros ou análises atuais.
+                  </p>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={handleQuickTokenRefresh}
-                disabled={isLoggingIn}
-                className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-black font-extrabold text-xs rounded-xl transition shrink-0 active:scale-95 disabled:opacity-50 cursor-pointer shadow-md border border-amber-300/30"
-              >
-                {isLoggingIn ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-                Reconectar Agora
-              </button>
+              
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-1 border-t border-amber-500/10">
+                <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider flex items-center shrink-0">
+                  Métodos de Reconexão:
+                </span>
+                
+                <div className="flex flex-wrap gap-2.5 flex-1">
+                  {/* POPUP RECONNECT */}
+                  <button
+                    type="button"
+                    onClick={() => handleQuickTokenRefresh('popup')}
+                    disabled={isLoggingIn}
+                    className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-2 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-extrabold text-xs rounded-xl transition active:scale-95 cursor-pointer shadow border border-amber-400/20"
+                    title="Abre uma nova janela pop-up para reconectar sua conta de forma rápida."
+                  >
+                    {isLoggingIn ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                    Reconectar (Pop-up)
+                  </button>
+
+                  {/* REDIRECT RECONNECT */}
+                  <button
+                    type="button"
+                    onClick={() => handleQuickTokenRefresh('redirect')}
+                    disabled={isLoggingIn}
+                    className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-2 bg-slate-900/80 hover:bg-slate-800 disabled:opacity-50 text-slate-200 hover:text-white font-bold text-xs rounded-xl transition active:scale-95 cursor-pointer shadow border border-white/10"
+                    title="Faz o login recarregando a página inteira. À prova de bloqueio de pop-ups em celulares!"
+                  >
+                    <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full shrink-0"></span>
+                    Reconectar (Redirecionar)
+                  </button>
+
+                  {/* IFRAME ONLY - OPEN IN NEW TAB FALLBACK */}
+                  {isInIframe && (
+                    <button
+                      type="button"
+                      onClick={() => window.open(window.location.href, '_blank')}
+                      className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl transition active:scale-95 cursor-pointer shadow-md border border-indigo-400/20"
+                      title="Navegadores móveis e iframes bloqueiam logins do Google por segurança. Abra em aba separada externa para se conectar perfeitamente!"
+                    >
+                      <span className="text-xs">↗</span>
+                      Abrir em Nova Aba (Recomendado)
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 

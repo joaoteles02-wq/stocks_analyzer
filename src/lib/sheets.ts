@@ -23,9 +23,15 @@ export async function getSpreadsheetSheets(accessToken: string, spreadsheetId: s
   return sheets.map((s: any) => s.properties?.title || "").filter(Boolean);
 }
 
-export async function getSpreadsheetData(accessToken: string, spreadsheetId: string) {
-  // First, get the list of sheets to find the first sheet name
-  const metaUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets.properties.title`;
+export async function getSpreadsheetData(accessToken: string, spreadsheetId: string, sheetName?: string) {
+  let actualId = spreadsheetId;
+  const match = spreadsheetId.match(/\/d\/([a-zA-Z0-9-_]+)/);
+  if (match && match[1]) {
+    actualId = match[1];
+  }
+
+  // First, get the list of sheets to find the name if not provided
+  const metaUrl = `https://sheets.googleapis.com/v4/spreadsheets/${actualId}?fields=sheets.properties.title`;
   const metaRes = await fetch(metaUrl, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
@@ -45,16 +51,16 @@ export async function getSpreadsheetData(accessToken: string, spreadsheetId: str
     throw new Error("No sheets found in this file.");
   }
   
-  const firstSheetName = sheets[0].properties.title;
+  const activeSheetName = sheetName || sheets[0].properties.title;
   
-  // Now fetch the values of the first sheet
-  const valuesUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(firstSheetName)}!A1:Z1000`;
+  // Now fetch the values of the selected sheet
+  const valuesUrl = `https://sheets.googleapis.com/v4/spreadsheets/${actualId}/values/${encodeURIComponent(activeSheetName)}!A1:Z1000`;
   const valuesRes = await fetch(valuesUrl, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
 
   if (!valuesRes.ok) {
-    throw new Error("Failed to fetch spreadsheet values");
+    throw new Error("Failed to fetch spreadsheet values for sheet: " + activeSheetName);
   }
 
   const valuesData = await valuesRes.json();

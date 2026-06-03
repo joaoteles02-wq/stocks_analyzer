@@ -155,12 +155,12 @@ export function WalletView() {
   const hasSp500Analysis = typeof window !== 'undefined' && !!localStorage.getItem('sp500_analysis_result');
 
   const [isReloadModalOpen, setIsReloadModalOpen] = useState(false);
-  const [selectedStrategy, setSelectedStrategy] = useState<'income' | 'balanced' | 'growth'>('balanced');
-  const [activeStrategy, setActiveStrategy] = useState<'income' | 'balanced' | 'growth'>(() => {
+  const [selectedStrategy, setSelectedStrategy] = useState<'renda' | 'equilibrada' | 'crescimento'>('equilibrada');
+  const [activeStrategy, setActiveStrategy] = useState<'renda' | 'equilibrada' | 'crescimento'>(() => {
     if (typeof window !== 'undefined') {
-      return (localStorage.getItem('active_strategy') as any) || 'balanced';
+      return (localStorage.getItem('active_strategy') as any) || 'equilibrada';
     }
-    return 'balanced';
+    return 'equilibrada';
   });
 
   // Parses the 10 ranked assets for a given type, using reports if available, falling back to static/definitions to get exactly 10
@@ -267,74 +267,30 @@ export function WalletView() {
       }
     } catch (e) {}
 
+    // Carrega o índice customizado de coluna configurado pelo usuário para alinhamento uniforme
+    const overrideInitialPriceColStr = localStorage.getItem('sheet_initial_price_col_idx');
+    const overrideCurrentPriceColStr = localStorage.getItem('sheet_current_price_col_idx');
+    const overrideInitialPriceColIdx = overrideInitialPriceColStr ? parseInt(overrideInitialPriceColStr, 10) : -1;
+    const overrideCurrentPriceColIdx = overrideCurrentPriceColStr ? parseInt(overrideCurrentPriceColStr, 10) : -1;
+
+    const parsePortNumber = (valStr: string): number => {
+      if (!valStr) return NaN;
+      let clean = valStr.replace('R$', '').replace('$', '').trim();
+      if (clean.includes('.') && clean.includes(',')) {
+        clean = clean.replace(/\./g, '').replace(',', '.');
+      } else if (clean.includes(',')) {
+        clean = clean.replace(',', '.');
+      }
+      return Number(clean);
+    };
+
     const resultList: Asset[] = [];
 
     // Map found tickers to Asset objects
     for (const ticker of parsedTickers) {
-      // 1. Search in ALL_BEST_30_ASSETS
+      // 1. Initial baseline from ALL_BEST_30_ASSETS if exists
       const existing = ALL_BEST_30_ASSETS.find(a => a.ticker.toUpperCase() === ticker);
-      if (existing) {
-        resultList.push(existing);
-        continue;
-      }
-
-      // 2. Search in local sheet rows if available
-      let matchedInSheet = false;
-      if (Array.isArray(localRows) && localRows.length > 0) {
-        const matchedRow = localRows.find(row => 
-          Array.isArray(row) && row.some(cell => String(cell).trim().toUpperCase() === ticker)
-        );
-
-        if (matchedRow) {
-          let matchedName = ticker;
-          for (const cell of matchedRow) {
-            if (typeof cell === 'string' && cell.trim() && cell.toUpperCase() !== ticker && isNaN(Number(cell.replace(',', '.')))) {
-              matchedName = cell.trim();
-              break;
-            }
-          }
-
-          let matchedPrice = 10.0;
-          for (const cell of matchedRow) {
-            const num = Number(String(cell).replace('R$', '').replace('$', '').replace(',', '.').trim());
-            if (!isNaN(num) && num > 1 && num < 10000) {
-              matchedPrice = num;
-              break;
-            }
-          }
-
-          let matchedYield = 0.08;
-          if (matchedRow[8]) {
-            const cleanVal = String(matchedRow[8]).replace('%', '').replace(',', '.').trim();
-            const num = Number(cleanVal);
-            if (!isNaN(num)) {
-              matchedYield = num > 1 ? num / 100 : num;
-            }
-          }
-
-          let matchedSector = 'Análise Personalizada';
-          if (matchedRow[2] && typeof matchedRow[2] === 'string' && matchedRow[2].length > 3) {
-            matchedSector = matchedRow[2];
-          }
-
-          resultList.push({
-            ticker,
-            name: matchedName,
-            type,
-            price: matchedPrice,
-            currency: type === 'sp500' ? 'USD' as const : 'BRL' as const,
-            yield: matchedYield,
-            sector: matchedSector,
-            description: 'Ativo adicionado automaticamente a partir da análise da planilha.'
-          });
-          matchedInSheet = true;
-        }
-      }
-
-      if (matchedInSheet) continue;
-
-      // 3. Dynamic placeholder fallback
-      resultList.push({
+      let assetBase: Asset = existing ? { ...existing } : {
         ticker,
         name: `${type === 'stocks' ? 'Ação' : type === 'fii' ? 'Fundo Imobiliário' : 'Ação S&P 500'} ${ticker}`,
         type,
@@ -342,8 +298,113 @@ export function WalletView() {
         currency: type === 'sp500' ? 'USD' as const : 'BRL' as const,
         yield: type === 'sp500' ? 0.015 : type === 'fii' ? 0.10 : 0.06,
         sector: 'Selecionado por IA',
-        description: 'Ativo selecionado dinamicamente a partir de seu ranking gerado pelo Gemini.'
-      });
+        description: 'Ativo adicionado automaticamente a partir da análise da planilha.'
+      };
+
+      // 2. Lookup and override from local sheet rows if available
+      if (Array.isArray(localRows) && localRows.length > 0) {
+        const matchedRow = localRows.find(row => 
+          Array.isArray(row) && row.some(cell => {
+            const s = String(cell).trim().toUpperCase();
+            return s === ticker || s === `${ticker}.SA` || s.replace('.SA', '') === ticker;
+          })
+        );
+
+        if (matchedRow) {
+          // Identify headers
+          const headerRow = localRows[0].map(cell => String(cell).trim().toLowerCase());
+          
+          let currentPriceColIndex = -1;
+          let initialPriceColIndex = -1;
+          let yieldColIndex = -1;
+          
+          for (let i = 0; i < headerRow.length; i++) {
+            const h = headerRow[i];
+            const isCurrent = h.includes('atual') || h.includes('hoje') || h.includes('agora') || h.includes('realtime') || h.includes('venda') || h.includes('cotação') || h.includes('cotacao') || h.includes('mercado');
+            const isInitial = h.includes('02/01/2026') || h.includes('inicial') || h.includes('custo') || h.includes('compra') || h.includes('medio') || h.includes('médio') || h.includes('pago') || h.includes('aquisição') || h.includes('aquisicao') || h.includes('yoc') || h.includes('cost');
+            const isYield = h.includes('yield') || h.includes('dy') || h.includes('dividendo');
+            
+            if (isCurrent && !isInitial) {
+              currentPriceColIndex = i;
+            } else if (isInitial && !isCurrent) {
+              initialPriceColIndex = i;
+            }
+            if (isYield) {
+              yieldColIndex = i;
+            }
+          }
+          
+          // Get name
+          let matchedName = assetBase.name;
+          for (const cell of matchedRow) {
+            if (typeof cell === 'string' && cell.trim() && cell.toUpperCase() !== ticker && cell.toUpperCase() !== `${ticker}.SA` && isNaN(Number(cell.replace(',', '.')))) {
+              matchedName = cell.trim();
+              break;
+            }
+          }
+          assetBase.name = matchedName;
+
+          // Get Current Price (Preço Atual)
+          let matchedPrice = assetBase.price;
+          if (overrideCurrentPriceColIdx !== -1 && matchedRow[overrideCurrentPriceColIdx] !== undefined) {
+            const num = parsePortNumber(String(matchedRow[overrideCurrentPriceColIdx]));
+            if (!isNaN(num) && num > 0.1) {
+              matchedPrice = num;
+            }
+          } else if (currentPriceColIndex !== -1 && matchedRow[currentPriceColIndex] !== undefined) {
+            const num = parsePortNumber(String(matchedRow[currentPriceColIndex]));
+            if (!isNaN(num) && num > 0.1) {
+              matchedPrice = num;
+            }
+          } else {
+            // Find numbers in the row
+            const numbersInRow: number[] = [];
+            for (let i = 0; i < matchedRow.length; i++) {
+              const val = parsePortNumber(String(matchedRow[i]));
+              if (!isNaN(val) && val > 0.1 && val < 50000) {
+                numbersInRow.push(val);
+              }
+            }
+            if (numbersInRow.length > 0) {
+              if (numbersInRow.length >= 2) {
+                // If we don't have explicit headers, we assume Current Price is the last valid number
+                // because Current Price usually comes AFTER Preço de Custo/Initial in sheets.
+                matchedPrice = numbersInRow[numbersInRow.length - 1];
+              } else {
+                matchedPrice = numbersInRow[0];
+              }
+            }
+          }
+          assetBase.price = matchedPrice;
+
+          // Get Yield
+          let matchedYield = assetBase.yield;
+          if (yieldColIndex !== -1 && matchedRow[yieldColIndex] !== undefined) {
+            const cleanVal = String(matchedRow[yieldColIndex]).replace('%', '').replace(',', '.').trim();
+            const num = Number(cleanVal);
+            if (!isNaN(num)) {
+              matchedYield = num > 1 ? num / 100 : num;
+            }
+          } else if (matchedRow[8]) {
+            const cleanVal = String(matchedRow[8]).replace('%', '').replace(',', '.').trim();
+            const num = Number(cleanVal);
+            if (!isNaN(num)) {
+              matchedYield = num > 1 ? num / 100 : num;
+            }
+          }
+          assetBase.yield = matchedYield;
+
+          // Get Sector
+          let matchedSector = assetBase.sector;
+          if (matchedRow[2] && typeof matchedRow[2] === 'string' && matchedRow[2].length > 3) {
+            matchedSector = matchedRow[2];
+          }
+          assetBase.sector = matchedSector;
+          assetBase.description = 'Ativo atualizado com dados reais extraídos de sua planilha.';
+        }
+      }
+
+      resultList.push(assetBase);
     }
 
     // Ensure we have exactly 10 by filling from the static list of that type
@@ -358,14 +419,14 @@ export function WalletView() {
     return resultList.slice(0, 10);
   };
 
-  const getStrategyPreview = (strategyType: 'income' | 'balanced' | 'growth'): { asset: Asset; weight: number }[] => {
+  const getStrategyPreview = (strategyType: 'renda' | 'equilibrada' | 'crescimento'): { asset: Asset; weight: number }[] => {
     const stocksRanked = getRankedAssetsFromCategory('stocks');
     const fiiRanked = getRankedAssetsFromCategory('fii');
     const sp500Ranked = getRankedAssetsFromCategory('sp500');
 
     const selectedSlots: { asset: Asset; weight: number }[] = [];
 
-    if (strategyType === 'income') {
+    if (strategyType === 'renda') {
       // 5 FIIs (60%), 3 Ações BR (30%), 2 S&P 500 (10%)
       const selectedFiis = fiiRanked.slice(0, 5);
       const selectedStocks = stocksRanked.slice(0, 3);
@@ -384,7 +445,7 @@ export function WalletView() {
       selectedSp500.forEach((asset, idx) => {
         selectedSlots.push({ asset, weight: sp500Weights[idx] || 5 });
       });
-    } else if (strategyType === 'growth') {
+    } else if (strategyType === 'crescimento') {
       // 5 S&P 500 (60%), 3 Ações BR (30%), 2 FIIs (10%)
       const selectedSp500 = sp500Ranked.slice(0, 5);
       const selectedStocks = stocksRanked.slice(0, 3);
@@ -427,7 +488,7 @@ export function WalletView() {
     return selectedSlots;
   };
 
-  const applyStrategyReload = (strategyType: 'income' | 'balanced' | 'growth') => {
+  const applyStrategyReload = (strategyType: 'renda' | 'equilibrada' | 'crescimento') => {
     const slots = getStrategyPreview(strategyType);
     if (!slots || slots.length === 0) {
       setWalletError("Não foi possível gerar a carteira baseada nas recomendações.");
@@ -435,8 +496,8 @@ export function WalletView() {
     }
     setWallet(slots);
     
-    const strategyName = strategyType === 'income' ? 'Renda & Dividendos' 
-      : strategyType === 'growth' ? 'Crescimento Tecnológico' 
+    const strategyName = strategyType === 'renda' ? 'Renda & Dividendos' 
+      : strategyType === 'crescimento' ? 'Crescimento Tecnológico' 
       : 'Equilíbrio Global';
 
     setActiveStrategy(strategyType);
@@ -664,7 +725,7 @@ export function WalletView() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               {[
                 {
-                  id: 'balanced' as const,
+                  id: 'equilibrada' as const,
                   title: 'Equilíbrio Global',
                   desc: '40% FIIs, 30% Ações BR, 30% S&P 500',
                   color: 'border-blue-500 bg-blue-500/5 text-blue-300',
@@ -672,7 +733,7 @@ export function WalletView() {
                   distribution: '4 FIIs + 3 Ações + 3 S&P 500'
                 },
                 {
-                  id: 'income' as const,
+                  id: 'renda' as const,
                   title: 'Renda & Dividendos',
                   desc: '60% FIIs, 30% Ações BR, 10% S&P 500',
                   color: 'border-emerald-500 bg-emerald-500/5 text-emerald-300',
@@ -680,7 +741,7 @@ export function WalletView() {
                   distribution: '5 FIIs + 3 Ações + 2 S&P 500'
                 },
                 {
-                  id: 'growth' as const,
+                  id: 'crescimento' as const,
                   title: 'Crescimento Global',
                   desc: '60% S&P 500, 30% Ações BR, 10% FIIs',
                   color: 'border-amber-500 bg-amber-500/5 text-amber-300',
@@ -978,9 +1039,9 @@ export function WalletView() {
             <div className="border-b border-white/10 pb-4 space-y-3">
               {/* Active Strategy Indicator */}
               {(() => {
-                const stratInfo = activeStrategy === 'income' 
+                const stratInfo = activeStrategy === 'renda' 
                   ? { title: 'Renda & Dividendos', badge: 'Renda Passiva', color: 'border-amber-500/20 bg-amber-500/10 text-amber-400' }
-                  : activeStrategy === 'growth'
+                  : activeStrategy === 'crescimento'
                     ? { title: 'Crescimento Global', badge: 'Alto Upside', color: 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400' }
                     : { title: 'Equilíbrio Global', badge: 'Moderado', color: 'border-blue-500/20 bg-blue-500/10 text-blue-400' };
                 

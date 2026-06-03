@@ -160,6 +160,12 @@ export const getAccessToken = async (): Promise<string | null> => {
   return cachedAccessToken;
 };
 
+export const clearCachedToken = () => {
+  cachedAccessToken = null;
+  localStorage.removeItem('google_access_token');
+  sessionStorage.removeItem('google_access_token');
+};
+
 export const logout = async () => {
   await auth.signOut();
   cachedAccessToken = null;

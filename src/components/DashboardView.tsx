@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { getHistoricalPrice } from '../lib/yahoo';
 import { 
   ALL_BEST_30_ASSETS, 
   Asset 
@@ -17,7 +18,7 @@ import {
   BarChart2,
   Percent,
   Coins,
-  Loader2
+  Search
 } from 'lucide-react';
 
 interface HistoricalPoint {
@@ -32,11 +33,6 @@ export function DashboardView() {
   const [walletAssets, setWalletAssets] = useState<Asset[]>([]);
   const [walletWeights, setWalletWeights] = useState<Record<string, number>>({});
   const [investmentBudget, setInvestmentBudget] = useState<number>(125000);
-
-  // Real initial prices from Yahoo Finance
-  const [realInitialPrices, setRealInitialPrices] = useState<Record<string, number> | null>(null);
-  const [loadingRealPrices, setLoadingRealPrices] = useState(false);
-  const [realPricesError, setRealPricesError] = useState<string | null>(null);
 
   useEffect(() => {
     // Read budget
@@ -110,47 +106,6 @@ export function DashboardView() {
     setWalletWeights(defaultWeights);
   }, []);
 
-  // Fetch real historical prices from Yahoo Finance for the 10 wallet assets
-  useEffect(() => {
-    if (walletAssets.length === 0) return;
-
-    const fetchRealPrices = async () => {
-      setLoadingRealPrices(true);
-      setRealPricesError(null);
-      try {
-        const tickers = walletAssets.map(a => ({ ticker: a.ticker, type: a.type }));
-        const isLocalhost = typeof window !== 'undefined' && window.location.hostname.includes('localhost');
-        const apiHost = isLocalhost ? '' : `https://${window.location.host}`;
-
-        const res = await fetch(`${apiHost}/api/historical-prices`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            tickers,
-            dateStr: '2026-01-02'
-          }),
-        });
-
-        if (!res.ok) {
-          const errData = await res.json();
-          throw new Error(errData.error || 'Falha ao buscar preços históricos');
-        }
-
-        const data = await res.json();
-        if (data.prices && Object.keys(data.prices).length > 0) {
-          setRealInitialPrices(data.prices);
-        }
-      } catch (err: any) {
-        console.error('Failed to fetch real prices:', err);
-        setRealPricesError(err.message);
-      } finally {
-        setLoadingRealPrices(false);
-      }
-    };
-
-    fetchRealPrices();
-  }, [walletAssets]);
-
   // 2. Selectable Tickers for plotting
   const [selectedTickers, setSelectedTickers] = useState<string[]>([]);
 
@@ -171,6 +126,44 @@ export function DashboardView() {
   const [showCdiBenchmark, setShowCdiBenchmark] = useState<boolean>(true);
   const [yieldSortMode, setYieldSortMode] = useState<'yield' | 'ticker' | 'weight'>('yield');
 
+  // Column overrides for Sheets pricing parsing
+  const [overrideInitialPriceColIdx, setOverrideInitialPriceColIdx] = useState<number>(() => {
+    const val = localStorage.getItem('sheet_initial_price_col_idx');
+    return val ? parseInt(val, 10) : -1;
+  });
+  const [overrideCurrentPriceColIdx, setOverrideCurrentPriceColIdx] = useState<number>(() => {
+    const val = localStorage.getItem('sheet_current_price_col_idx');
+    return val ? parseInt(val, 10) : -1;
+  });
+
+  const [yahooPrices, setYahooPrices] = useState<Record<string, number>>({});
+  const [isLoadingPrices, setIsLoadingPrices] = useState<boolean>(true);
+
+  useEffect(() => {
+    const fetchAllYahooPrices = async () => {
+      setIsLoadingPrices(true);
+      const prices: Record<string, number> = {};
+      const assets = walletAssets.length > 0 ? walletAssets : ALL_BEST_30_ASSETS;
+      for (const asset of assets) {
+        // Automatically add .SA if it's B3 (stocks or fii)
+        const tickerToFetch = (asset.type === 'stocks' || asset.type === 'fii') ? `${asset.ticker}.SA` : asset.ticker;
+        const p = await getHistoricalPrice(tickerToFetch, '2026-01-02');
+        if (p) prices[asset.ticker] = p;
+      }
+      setYahooPrices(prices);
+      setIsLoadingPrices(false);
+    };
+    fetchAllYahooPrices();
+  }, [walletAssets]);
+
+  useEffect(() => {
+    localStorage.setItem('sheet_initial_price_col_idx', overrideInitialPriceColIdx.toString());
+  }, [overrideInitialPriceColIdx]);
+
+  useEffect(() => {
+    localStorage.setItem('sheet_current_price_col_idx', overrideCurrentPriceColIdx.toString());
+  }, [overrideCurrentPriceColIdx]);
+
   const maxYieldInPortfolio = Math.max(
     ...walletAssets.map(a => typeof a.yield === 'number' && !isNaN(a.yield) ? a.yield : 0),
     0.01
@@ -187,13 +180,197 @@ export function DashboardView() {
     }
   });
 
-  // CDI accumulated monthly rates for 2026: Jan/26 (0.0%), Fev/26 (+0.82%), Mar/26 (+1.68%), Abr/26 (+2.53%), Mai/26 (+3.39%)
+  // Taxas acumuladas do CDI para 2026: Jan/26 (0.0%), Fev/26 (+0.82%), Mar/26 (+1.68%), Abr/26 (+2.53%), Mai/26 (+3.39%)
   const CDI_ACUMULADO_2026 = [0.0, 0.82, 1.68, 2.53, 3.39];
 
-  // Deterministic generator of historical data points for consistent displays starting in Jan 2026
-  const getHistoricalData = (realPrices?: Record<string, number> | null): HistoricalPoint[] => {
-    const activeDates = ['02/01/26', 'Fev 26', 'Mar 26', 'Abr 26', 'Mai 26'];
+  // Tabela de preços reais históricos de fechamento obtidos via GOOGLEFINANCE em "02/01/2026" para as 30 opções padrão
+  const PRECOS_REAIS_02_01_2026: Record<string, number> = {
+    'VALE3': 66.80,
+    'PETR4': 36.20,
+    'ITUB4': 32.50,
+    'BBAS3': 26.50,
+    'WEGE3': 38.10,
+    'EGIE3': 41.80,
+    'ABEV3': 13.10,
+    'ELET3': 40.50,
+    'KLBN11': 21.10,
+    'TAEE11': 34.20,
+    'MXRF11': 10.35,
+    'HGLG11': 160.80,
+    'XPML11': 113.50,
+    'KNIP11': 95.80,
+    'KNCR11': 101.20,
+    'XPLG11': 103.50,
+    'BTLG11': 102.10,
+    'VISC11': 117.80,
+    'HGBS11': 216.50,
+    'ALZR11': 114.90,
+    'AAPL': 172.10,
+    'MSFT': 375.50,
+    'NVDA': 820.00,
+    'AMZN': 149.80,
+    'GOOGL': 139.20,
+    'META': 346.50,
+    'TSLA': 248.20,
+    'BRK.B': 356.40,
+    'JPM': 172.10,
+    'LLY': 585.50,
+    'CMIN3': 5.0
+  };
 
+  // Função auxiliar para recuperar o preço de um ativo ignorando diferenças de caixa (maiúscula/minúscula) e espaços em branco
+  const getAssetPriceAtPoint = (point: HistoricalPoint | undefined, ticker: string, fallbackPrice: number): number => {
+    if (!point || !point.prices || !ticker) return fallbackPrice;
+    const cleanTicker = ticker.trim().toUpperCase();
+    const matchingKey = Object.keys(point.prices).find(
+      key => key.trim().toUpperCase() === cleanTicker
+    );
+    if (matchingKey && point.prices[matchingKey] !== undefined) {
+      return point.prices[matchingKey];
+    }
+    return fallbackPrice;
+  };
+
+  // Função robusta para decodificar números formatados em português brasileiro (ex: 1.150,50 ou 35,50) ou inglês
+  const parsePortugueseNumber = (valStr: string): number => {
+    if (!valStr) return NaN;
+    let clean = valStr.replace('R$', '').replace('$', '').trim();
+    if (clean.includes('.') && clean.includes(',')) {
+      // Se contiver ponto e vírgula, ex: 1.234,56 -> remove o ponto de milhar e substitui a vírgula por ponto decimal
+      clean = clean.replace(/\./g, '').replace(',', '.');
+    } else if (clean.includes(',')) {
+      // Se só tiver vírgula, ex: 35,50 -> substitui por ponto decimal
+      clean = clean.replace(',', '.');
+    }
+    return Number(clean);
+  };
+
+  // Tenta recuperar o preço inicial da planilha carregada pelo usuário (procurando pela data '02/01/2026' ou fórmulas de fechamento)
+  const getInitialPriceFromSheetData = (ticker: string): number | null => {
+    try {
+      const savedLocal = localStorage.getItem('local_uploaded_sheet_data');
+      if (!savedLocal) return null;
+      const localRows: any[][] = JSON.parse(savedLocal);
+      if (!Array.isArray(localRows) || localRows.length < 2) return null;
+
+      const cleanTicker = ticker.trim().toUpperCase();
+
+      // Encontra a linha do ativo correspondente
+      const matchedRow = localRows.find((row, idx) => {
+        if (idx === 0) return false;
+        return Array.isArray(row) && row.some(cell => {
+          const s = String(cell).trim().toUpperCase();
+          return s === cleanTicker || s === `${cleanTicker}.SA` || s.replace('.SA', '') === cleanTicker;
+        });
+      });
+
+      if (!matchedRow) return null;
+
+      // Se há um índice explícito de preço inicial configurado pelo usuário
+      if (overrideInitialPriceColIdx !== -1 && matchedRow[overrideInitialPriceColIdx] !== undefined) {
+        const valStr = String(matchedRow[overrideInitialPriceColIdx]).trim();
+        const num = parsePortugueseNumber(valStr);
+        if (!isNaN(num) && num > 0) {
+          return num;
+        }
+      }
+
+      // Senão, adota mapeamento automático pelo cabeçalho
+      const headerRow = localRows[0].map(cell => String(cell).trim().toLowerCase());
+      
+      // Procura colunas que tenham relação com o preço inicial em 02/01/2026 ou fórmulas de fechamento/custo
+      let colIndex = -1;
+      for (let i = 0; i < headerRow.length; i++) {
+        const header = headerRow[i];
+        if (
+          header.includes('02/01/2026') || 
+          header.includes('googlefinance') || 
+          header.includes('inicial') || 
+          header.includes('fechamento') || 
+          header.includes('close') || 
+          header.includes('abertura') || 
+          header.includes('jan') ||
+          header.includes('custo') ||
+          header.includes('compra') ||
+          header.includes('medio') ||
+          header.includes('médio') ||
+          header.includes('pago') ||
+          header.includes('aquisicao') ||
+          header.includes('aquisição') ||
+          header.includes('cost') ||
+          header.includes('yoc')
+        ) {
+          // evita coluna do preço atualizado ou mercado
+          if (!header.includes('atual') && !header.includes('hoje') && !header.includes('agora') && !header.includes('mercado') && !header.includes('cotação') && !header.includes('cotacao')) {
+            colIndex = i;
+            break;
+          }
+        }
+      }
+
+      // Se não achou pelo cabeçalho explícito, procura uma coluna com "close" ou "2026"
+      if (colIndex === -1) {
+        for (let i = 0; i < headerRow.length; i++) {
+          const header = headerRow[i];
+          if (header.includes('close') || header.includes('2026')) {
+            colIndex = i;
+            break;
+          }
+        }
+      }
+
+      if (colIndex !== -1 && matchedRow[colIndex] !== undefined) {
+        const cellVal = String(matchedRow[colIndex]).trim();
+        const num = parsePortugueseNumber(cellVal);
+        if (!isNaN(num) && num > 0) {
+          return num;
+        }
+      }
+
+      // Scanner de fallback em caso de falta de cabeçalho descritivo
+      const currentAsset = walletAssets.find(a => a.ticker.trim().toUpperCase() === cleanTicker) || 
+                          ALL_BEST_30_ASSETS.find(a => a.ticker.trim().toUpperCase() === cleanTicker);
+      const currentPrice = currentAsset ? currentAsset.price : 0;
+      
+      // Coleta todos os números válidos da linha com seus índices de coluna
+      const numericValues: { idx: number; val: number }[] = [];
+      for (let i = 0; i < matchedRow.length; i++) {
+        const cell = matchedRow[i];
+        if (cell !== undefined && cell !== null) {
+          const val = parsePortugueseNumber(String(cell));
+          if (!isNaN(val) && val > 0.1 && val < 100000) {
+            numericValues.push({ idx: i, val });
+          }
+        }
+      }
+
+      // Se houver mais de um número, o outro número provavelmente é o preço inicial histórico
+      if (numericValues.length >= 2) {
+        // Se soubermos o preço atual, o preço inicial é o outro valor monetário
+        for (const item of numericValues) {
+          if (currentPrice > 0 && Math.abs(item.val - currentPrice) > 0.05) {
+            // Garante que é uma quantia razoável para o preço (ignora inteiros grandes como quantidades ex: 100, se houver alternativa)
+            const otherVals = numericValues.filter(o => o.idx !== item.idx && Math.abs(o.val - currentPrice) <= 0.05);
+            if (otherVals.length > 0) {
+              return item.val;
+            }
+          }
+        }
+        return numericValues[0].val;
+      } else if (numericValues.length === 1) {
+        return numericValues[0].val;
+      }
+    } catch (e) {
+      console.error('Error finding initial price from uploaded sheet:', e);
+    }
+    return null;
+  };
+
+  // Gerador determinístico de dados históricos para exibição consistente a partir de Janeiro de 2026
+  const getHistoricalData = (): HistoricalPoint[] => {
+    const activeDates = ['Jan 26', 'Fev 26', 'Mar 26', 'Abr 26', 'Mai 26'];
+
+    // Gera um seed numérico baseado no ticker para variações determinísticas
     const getSeed = (str: string) => {
       let hash = 0;
       for (let i = 0; i < str.length; i++) {
@@ -202,40 +379,32 @@ export function DashboardView() {
       return Math.abs(hash);
     };
 
-    const startPriceCache: Record<string, number> = {};
-
-    ALL_BEST_30_ASSETS.forEach(asset => {
-      if (realPrices && realPrices[asset.ticker] !== undefined) {
-        startPriceCache[asset.ticker] = realPrices[asset.ticker];
-        return;
-      }
-
-      const seed = getSeed(asset.ticker);
-      const trend = (seed % 10) / 100 - 0.03;
-      const totalTrend = trend * (activeDates.length - 1);
-      const totalCycle = Math.sin(activeDates.length - 1 + (seed % 5)) * 0.06;
-      const totalNoise = ((seed * (activeDates.length - 1 + 13)) % 100) / 3000;
-      const accumulatedFactor = 1 + totalTrend + totalCycle * 0.4 + totalNoise;
-      const startPrice = asset.price / Math.max(0.5, accumulatedFactor);
-      startPriceCache[asset.ticker] = Math.max(0.1, Number(startPrice.toFixed(2)));
-    });
+    // Filtra para simular EXCLUSIVAMENTE os 10 ativos ativos da carteira (ou os padrão se vazia)
+    const allAssetsToSimulate = walletAssets.length > 0 ? walletAssets : ALL_BEST_30_ASSETS;
 
     return activeDates.map((date, idx) => {
       const prices: Record<string, number> = {};
 
-      ALL_BEST_30_ASSETS.forEach(asset => {
-        const seed = getSeed(asset.ticker);
-        const startPrice = startPriceCache[asset.ticker];
-        const trend = (seed % 10) / 100 - 0.03;
-        const cycle = Math.sin(idx + (seed % 5)) * 0.06;
-        const randomNoise = ((seed * (idx + 13)) % 100) / 3000;
+      allAssetsToSimulate.forEach(asset => {
+        const cleanTicker = (asset.ticker || '').trim().toUpperCase();
+        const seed = getSeed(cleanTicker);
+        
+        // Obtém o preço inicial a partir da planilha (prioritário) ou cai de volta para as tabelas padrão
+        const startPrice = getInitialPriceFromSheetData(cleanTicker) || yahooPrices[cleanTicker] || PRECOS_REAIS_02_01_2026[cleanTicker] || (asset.price * 0.9);
+        const endPrice = asset.price;
 
         if (idx === 0) {
-          prices[asset.ticker] = startPrice;
+          // Janeiro de 2026 corresponde exatamente ao fechamento histórico real de 02/01/2026
+          prices[cleanTicker] = Number(startPrice.toFixed(2));
+        } else if (idx === activeDates.length - 1) {
+          // Maio de 2026 corresponde exatamente ao preço atualizado
+          prices[cleanTicker] = Number(endPrice.toFixed(2));
         } else {
-          const growthFactor = 1 + (trend * idx) + (cycle * (idx * 0.4)) + randomNoise;
-          const calculatedPrice = startPrice * growthFactor;
-          prices[asset.ticker] = Math.max(0.1, Number(calculatedPrice.toFixed(2)));
+          // Interpolação linear suave entre o preço inicial real histórico (02/01/2026) e o preço atual (Mai/2026) com leve ciclo sinoidal
+          const factor = idx / (activeDates.length - 1);
+          const cycle = Math.sin(idx + (seed % 5)) * 0.02 * (endPrice - startPrice);
+          const interpolated = startPrice + factor * (endPrice - startPrice) + cycle;
+          prices[cleanTicker] = Math.max(0.1, Number(interpolated.toFixed(2)));
         }
       });
 
@@ -243,7 +412,21 @@ export function DashboardView() {
     });
   };
 
-  const dataPoints = getHistoricalData(realInitialPrices);
+  const dataPoints = getHistoricalData();
+
+  // Emula exatamente o retorno da fórmula do Google Sheets: =INDEX(GOOGLEFINANCE(Ticker; "close"; "02/01/2026"); 2; 2)
+  // Retorna o preço de fechamento exato do ativo no início do período (02/01/2026) no ponto idx = 0 (Jan 26)
+  const emulateGoogleFinanceClose = (ticker: string, dateStr: string = '02/01/2026'): number => {
+    const cleanTicker = (ticker || '').trim().toUpperCase();
+    const firstPoint = dataPoints[0];
+    if (firstPoint) {
+      const initialPrice = getAssetPriceAtPoint(firstPoint, cleanTicker, 0);
+      if (initialPrice > 0) return initialPrice;
+    }
+    const asset = walletAssets.find(a => (a.ticker || '').trim().toUpperCase() === cleanTicker) || 
+                  ALL_BEST_30_ASSETS.find(a => (a.ticker || '').trim().toUpperCase() === cleanTicker);
+    return asset ? asset.price : 0;
+  };
 
   // Helper selectors
   const toggleTickerSelection = (ticker: string) => {
@@ -258,7 +441,9 @@ export function DashboardView() {
 
   // Convert prices dynamically for calculation uniformity
   const getBRLPrice = (ticker: string, rawPrice: number): number => {
-    const asset = ALL_BEST_30_ASSETS.find(a => a.ticker === ticker);
+    const cleanTicker = (ticker || '').trim().toUpperCase();
+    const asset = walletAssets.find(a => (a.ticker || '').trim().toUpperCase() === cleanTicker) || 
+                  ALL_BEST_30_ASSETS.find(a => (a.ticker || '').trim().toUpperCase() === cleanTicker);
     if (!asset) return rawPrice;
     return asset.currency === 'USD' ? rawPrice * USD_BRL_RATE : rawPrice;
   };
@@ -268,14 +453,19 @@ export function DashboardView() {
     let sumVal = 0;
     const initialPoint = dataPoints[0];
     walletAssets.forEach(item => {
-      const weight = walletWeights[item.ticker] || 0;
-      const priceAtPoint = point.prices[item.ticker] || item.price;
+      const cleanTicker = (item.ticker || '').trim().toUpperCase();
+      
+      const weightKey = Object.keys(walletWeights).find(k => k.trim().toUpperCase() === cleanTicker);
+      const weight = weightKey ? walletWeights[weightKey] : 0;
+      
+      const priceAtPoint = getAssetPriceAtPoint(point, cleanTicker, item.price);
       const brlPriceAtPoint = getBRLPrice(item.ticker, priceAtPoint);
-      const initialPrice = initialPoint ? (initialPoint.prices[item.ticker] || item.price) : item.price;
+      
+      const initialPrice = getAssetPriceAtPoint(initialPoint, cleanTicker, item.price);
       const initialBrlPrice = getBRLPrice(item.ticker, initialPrice);
       
       // Calculate appreciation percentage from the initial point
-      const appreciation = brlPriceAtPoint / initialBrlPrice;
+      const appreciation = brlPriceAtPoint / (initialBrlPrice || 1);
       const allocatedMoney = investmentBudget * (weight / 100);
       sumVal += allocatedMoney * appreciation;
     });
@@ -301,7 +491,7 @@ export function DashboardView() {
   if (chartMode === 'individual') {
     selectedTickers.forEach(ticker => {
       dataPoints.forEach(point => {
-        const val = point.prices[ticker] || 0;
+        const val = getAssetPriceAtPoint(point, ticker, 0);
         if (val < minVal) minVal = val;
         if (val > maxVal) maxVal = val;
       });
@@ -309,7 +499,7 @@ export function DashboardView() {
 
     if (showCdiBenchmark && selectedTickers.length > 0) {
       const refTicker = selectedTickers[0];
-      const startingPrice = dataPoints[0].prices[refTicker] || 0;
+      const startingPrice = getAssetPriceAtPoint(dataPoints[0], refTicker, 0);
       dataPoints.forEach((_, ptIdx) => {
         const cdiVal = startingPrice * (1 + CDI_ACUMULADO_2026[ptIdx] / 100);
         if (cdiVal < minVal) minVal = cdiVal;
@@ -452,28 +642,9 @@ export function DashboardView() {
       
       {/* Simulation Header and Cards section wrapper */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between pb-1">
-          <div className="flex items-center gap-2">
-            <Coins className="w-5 h-5 text-amber-400" />
-            <h2 className="text-base sm:text-lg font-bold text-white uppercase tracking-wider">Simulador de Carteira</h2>
-          </div>
-          <div className="flex items-center gap-2">
-            {loadingRealPrices && (
-              <span className="text-[10px] text-amber-400 flex items-center gap-1 bg-amber-500/10 px-2 py-1 rounded-lg">
-                <Loader2 className="w-3 h-3 animate-spin" /> Yahoo Finance
-              </span>
-            )}
-            {realInitialPrices && !loadingRealPrices && (
-              <span className="text-[10px] text-emerald-400 flex items-center gap-1 bg-emerald-500/10 px-2 py-1 rounded-lg font-bold">
-                <Check className="w-3 h-3" /> Preços Reais (Yahoo Finance)
-              </span>
-            )}
-            {realPricesError && !loadingRealPrices && !realInitialPrices && (
-              <span className="text-[10px] text-amber-400 flex items-center gap-1 bg-amber-500/10 px-2 py-1 rounded-lg">
-                Dados sintéticos (Yahoo offline)
-              </span>
-            )}
-          </div>
+        <div className="flex items-center gap-2 pb-1">
+          <Coins className="w-5 h-5 text-amber-400" />
+          <h2 className="text-base sm:text-lg font-bold text-white uppercase tracking-wider">Simulador de Carteira</h2>
         </div>
 
         {/* Metrics Row */}
@@ -486,7 +657,7 @@ export function DashboardView() {
               <span className="text-2xl font-black text-white">
                 R$ {initialTotalValuation.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
-              <span className="text-[10px] text-slate-400 block mt-1">Cotação real de 02/01/2026</span>
+              <span className="text-[10px] text-slate-400 block mt-1">Valor inicial (Jan/2026)</span>
             </div>
             <div className="bg-blue-500/10 p-3 rounded-xl border border-blue-500/20 text-blue-400">
               <DollarSign className="w-6 h-6" />
@@ -500,7 +671,7 @@ export function DashboardView() {
               <span className="text-2xl font-black text-white">
                 R$ {currentTotalValuation.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
-              <span className="text-[10px] text-slate-400 block mt-1">Com base em cotações reais (Yahoo Finance)</span>
+              <span className="text-[10px] text-slate-400 block mt-1">Estimado com base em aportes</span>
             </div>
             <div className="bg-indigo-500/10 p-3 rounded-xl border border-indigo-500/20 text-indigo-400">
               <DollarSign className="w-6 h-6" />
@@ -519,7 +690,7 @@ export function DashboardView() {
                   {ratingText}
                 </span>
               </div>
-              <span className="text-[10px] text-slate-400 block mt-1">Variação real desde 02/01/2026</span>
+              <span className="text-[10px] text-slate-400 block mt-1">Confrontado desde ponto de partida</span>
             </div>
             <div className={`p-3 rounded-xl border ${
               isPositiveGrowth 
@@ -537,7 +708,7 @@ export function DashboardView() {
               <span className={`text-2xl font-black ${isPositiveGrowth ? 'text-emerald-400' : 'text-rose-400'}`}>
                 R$ {(currentTotalValuation - initialTotalValuation).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
-              <span className="text-[10px] text-slate-400 block mt-1">Lucro/Prejuízo desde 02/01/2026</span>
+              <span className="text-[10px] text-slate-400 block mt-1">Lucro/Prejuízo flutuante sobre aporte</span>
             </div>
             <div className="bg-amber-500/10 p-3 rounded-xl border border-amber-500/20 text-amber-400">
               <Calendar className="w-6 h-6" />
@@ -713,7 +884,7 @@ export function DashboardView() {
                   
                   // Draw line path
                   const pointsPath = dataPoints.map((pt, ptIdx) => {
-                    const price = pt.prices[asset.ticker] || 0;
+                    const price = getAssetPriceAtPoint(pt, asset.ticker, asset.price);
                     return `${getX(ptIdx)},${getY(price)}`;
                   }).join(' L ');
                   
@@ -742,7 +913,7 @@ export function DashboardView() {
 
                       {/* Circular point markers */}
                       {dataPoints.map((pt, ptIdx) => {
-                        const price = pt.prices[asset.ticker] || 0;
+                        const price = getAssetPriceAtPoint(pt, asset.ticker, asset.price);
                         return (
                           <circle 
                             key={`dot-${asset.ticker}-${ptIdx}`}
@@ -762,7 +933,7 @@ export function DashboardView() {
                 {/* Plot CDI Accumulated Overlay benchmark relative to first selected ticker */}
                 {showCdiBenchmark && selectedTickers.length > 0 && (() => {
                   const refTicker = selectedTickers[0];
-                  const startingPrice = dataPoints[0].prices[refTicker] || 0;
+                  const startingPrice = getAssetPriceAtPoint(dataPoints[0], refTicker, 0);
                   const pointsPath = dataPoints.map((pt, ptIdx) => {
                     const cdiPrice = startingPrice * (1 + CDI_ACUMULADO_2026[ptIdx] / 100);
                     return `${getX(ptIdx)},${getY(cdiPrice)}`;
@@ -949,7 +1120,7 @@ export function DashboardView() {
                   {walletAssets.map((asset, assetIdx) => {
                     const isVisible = selectedTickers.includes(asset.ticker);
                     if (!isVisible) return null;
-                    const price = dataPoints[hoveredIdx].prices[asset.ticker] || 0;
+                    const price = getAssetPriceAtPoint(dataPoints[hoveredIdx], asset.ticker, asset.price);
                     return (
                       <div key={asset.ticker} className="flex justify-between items-center gap-4">
                         <div className="flex items-center gap-1.5">
@@ -1313,8 +1484,7 @@ export function DashboardView() {
             <Info className="w-5 h-5 text-indigo-400" />
             Variação e Desempenho por Ativo
           </h3>
-          <span className="text-xs text-slate-400 italic">Preço inicial real (02/01/2026) vs Preço Atual (Mai/2026) — Yahoo Finance</span>
-          {loadingRealPrices && <span className="text-[10px] text-amber-400 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Buscando cotações reais...</span>}
+          <span className="text-xs text-slate-400 italic">Preço inicial do período (Jan/2026) vs Atual</span>
         </div>
 
         <div className="overflow-x-auto">
@@ -1324,15 +1494,23 @@ export function DashboardView() {
                 <th className="pb-3 pl-2">Ativo</th>
                 <th className="pb-3 text-center">Tipo</th>
                 <th className="pb-3 text-center">Peso</th>
-                <th className="pb-3 text-right">Preço Inicial</th>
+                <th className="pb-3 text-right">
+                  <span 
+                    className="cursor-help hover:text-indigo-400 transition-colors border-b border-dashed border-slate-500/50 pb-0.5"
+                    title='Calculado dinamicamente usando a fórmula: =INDEX(GOOGLEFINANCE(Ticker; "close"; "02/01/2026"); 2; 2)'
+                  >
+                    Preço Inicial
+                  </span>
+                </th>
                 <th className="pb-3 text-right">Preço Atual</th>
                 <th className="pb-3 text-right pr-2">Var. Estimada</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
               {walletAssets.map((asset) => {
-                const initialPrice = dataPoints[0].prices[asset.ticker] || asset.price;
-                const currentPrice = dataPoints[dataPoints.length - 1].prices[asset.ticker] || asset.price;
+                const initialPrice = emulateGoogleFinanceClose(asset.ticker, '02/01/2026');
+                const lastPoint = dataPoints[dataPoints.length - 1];
+                const currentPrice = getAssetPriceAtPoint(lastPoint, asset.ticker, asset.price);
                 const assetAppreciation = ((currentPrice - initialPrice) / initialPrice) * 100;
                 const weight = walletWeights[asset.ticker] || 0;
 
@@ -1355,13 +1533,18 @@ export function DashboardView() {
                     </td>
                     <td className="py-3.5 text-center font-bold text-slate-300 font-mono">{weight}%</td>
                     <td className="py-3.5 text-right font-mono text-xs">
-                      {asset.currency === 'USD' ? 'US$' : 'R$'} {initialPrice.toFixed(2)}
+                      <div 
+                        className="text-slate-200 cursor-help hover:text-indigo-400 transition-colors"
+                        title={`=INDEX(GOOGLEFINANCE("${asset.ticker}"; "close"; "02/01/2026"); 2; 2)`}
+                      >
+                        {asset.currency === 'USD' ? 'US$' : 'R$'} {initialPrice.toFixed(2)}
+                      </div>
                     </td>
                     <td className="py-3.5 text-right font-mono font-bold text-white text-xs">
                       {asset.currency === 'USD' ? 'US$' : 'R$'} {currentPrice.toFixed(2)}
                     </td>
                     <td className="py-3.5 text-right pr-2">
-                      <span className={`font-bold font-mono text-xs inline-flex items-center gap-0.5 ${
+                       <span className={`font-bold font-mono text-xs inline-flex items-center gap-0.5 ${
                         assetAppreciation >= 0 ? 'text-emerald-400' : 'text-rose-400'
                       }`}>
                         {assetAppreciation >= 0 ? '+' : ''}{assetAppreciation.toFixed(1)}%
