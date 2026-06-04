@@ -218,6 +218,40 @@ export function DashboardView() {
     'CMIN3': 5.0
   };
 
+  // Preços atuais de mercado (Jun/2026) obtidos via Yahoo Finance
+  const PRECOS_ATUAIS: Record<string, number> = {
+    'ITUB4': 38.72,
+    'WEGE3': 41.78,
+    'TAEE11': 38.79,
+    'HGLG11': 153.97,
+    'MXRF11': 9.80,
+    'XPML11': 106.00,
+    'VALE3': 81.79,
+    'PETR4': 62.93,
+    'BBAS3': 30.29,
+    'EGIE3': 39.76,
+    'ABEV3': 13.13,
+    'ELET3': 53.76,
+    'KLBN11': 24.70,
+    'KNIP11': 89.69,
+    'KNCR11': 101.80,
+    'XPLG11': 93.90,
+    'BTLG11': 104.00,
+    'VISC11': 105.00,
+    'HGBS11': 18.71,
+    'ALZR11': 10.08,
+    'AAPL': 311.23,
+    'MSFT': 428.05,
+    'NVDA': 218.66,
+    'AMZN': 389.42,
+    'GOOGL': 372.19,
+    'META': 637.46,
+    'TSLA': 392.99,
+    'BRK.B': 544.18,
+    'JPM': 268.24,
+    'LLY': 930.20
+  };
+
   // Função auxiliar para recuperar o preço de um ativo ignorando diferenças de caixa (maiúscula/minúscula) e espaços em branco
   const getAssetPriceAtPoint = (point: HistoricalPoint | undefined, ticker: string, fallbackPrice: number): number => {
     if (!point || !point.prices || !ticker) return fallbackPrice;
@@ -391,7 +425,7 @@ export function DashboardView() {
         
         // Obtém o preço inicial a partir da planilha (prioritário) ou cai de volta para as tabelas padrão
         const startPrice = getInitialPriceFromSheetData(cleanTicker) || yahooPrices[cleanTicker] || PRECOS_REAIS_02_01_2026[cleanTicker] || (asset.price * 0.9);
-        const endPrice = asset.price;
+        const endPrice = PRECOS_ATUAIS[asset.ticker] || asset.price;
 
         if (idx === 0) {
           // Janeiro de 2026 corresponde exatamente ao fechamento histórico real de 02/01/2026
@@ -1510,7 +1544,7 @@ export function DashboardView() {
               {walletAssets.map((asset) => {
                 const initialPrice = emulateGoogleFinanceClose(asset.ticker, '02/01/2026');
                 const lastPoint = dataPoints[dataPoints.length - 1];
-                const currentPrice = getAssetPriceAtPoint(lastPoint, asset.ticker, asset.price);
+                const currentPrice = getAssetPriceAtPoint(lastPoint, asset.ticker, PRECOS_ATUAIS[asset.ticker] || asset.price);
                 const assetAppreciation = ((currentPrice - initialPrice) / initialPrice) * 100;
                 const weight = walletWeights[asset.ticker] || 0;
 
