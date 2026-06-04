@@ -390,7 +390,7 @@ export function DashboardView() {
         const seed = getSeed(cleanTicker);
         
         // Obtém o preço inicial a partir da planilha (prioritário) ou cai de volta para as tabelas padrão
-        const startPrice = getInitialPriceFromSheetData(cleanTicker) || yahooPrices[cleanTicker] || PRECOS_REAIS_02_01_2026[cleanTicker] || (asset.price * 0.9);
+        const startPrice = getInitialPriceFromSheetData(cleanTicker) || yahooPrices[cleanTicker] || PRECOS_REAIS_02_01_2026[cleanTicker] || asset.price;
         const endPrice = asset.price;
 
         if (idx === 0) {
