@@ -719,9 +719,22 @@ export function DashboardView() {
     setHoveredIdx(null);
   };
 
-  // Cumulative yield and portfolio comparison values
-  const currentTotalValuation = getPortfolioValueAtPoint(dataPoints[dataPoints.length - 1]);
-  const initialTotalValuation = getPortfolioValueAtPoint(dataPoints[0]);
+  // Last data point for real-price lookups
+  const lastDataPoint = dataPoints[dataPoints.length - 1];
+
+  // Cumulative yield and portfolio comparison values (using real prices with FX)
+  let totalAllocated = 0;
+  let currentTotalValuation = 0;
+  walletAssets.forEach(asset => {
+    const w = walletWeights[asset.ticker] || 0;
+    const allocated = investmentBudget * (w / 100);
+    totalAllocated += allocated;
+    const initialPrice = emulateGoogleFinanceClose(asset.ticker, referenceDateBR);
+    const currentPrice = currentPrices[asset.ticker] || getAssetPriceAtPoint(lastDataPoint, asset.ticker, PRECOS_ATUAIS[asset.ticker] || asset.price);
+    const ratio = getBRLPrice(asset.ticker, currentPrice) / (getBRLPrice(asset.ticker, initialPrice) || 1);
+    currentTotalValuation += allocated * ratio;
+  });
+  const initialTotalValuation = totalAllocated || investmentBudget;
   const appreciationPercent = ((currentTotalValuation - initialTotalValuation) / initialTotalValuation) * 100;
   const isPositiveGrowth = appreciationPercent >= 0;
 
@@ -750,6 +763,29 @@ export function DashboardView() {
     return sum + (asset.yield * (weight / 100));
   }, 0);
   const yearlyDividendsSimulated = investmentBudget * weightedAnnualYield;
+
+  // Period dividend (from reference date to today)
+  const refParts = referenceDateBR.split('/');
+  const refDate = new Date(+refParts[2], +refParts[1] - 1, +refParts[0]);
+  const today = new Date();
+  const monthsInPeriod = (today.getFullYear() - refDate.getFullYear()) * 12 + (today.getMonth() - refDate.getMonth());
+  const monthlyDividend = yearlyDividendsSimulated / 12;
+  const periodDividendsSimulated = monthlyDividend * Math.max(1, monthsInPeriod);
+
+  // Weighted average of estimated variation for the summary row
+  const weightedVariationData = walletAssets.reduce<{ sum: number; totalWeight: number }>((acc, asset) => {
+    const w = walletWeights[asset.ticker] || 0;
+    if (w <= 0) return acc;
+    const initialPrice = emulateGoogleFinanceClose(asset.ticker, referenceDateBR);
+    const currentPrice = currentPrices[asset.ticker] || getAssetPriceAtPoint(lastDataPoint, asset.ticker, PRECOS_ATUAIS[asset.ticker] || asset.price);
+    const appreciation = ((currentPrice - initialPrice) / initialPrice) * 100;
+    acc.sum += appreciation * w;
+    acc.totalWeight += w;
+    return acc;
+  }, { sum: 0, totalWeight: 0 });
+  const weightedAvgVariation = weightedVariationData.totalWeight > 0
+    ? weightedVariationData.sum / weightedVariationData.totalWeight
+    : 0;
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -800,9 +836,9 @@ export function DashboardView() {
             <div>
               <span className="text-xs text-slate-400 font-bold block uppercase tracking-wider mb-1">Patrimônio Consolidado</span>
               <span className="text-2xl font-black text-white">
-                R$ {currentTotalValuation.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                R$ {(currentTotalValuation + periodDividendsSimulated).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
-              <span className="text-[10px] text-slate-400 block mt-1">Estimado com base em aportes</span>
+              <span className="text-[10px] text-slate-400 block mt-1">Apreciação + dividendos do período</span>
             </div>
             <div className="bg-indigo-500/10 p-3 rounded-xl border border-indigo-500/20 text-indigo-400">
               <DollarSign className="w-6 h-6" />
@@ -866,15 +902,15 @@ export function DashboardView() {
             </div>
           </div>
 
-          {/* Renda Passiva Anual Ponderada Card */}
+          {/* Renda Passiva do Período Card */}
           <div className="bg-black/25 border border-white/10 rounded-2xl p-5 flex items-center justify-between shadow-lg">
             <div>
-              <span className="text-xs text-slate-400 font-bold block uppercase tracking-wider mb-1">Renda Passiva Anual Ponderada</span>
+              <span className="text-xs text-slate-400 font-bold block uppercase tracking-wider mb-1">Renda Passiva do Período</span>
               <span className="text-2xl font-black text-white">
-                R$ {yearlyDividendsSimulated.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                R$ {periodDividendsSimulated.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
               <span className="text-[10px] text-indigo-300 block mt-1">
-                ~R$ {(yearlyDividendsSimulated / 12).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / mês
+                ~R$ {(yearlyDividendsSimulated / 12).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / mês &middot; {monthsInPeriod} meses
               </span>
             </div>
             <div className="bg-amber-500/10 p-3 rounded-xl border border-amber-500/20 text-amber-400">
@@ -1718,6 +1754,20 @@ export function DashboardView() {
                 );
               })}
             </tbody>
+            <tfoot>
+              <tr className="border-t border-white/10 bg-white/[0.03]">
+                <td colSpan={2} className="py-3.5 pl-2 text-sm text-slate-300 font-bold uppercase tracking-wider">Média Ponderada</td>
+                <td className="py-3.5 text-center text-white font-bold font-mono text-sm">{weightedVariationData.totalWeight.toFixed(0)}%</td>
+                <td colSpan={2}></td>
+                <td className="py-3.5 text-right pr-2">
+                  <span className={`font-bold font-mono text-sm inline-flex items-center gap-0.5 ${
+                    weightedAvgVariation >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                  }`}>
+                    {weightedAvgVariation >= 0 ? '+' : ''}{weightedAvgVariation.toFixed(1)}%
+                  </span>
+                </td>
+              </tr>
+            </tfoot>
           </table>
         </div>
       </div>
