@@ -4,7 +4,10 @@ import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import cors from "cors";
 import fs from "fs";
-import yahooFinance from 'yahoo-finance2';
+import YahooFinance from 'yahoo-finance2';
+
+const yahooFinance = new YahooFinance();
+
 
 async function startServer() {
   const app = express();
@@ -106,6 +109,7 @@ Mantenha uma linguagem muito profissional, direta e sofisticada. Não use tabela
   });
 
   // Proxy for Yahoo Finance API to avoid CORS issues
+  // Replicates: =INDEX(GOOGLEFINANCE(Ticker; "close"; Data); 2; 2)
   app.get("/api/historical-price", async (req, res) => {
     const { ticker, date } = req.query;
     if (!ticker || !date) {
@@ -113,15 +117,25 @@ Mantenha uma linguagem muito profissional, direta e sofisticada. Não use tabela
     }
 
     try {
+      // Yahoo Finance requires a date range (period1 < period2).
+      // We search from the target date up to 7 days later to capture
+      // the closing price of the target day or the next available trading day.
+      const startDate = new Date(date as string);
+      const endDate = new Date(date as string);
+      endDate.setDate(endDate.getDate() + 7);
+
+      const period2Str = endDate.toISOString().split('T')[0];
+
       const result: any = await yahooFinance.historical(ticker as string, {
         period1: date as string,
-        period2: date as string,
+        period2: period2Str,
       });
 
       if (!result || result.length === 0) {
         return res.status(404).json({ error: "Price not found" });
       }
 
+      // Return the first available closing price (closest to the requested date)
       res.json({ price: result[0].close });
     } catch (error: any) {
       console.error("Historical Price Error:", error);

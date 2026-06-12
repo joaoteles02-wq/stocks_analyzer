@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Markdown from 'react-markdown';
 import { User } from 'firebase/auth';
 import { LogIn, FileSpreadsheet, Search, Loader2, Settings, ArrowLeft, Briefcase, Wallet, LayoutDashboard, Upload, Database, Copy, Check, AlertTriangle, RefreshCw } from 'lucide-react';
@@ -10,6 +10,7 @@ import { DashboardView } from './components/DashboardView';
 
 export default function App() {
   const [needsAuth, setNeedsAuth] = useState(true);
+  const [authInitialized, setAuthInitialized] = useState(false);
   const [tokenExpired, setTokenExpired] = useState(false);
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
@@ -125,7 +126,15 @@ export default function App() {
 
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [currentView, setCurrentView] = useState<'analysis' | 'wallet' | 'dashboard' | 'settings'>('analysis');
+  const [currentView, setCurrentView] = useState<'analysis' | 'wallet' | 'dashboard' | 'settings'>(() => {
+    const saved = localStorage.getItem('app_current_view');
+    if (saved === 'wallet' || saved === 'dashboard' || saved === 'settings') return saved;
+    return 'analysis';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('app_current_view', currentView);
+  }, [currentView]);
 
   // Separated states for Stocks, FII and S&P 500
   const [analysisType, setAnalysisType] = useState<'stocks' | 'fii' | 'sp500'>('stocks');
@@ -295,13 +304,20 @@ export default function App() {
       }
     }
 
+    let authInitCount = 0;
     initAuth(
       (user, token) => {
         setNeedsAuth(false);
         setUser(user);
         setToken(token);
       },
-      () => setNeedsAuth(true)
+      () => {
+        if (authInitCount > 0) setNeedsAuth(true);
+      },
+      () => {
+        authInitCount++;
+        setAuthInitialized(true);
+      }
     );
   }, []);
 
@@ -314,6 +330,7 @@ export default function App() {
 
   const handleLogin = async (method: 'popup' | 'redirect' = 'popup') => {
     setIsLoggingIn(true);
+    setError(null);
     try {
       const result = await googleSignIn(method);
       if (result) {
@@ -322,8 +339,9 @@ export default function App() {
         setNeedsAuth(false);
         setTokenExpired(false);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Login failed:', err);
+      setError("Falha ao fazer login com o Google: " + (err.message || err));
     } finally {
       setIsLoggingIn(false);
     }
@@ -674,7 +692,12 @@ export default function App() {
             </div>
           )}
           
-          {needsAuth && dataSource !== 'local' ? (
+          {!authInitialized && dataSource !== 'local' ? (
+            <div className="flex flex-col items-center justify-center py-20 gap-3">
+              <Loader2 className="w-8 h-8 text-indigo-400 animate-spin" />
+              <p className="text-slate-400 text-sm">Verificando autenticação...</p>
+            </div>
+          ) : needsAuth && dataSource !== 'local' ? (
             <div className="text-center py-12 space-y-6 max-w-xl mx-auto">
               <div className="mx-auto w-16 h-16 bg-white/10 backdrop-blur-md rounded-full flex items-center justify-center border border-white/20 shadow-inner">
                 <LogIn className="w-8 h-8 text-white" />
@@ -1040,7 +1063,9 @@ export default function App() {
           ) : currentView === 'wallet' ? (
             <WalletView />
           ) : currentView === 'dashboard' ? (
-            <DashboardView />
+            <ErrorBoundary key="dashboard-error-boundary">
+              <DashboardView />
+            </ErrorBoundary>
           ) : (
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
               
@@ -1421,5 +1446,45 @@ function diffMarkdown(oldText: string, newText: string): string {
   flushEditBlock();
 
   return finalLines.join('\n');
+}
+
+class ErrorBoundary extends React.Component<{ children: React.ReactNode; key?: string }, { hasError: boolean }> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error('Error boundary caught:', error, info);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex flex-col items-center justify-center py-20 gap-4">
+          <AlertTriangle className="w-12 h-12 text-red-400" />
+          <p className="text-slate-300 text-lg">Algo deu errado no Dashboard.</p>
+          <button
+            onClick={() => this.setState({ hasError: false })}
+            className="px-4 py-2 bg-indigo-600 rounded-lg text-white hover:bg-indigo-500 transition"
+          >
+            Tentar novamente
+          </button>
+          <button
+            onClick={() => {
+              this.setState({ hasError: false });
+              localStorage.setItem('app_current_view', 'analysis');
+              window.location.reload();
+            }}
+            className="px-4 py-2 bg-slate-700 rounded-lg text-slate-300 hover:bg-slate-600 transition"
+          >
+            Voltar para Análise
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
 }
 

@@ -43,8 +43,58 @@ let cachedAccessToken: string | null = localStorage.getItem('google_access_token
 
 export const initAuth = (
   onAuthSuccess?: (user: User, token: string) => void,
-  onAuthFailure?: () => void
+  onAuthFailure?: () => void,
+  onInit?: () => void
 ) => {
+  let authCheckCount = 0;
+
+  const handleAuthState = async (user: User | null) => {
+    authCheckCount++;
+    const isInitialCheck = authCheckCount <= 1;
+
+    const currentToken = localStorage.getItem('google_access_token') || sessionStorage.getItem('google_access_token');
+
+    if (user) {
+      if (currentToken) {
+        cachedAccessToken = currentToken;
+        saveTokenToServer(user.uid, currentToken);
+        if (onAuthSuccess) onAuthSuccess(user, currentToken);
+        if (isInitialCheck && onInit) onInit();
+      } else {
+        try {
+          const serverToken = await getTokenFromServer(user.uid);
+          if (serverToken) {
+            cachedAccessToken = serverToken;
+            localStorage.setItem('google_access_token', serverToken);
+            sessionStorage.setItem('google_access_token', serverToken);
+            if (onAuthSuccess) onAuthSuccess(user, serverToken);
+            if (isInitialCheck && onInit) onInit();
+            return;
+          }
+        } catch (err) {
+          console.error('Error fetching token on auth state changed:', err);
+        }
+
+        cachedAccessToken = null;
+        localStorage.removeItem('google_access_token');
+        sessionStorage.removeItem('google_access_token');
+        // Only call failure after the initial check resolves — avoids false null on page load
+        if (!isInitialCheck && onAuthFailure) onAuthFailure();
+        if (isInitialCheck && onInit) onInit();
+      }
+    } else {
+      // On first call (page load), Firebase hasn't restored the session yet — wait for the real state
+      if (isInitialCheck) {
+        if (onInit) onInit();
+        return;
+      }
+      cachedAccessToken = null;
+      localStorage.removeItem('google_access_token');
+      sessionStorage.removeItem('google_access_token');
+      if (onAuthFailure) onAuthFailure();
+    }
+  };
+
   // Check redirect result first (handles returning from the Google login screen on mobile)
   getRedirectResult(auth)
     .then((result) => {
@@ -63,60 +113,12 @@ export const initAuth = (
         }
       }
 
-      // ONLY subscribe to onAuthStateChanged AFTER checking the redirect result
-      // This ensures any newly received redirect credentials are saved to localStorage first,
-      // avoiding a race condition where onAuthStateChanged fires before getRedirectResult resolves.
-      onAuthStateChanged(auth, async (user: User | null) => {
-        const currentToken = localStorage.getItem('google_access_token') || sessionStorage.getItem('google_access_token');
-        
-        if (user) {
-          if (currentToken) {
-            cachedAccessToken = currentToken;
-            // Also update the server in the background to ensure it is always synced
-            saveTokenToServer(user.uid, currentToken);
-            if (onAuthSuccess) onAuthSuccess(user, currentToken);
-          } else {
-            // Try in background to resolve from server store
-            try {
-              const serverToken = await getTokenFromServer(user.uid);
-              if (serverToken) {
-                cachedAccessToken = serverToken;
-                localStorage.setItem('google_access_token', serverToken);
-                sessionStorage.setItem('google_access_token', serverToken);
-                if (onAuthSuccess) onAuthSuccess(user, serverToken);
-                return;
-              }
-            } catch (err) {
-              console.error('Error fetching token on auth state changed:', err);
-            }
-
-            // We have a user but no Google Sheets/Drive OAuth token in storage. 
-            // They need to click login again to grant specific Drive scopes.
-            cachedAccessToken = null;
-            localStorage.removeItem('google_access_token');
-            sessionStorage.removeItem('google_access_token');
-            if (onAuthFailure) onAuthFailure();
-          }
-        } else {
-          cachedAccessToken = null;
-          localStorage.removeItem('google_access_token');
-          sessionStorage.removeItem('google_access_token');
-          if (onAuthFailure) onAuthFailure();
-        }
-      });
+      // Subscribe to onAuthStateChanged AFTER checking the redirect result
+      onAuthStateChanged(auth, handleAuthState);
     })
     .catch((error) => {
       console.error('Redirect sign in error:', error);
-      // Fallback on error to still listen for changes
-      onAuthStateChanged(auth, async (user: User | null) => {
-        const currentToken = localStorage.getItem('google_access_token') || sessionStorage.getItem('google_access_token');
-        if (user && currentToken) {
-          cachedAccessToken = currentToken;
-          if (onAuthSuccess) onAuthSuccess(user, currentToken);
-        } else {
-          if (onAuthFailure) onAuthFailure();
-        }
-      });
+      onAuthStateChanged(auth, handleAuthState);
     });
 };
 
