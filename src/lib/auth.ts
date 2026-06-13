@@ -9,9 +9,8 @@ const provider = new GoogleAuthProvider();
 // Request Workspace scopes for Drive and Sheets
 provider.addScope('https://www.googleapis.com/auth/drive.readonly');
 provider.addScope('https://www.googleapis.com/auth/spreadsheets.readonly');
-provider.setCustomParameters({
-  prompt: 'select_account' // Let user pick account easily without forcing full consent prompts every time
-});
+// No custom prompt to keep the existing Google session alive
+// Scopes will trigger consent only on first grant
 
 export const saveTokenToServer = async (uid: string, token: string) => {
   try {
