@@ -598,11 +598,9 @@ export default function App() {
   };
 
   return (
-    <div className="relative min-h-screen">
-      {/* Fixed background image (decoupled from scroll for mobile compatibility) */}
-      <div className="fixed inset-0 -z-10 bg-[url('/Azul1.png')] bg-cover bg-center" />
-      <div className="relative min-h-screen text-slate-100 font-sans p-6 md:p-12 pb-36 md:pb-36 selection:bg-indigo-500/30 bg-slate-950/80 backdrop-blur-3xl">
-        <div className="max-w-4xl mx-auto space-y-8">
+    <div className="min-h-screen bg-[url('/Azul1.png')] bg-cover bg-center text-slate-100 font-sans p-6 md:p-12 pb-36 md:pb-36 selection:bg-indigo-500/30">
+      <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-3xl -z-10"></div>
+      <div className="max-w-4xl mx-auto space-y-8 relative z-10">
         
         {/* Header */}
         <header className="flex items-center justify-between">
@@ -1317,7 +1315,6 @@ export default function App() {
           </button>
         </div>
       )}
-    </div>
     </div>
   );
 }
