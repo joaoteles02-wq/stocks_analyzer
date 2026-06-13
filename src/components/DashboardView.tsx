@@ -562,6 +562,9 @@ export function DashboardView() {
     return asset.currency === 'USD' ? rawPrice * USD_BRL_RATE : rawPrice;
   };
 
+  // Last data point for real-price lookups (must be before any usage)
+  const lastDataPoint = dataPoints[dataPoints.length - 1];
+
   // Computed Portfolio Aggregate Data points
   const getPortfolioValueAtPoint = (point: HistoricalPoint): number => {
     let sumVal = 0;
@@ -727,9 +730,6 @@ export function DashboardView() {
   const handleMouseLeave = () => {
     setHoveredIdx(null);
   };
-
-  // Last data point for real-price lookups
-  const lastDataPoint = dataPoints[dataPoints.length - 1];
 
   // Cumulative yield and portfolio comparison values (using real prices with FX)
   let totalAllocated = 0;
