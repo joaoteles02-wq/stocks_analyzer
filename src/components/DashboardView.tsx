@@ -453,6 +453,47 @@ export function DashboardView() {
     return null;
   };
 
+  // Replica a fórmula do Google Sheets: =INDEX(GOOGLEFINANCE(Ticker; "close"; Data); 2; 2)
+  //
+  // O argumento `referenceDate` equivale ao parâmetro "Data" da fórmula (formato DD/MM/YYYY).
+  // A função converte internamente para YYYY-MM-DD antes de comparar com o cache do Yahoo Finance.
+  //
+  // Replica a fórmula: =INDEX(GOOGLEFINANCE(Ticker; "close"; Data); 2; 2)
+  //
+  // Ordem de prioridade (mesma lógica do GOOGLEFINANCE):
+  //   1) Yahoo Finance API — preço real de fechamento para a data solicitada (cache pré-carregado)
+  //   2) Planilha do usuário — coluna de preço inicial identificada automaticamente
+  //   3) Tabela estática local — preços reais de 02/01/2026 (fallback offline)
+  //   4) Estimativa — 90% do preço atual (último recurso)
+  const emulateGoogleFinanceClose = (ticker: string, referenceDate: string = referenceDateBR): number => {
+    const cleanTicker = (ticker || '').trim().toUpperCase();
+
+    // Converte a data do formato Google Sheets (DD/MM/YYYY) para ISO (YYYY-MM-DD)
+    const isoDate = toISODate(referenceDate);
+
+    // 1ª prioridade: preço real do Yahoo Finance para a data solicitada
+    // O cache `yahooPrices` é pré-carregado via useEffect
+    if (isoDate === referenceDateISO) {
+      const yahooPrice = yahooPrices[cleanTicker];
+      if (yahooPrice && yahooPrice > 0) return yahooPrice;
+    }
+
+    // 2ª prioridade: preço inicial da planilha do usuário
+    const sheetPrice = getInitialPriceFromSheetData(cleanTicker);
+    if (sheetPrice && sheetPrice > 0) return sheetPrice;
+
+    // 3ª prioridade: tabela estática de fechamentos reais (fallback offline)
+    if (isoDate === referenceDateISO) {
+      const staticPrice = PRECOS_REAIS_02_01_2026[cleanTicker];
+      if (staticPrice && staticPrice > 0) return staticPrice;
+    }
+
+    // Último recurso: estimativa de 90% do preço atual
+    const asset = walletAssets.find(a => (a.ticker || '').trim().toUpperCase() === cleanTicker) ||
+                  ALL_BEST_30_ASSETS.find(a => (a.ticker || '').trim().toUpperCase() === cleanTicker);
+    return asset ? asset.price * 0.9 : 0;
+  };
+
   // Gerador determinístico de dados históricos para exibição consistente a partir da data de referência
   const getHistoricalData = (): HistoricalPoint[] => {
     const activeDates = ['Jan 26', 'Fev 26', 'Mar 26', 'Abr 26', 'Mai 26'];
@@ -499,47 +540,6 @@ export function DashboardView() {
   };
 
   const dataPoints = useMemo(() => getHistoricalData(), [walletAssets, yahooPrices, currentPrices, overrideInitialPriceColIdx, referenceDateBR]);
-
-  // Replica a fórmula do Google Sheets: =INDEX(GOOGLEFINANCE(Ticker; "close"; Data); 2; 2)
-  //
-  // O argumento `referenceDate` equivale ao parâmetro "Data" da fórmula (formato DD/MM/YYYY).
-  // A função converte internamente para YYYY-MM-DD antes de comparar com o cache do Yahoo Finance.
-  //
-  // Replica a fórmula: =INDEX(GOOGLEFINANCE(Ticker; "close"; Data); 2; 2)
-  //
-  // Ordem de prioridade (mesma lógica do GOOGLEFINANCE):
-  //   1) Yahoo Finance API — preço real de fechamento para a data solicitada (cache pré-carregado)
-  //   2) Planilha do usuário — coluna de preço inicial identificada automaticamente
-  //   3) Tabela estática local — preços reais de 02/01/2026 (fallback offline)
-  //   4) Estimativa — 90% do preço atual (último recurso)
-  const emulateGoogleFinanceClose = (ticker: string, referenceDate: string = referenceDateBR): number => {
-    const cleanTicker = (ticker || '').trim().toUpperCase();
-
-    // Converte a data do formato Google Sheets (DD/MM/YYYY) para ISO (YYYY-MM-DD)
-    const isoDate = toISODate(referenceDate);
-
-    // 1ª prioridade: preço real do Yahoo Finance para a data solicitada
-    // O cache `yahooPrices` é pré-carregado via useEffect
-    if (isoDate === referenceDateISO) {
-      const yahooPrice = yahooPrices[cleanTicker];
-      if (yahooPrice && yahooPrice > 0) return yahooPrice;
-    }
-
-    // 2ª prioridade: preço inicial da planilha do usuário
-    const sheetPrice = getInitialPriceFromSheetData(cleanTicker);
-    if (sheetPrice && sheetPrice > 0) return sheetPrice;
-
-    // 3ª prioridade: tabela estática de fechamentos reais (fallback offline)
-    if (isoDate === referenceDateISO) {
-      const staticPrice = PRECOS_REAIS_02_01_2026[cleanTicker];
-      if (staticPrice && staticPrice > 0) return staticPrice;
-    }
-
-    // Último recurso: estimativa de 90% do preço atual
-    const asset = walletAssets.find(a => (a.ticker || '').trim().toUpperCase() === cleanTicker) ||
-                  ALL_BEST_30_ASSETS.find(a => (a.ticker || '').trim().toUpperCase() === cleanTicker);
-    return asset ? asset.price * 0.9 : 0;
-  };
 
   // Helper selectors
   const toggleTickerSelection = (ticker: string) => {
