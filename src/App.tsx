@@ -598,7 +598,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[url('/Azul1.png')] bg-cover bg-center text-slate-100 font-sans p-6 md:p-12 pb-36 md:pb-36 selection:bg-indigo-500/30">
+    <div className="min-h-screen bg-[url('/Azul1.png')] bg-cover bg-center bg-fixed text-slate-100 font-sans p-6 md:p-12 pb-36 md:pb-36 selection:bg-indigo-500/30">
       <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-3xl -z-10"></div>
       <div className="max-w-4xl mx-auto space-y-8 relative z-10">
         
