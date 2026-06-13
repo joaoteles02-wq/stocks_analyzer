@@ -453,7 +453,7 @@ export function DashboardView() {
     return null;
   };
 
-  // Gerador determinístico de dados históricos para exibição consistente a partir de Janeiro de 2026
+  // Gerador determinístico de dados históricos para exibição consistente a partir da data de referência
   const getHistoricalData = (): HistoricalPoint[] => {
     const activeDates = ['Jan 26', 'Fev 26', 'Mar 26', 'Abr 26', 'Mai 26'];
 
@@ -476,18 +476,17 @@ export function DashboardView() {
         const cleanTicker = (asset.ticker || '').trim().toUpperCase();
         const seed = getSeed(cleanTicker);
         
-        // Obtém o preço inicial a partir da planilha (prioritário) ou cai de volta para as tabelas padrão
-        const startPrice = getInitialPriceFromSheetData(cleanTicker) || yahooPrices[cleanTicker] || PRECOS_REAIS_02_01_2026[cleanTicker] || (asset.price * 0.9);
-        const endPrice = PRECOS_ATUAIS[asset.ticker] || asset.price;
+        // Mesma fórmula usada nas colunas Preço Inicial e Preço Atual:
+        // - Preço Inicial = emulateGoogleFinanceClose (Yahoo Finance → Sheet → Tabela estática → 90% asset.price)
+        // - Preço Atual = currentPrices da API → PRECOS_ATUAIS → asset.price
+        const startPrice = emulateGoogleFinanceClose(asset.ticker, referenceDateBR);
+        const endPrice = currentPrices[cleanTicker] || PRECOS_ATUAIS[asset.ticker] || asset.price;
 
         if (idx === 0) {
-          // Janeiro de 2026 corresponde exatamente ao fechamento histórico real de 02/01/2026
           prices[cleanTicker] = Number(startPrice.toFixed(2));
         } else if (idx === activeDates.length - 1) {
-          // Maio de 2026 corresponde exatamente ao preço atualizado
           prices[cleanTicker] = Number(endPrice.toFixed(2));
         } else {
-          // Interpolação linear suave entre o preço inicial real histórico (02/01/2026) e o preço atual (Mai/2026) com leve ciclo sinoidal
           const factor = idx / (activeDates.length - 1);
           const cycle = Math.sin(idx + (seed % 5)) * 0.02 * (endPrice - startPrice);
           const interpolated = startPrice + factor * (endPrice - startPrice) + cycle;
@@ -499,7 +498,7 @@ export function DashboardView() {
     });
   };
 
-  const dataPoints = useMemo(() => getHistoricalData(), [walletAssets, yahooPrices, overrideInitialPriceColIdx]);
+  const dataPoints = useMemo(() => getHistoricalData(), [walletAssets, yahooPrices, currentPrices, overrideInitialPriceColIdx, referenceDateBR]);
 
   // Replica a fórmula do Google Sheets: =INDEX(GOOGLEFINANCE(Ticker; "close"; Data); 2; 2)
   //
