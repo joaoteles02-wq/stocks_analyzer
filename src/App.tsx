@@ -599,10 +599,9 @@ export default function App() {
 
   return (
     <div className="relative min-h-screen">
-      {/* Fixed background layers (decoupled from scroll for mobile compatibility) */}
-      <div className="fixed inset-0 -z-20 bg-[url('/Azul1.png')] bg-cover bg-center" />
-      <div className="fixed inset-0 -z-10 bg-slate-950/80 backdrop-blur-3xl" />
-      <div className="text-slate-100 font-sans p-6 md:p-12 pb-36 md:pb-36 selection:bg-indigo-500/30">
+      {/* Fixed background image (decoupled from scroll for mobile compatibility) */}
+      <div className="fixed inset-0 -z-10 bg-[url('/Azul1.png')] bg-cover bg-center" />
+      <div className="relative min-h-screen text-slate-100 font-sans p-6 md:p-12 pb-36 md:pb-36 selection:bg-indigo-500/30 bg-slate-950/80 backdrop-blur-3xl">
         <div className="max-w-4xl mx-auto space-y-8">
         
         {/* Header */}

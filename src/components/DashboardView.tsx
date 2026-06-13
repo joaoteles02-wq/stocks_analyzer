@@ -565,20 +565,29 @@ export function DashboardView() {
   // Computed Portfolio Aggregate Data points
   const getPortfolioValueAtPoint = (point: HistoricalPoint): number => {
     let sumVal = 0;
-    const initialPoint = dataPoints[0];
+    const isLastPoint = point === lastDataPoint;
+    const isFirstPoint = point === dataPoints[0];
     walletAssets.forEach(item => {
       const cleanTicker = (item.ticker || '').trim().toUpperCase();
       
       const weightKey = Object.keys(walletWeights).find(k => k.trim().toUpperCase() === cleanTicker);
       const weight = weightKey ? walletWeights[weightKey] : 0;
       
-      const priceAtPoint = getAssetPriceAtPoint(point, cleanTicker, item.price);
+      // Use real prices for first/last points (matches the card calculation)
+      let priceAtPoint;
+      if (isLastPoint && currentPrices[cleanTicker]) {
+        priceAtPoint = currentPrices[cleanTicker];
+      } else if (isFirstPoint) {
+        priceAtPoint = emulateGoogleFinanceClose(item.ticker, referenceDateBR);
+      } else {
+        priceAtPoint = getAssetPriceAtPoint(point, cleanTicker, item.price);
+      }
       const brlPriceAtPoint = getBRLPrice(item.ticker, priceAtPoint);
       
-      const initialPrice = getAssetPriceAtPoint(initialPoint, cleanTicker, item.price);
+      // Use same real initial price for the appreciation baseline
+      const initialPrice = emulateGoogleFinanceClose(item.ticker, referenceDateBR);
       const initialBrlPrice = getBRLPrice(item.ticker, initialPrice);
       
-      // Calculate appreciation percentage from the initial point
       const appreciation = brlPriceAtPoint / (initialBrlPrice || 1);
       const allocatedMoney = investmentBudget * (weight / 100);
       sumVal += allocatedMoney * appreciation;
