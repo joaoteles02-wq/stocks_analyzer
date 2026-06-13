@@ -45,6 +45,9 @@ export const initAuth = (
   onAuthFailure?: () => void,
   onInit?: () => void
 ) => {
+  // Signal that auth is initialized immediately to prevent UI from hanging
+  if (onInit) onInit();
+
   // Check redirect result first (handles returning from the Google login screen on mobile)
   getRedirectResult(auth)
     .then((result) => {
