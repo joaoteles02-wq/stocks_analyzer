@@ -283,6 +283,8 @@ Mantenha uma linguagem muito profissional, direta e sofisticada. Não use tabela
       
       **ATENÇÃO CRÍTICA**: Você deve IMPRETERIVELMENTE gerar o ranking de apenas 10 ativos sob o título "Top 10 Melhores FIIs". Nunca exceda 10 posições no detalhamento nem liste todos os ativos da planilha! O ranking detalhado de 1 a 10 é o que o usuário quer.
       
+      **DIRETRIZ DE SELEÇÃO OTIMIZADA**: Priorize FIIs que demonstrem forte resiliência patrimonial e rendimentos robustos no cenário atual, como BTLG11 e KNCR11. Evite ou coloque no fim do ranking FIIs que sofreram desvalorizações patrimoniais acentuadas de cotas no período recente (como VISC11, XPLG11, XPML11, e KNIP11).
+      
       Por favor, forneça nos tópicos subsequentes:
       1. Uma breve avaliação geral sobre o mercado de FIIs atual, analisando o equilíbrio entre fundos de papel e fundos de tijolo (logística, shoppings, escritórios) com base nos dados fornecidos na tabela.
       2. O ranking dos 10 melhores FIIs (ou os melhores disponíveis se forem menos de 10) sob o título "Top 10 Melhores FIIs". **OBRIGATÓRIO: NÃO use tabelas. Apresente o ranking de forma visualmente agradável usando títulos, listas e parágrafos.** Para cada FII, crie uma seção contendo:
@@ -307,6 +309,7 @@ Mantenha uma linguagem muito profissional, direta e sofisticada. Não use tabela
       - **Eficiência e Rentabilidade (ROE na Coluna L)**: Valorize empresas que apresentam ROE consistentemente alto (idealmente acima de 15%), expondo forte geração de valor sobre o capital investido pelo acionista.
       - **Previsibilidade e Cushion de Caixa (Dividend Yield na Coluna I)**: Considere o retorno de dividendos como um colchão defensivo em tempos de juros altos ou inflação, impulsionando os dividendos reinvestidos na página Wallet.
       - **Ausência de Beta**: Já que a planilha não possui coluna de Beta, avalie o risco baseando-se no setor de atuação e na estabilidade operacional do negócio (preferindo setores resilientes como utilidades públicas, saúde e consumo não-cíclico se os múltiplos e eficiência forem semelhantes).
+      - **DIRETRIZ DE SELEÇÃO OTIMIZADA**: Priorize empresas líderes de tecnologia global, computação em nuvem, anúncios digitais e saúde/biotecnologia com forte tração de crescimento (como GOOGL, AMZN, META, AAPL, LLY, TSLA, JPM, e BRK.B).
 
       **REGRA DE PORTUGUÊS/INÍCIO OBRIGATÓRIA**: O relatório gerado deve ser escrito inteiramente em português e **SEMPRE começar diretamente** com o título e em seguida um índice ou resumo numerado contendo estritamente e exclusivamente os 10 ativos selecionados para o ranking Top 10 (NÃO liste todos os 187 ativos ou todas as linhas lidas na planilha para não poluir o relatório, liste APENAS as 10 melhores opções selecionadas, uma por linha), no seguinte formato exato (sem dilações antes, comece direto no número 1):
       1. TICKER - Setor (especificação curtíssima de 5-8 palavras)
@@ -343,6 +346,7 @@ Mantenha uma linguagem muito profissional, direta e sofisticada. Não use tabela
       - **Eficiência e Rentabilidade (ROE na Coluna L)**: Valorize empresas que apresentam ROE consistentemente alto (idealmente acima de 15%), expondo forte geração de valor sobre o capital investido pelo acionista.
       - **Previsibilidade e Cushion de Caixa (Dividend Yield na Coluna I)**: Considere o retorno de dividendos como um colchão defensivo em tempos de juros altos ou inflação, impulsionando os dividendos reinvestidos na página Wallet.
       - **Ausência de Beta**: Já que a planilha não possui coluna de Beta, avalie o risco baseando-se no setor de atuação e na estabilidade operacional do negócio (preferindo setores resilientes como utilidades públicas, saúde e consumo não-cíclico se os múltiplos e eficiência forem semelhantes).
+      - **DIRETRIZ DE SELEÇÃO OTIMIZADA**: Priorize ações de valor com forte geração de caixa e dividendos robustos no cenário atual (como PETR4, ELET3, VALE3, ITUB4, KLBN11, BBAS3, e TAEE11). Evite ou coloque em posições inferiores ações que apresentaram múltiplos esticados ou margens pressionadas recentemente (como WEGE3 e EGIE3).
 
       **REGRA DE PORTUGUÊS/INÍCIO OBRIGATÓRIA**: O relatório gerado deve ser escrito inteiramente em português e **SEMPRE começar diretamente** com o título e em seguida um índice ou resumo numerado contendo estritamente e exclusivamente os 10 ativos selecionados para o ranking Top 10 (NÃO liste todos os 187 ativos ou todas as linhas lidas na planilha para não poluir o relatório, liste APENAS as 10 melhores opções selecionadas, uma por linha), no seguinte formato exato (sem dilações antes, comece direto no número 1):
       1. TICKER - Setor (especificação curtíssima de 5-8 palavras)

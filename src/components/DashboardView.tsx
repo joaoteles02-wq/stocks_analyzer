@@ -112,9 +112,9 @@ export function DashboardView() {
     }
 
     // Default Fallback matching standard WalletView default setup
-    const defaultTickers = ['ITUB4', 'WEGE3', 'TAEE11', 'HGLG11', 'MXRF11', 'XPML11', 'AAPL', 'MSFT', 'GOOGL', 'NVDA'];
+    const defaultTickers = ['GOOGL', 'AMZN', 'META', 'AAPL', 'PETR4', 'LLY', 'ELET3', 'VALE3', 'ITUB4', 'BTLG11'];
     const defaultWeights: Record<string, number> = {
-      'ITUB4': 15, 'WEGE3': 10, 'TAEE11': 10, 'HGLG11': 15, 'MXRF11': 10, 'XPML11': 10, 'AAPL': 10, 'MSFT': 10, 'GOOGL': 5, 'NVDA': 5
+      'GOOGL': 20, 'AMZN': 20, 'META': 15, 'AAPL': 10, 'PETR4': 10, 'LLY': 5, 'ELET3': 5, 'VALE3': 5, 'ITUB4': 5, 'BTLG11': 5
     };
     const defaultList = ALL_BEST_30_ASSETS.filter(a => defaultTickers.includes(a.ticker));
     setWalletAssets(defaultList);

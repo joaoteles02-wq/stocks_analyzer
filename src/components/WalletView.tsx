@@ -68,16 +68,16 @@ export const ALL_BEST_30_ASSETS: Asset[] = [
 
 // 10 Balanced default assets: 3 Stocks BR, 3 FII, 4 S&P 500
 const DEFAULT_WALLET_SLOTS: { assetTicker: string; weight: number }[] = [
-  { assetTicker: 'ITUB4', weight: 15 },
-  { assetTicker: 'WEGE3', weight: 10 },
-  { assetTicker: 'TAEE11', weight: 10 },
-  { assetTicker: 'HGLG11', weight: 15 },
-  { assetTicker: 'MXRF11', weight: 10 },
-  { assetTicker: 'XPML11', weight: 10 },
+  { assetTicker: 'GOOGL', weight: 20 },
+  { assetTicker: 'AMZN', weight: 20 },
+  { assetTicker: 'META', weight: 15 },
   { assetTicker: 'AAPL', weight: 10 },
-  { assetTicker: 'MSFT', weight: 10 },
-  { assetTicker: 'GOOGL', weight: 5 },
-  { assetTicker: 'NVDA', weight: 5 },
+  { assetTicker: 'PETR4', weight: 10 },
+  { assetTicker: 'LLY', weight: 5 },
+  { assetTicker: 'ELET3', weight: 5 },
+  { assetTicker: 'VALE3', weight: 5 },
+  { assetTicker: 'ITUB4', weight: 5 },
+  { assetTicker: 'BTLG11', weight: 5 },
 ];
 
 export function WalletView() {
