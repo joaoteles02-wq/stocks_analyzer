@@ -607,7 +607,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[url('/Azul1.png')] bg-cover bg-center bg-fixed text-slate-100 font-sans p-6 md:p-12 pb-36 md:pb-36 selection:bg-indigo-500/30">
+    <div className="min-h-dvh bg-[url('/Azul1.png')] bg-cover bg-center bg-fixed text-slate-100 font-sans p-6 md:p-12 pb-40 md:pb-40 selection:bg-indigo-500/30" style={{paddingBottom: 'max(10rem, calc(6rem + env(safe-area-inset-bottom)))' }}>
       <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-3xl -z-10"></div>
       <div className="max-w-4xl mx-auto space-y-8 relative z-10">
         
@@ -1252,7 +1252,10 @@ export default function App() {
 
       {/* Floating Bottom capsule Navigation Dock (Estilo Cirene com Divisões) */}
       {!needsAuth && user && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-lg bg-slate-900/90 border border-white/20 backdrop-blur-xl rounded-2xl shadow-[0_12px_40px_-4px_rgba(0,0,0,0.8)] z-50 overflow-hidden flex items-center justify-between">
+        <div
+          className="fixed left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-lg bg-slate-900/90 border border-white/20 backdrop-blur-xl rounded-2xl shadow-[0_12px_40px_-4px_rgba(0,0,0,0.8)] z-50 overflow-hidden flex items-center justify-between"
+          style={{ bottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))' }}
+        >
           
           {/* Tab 1: Análise */}
           <button
