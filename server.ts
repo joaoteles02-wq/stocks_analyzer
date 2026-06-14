@@ -11,7 +11,7 @@ const yahooFinance = new YahooFinance();
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
   // Add CORS to allow external frontends (e.g. GitHub Pages) to hit this API
   app.use(cors({ origin: "*" }));
