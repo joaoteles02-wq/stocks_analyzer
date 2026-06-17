@@ -607,8 +607,11 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-dvh bg-[url('/Azul1.png')] bg-cover bg-center bg-fixed text-slate-100 font-sans p-6 md:p-12 pb-40 md:pb-40 selection:bg-indigo-500/30" style={{paddingBottom: 'max(10rem, calc(6rem + env(safe-area-inset-bottom)))' }}>
-      <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-3xl -z-10"></div>
+    <div className="min-h-dvh text-slate-100 font-sans p-6 md:p-12 pb-40 md:pb-40 selection:bg-indigo-500/30" style={{paddingBottom: 'max(10rem, calc(6rem + env(safe-area-inset-bottom)))' }}>
+      {/* Background Image fixo de alta performance (evita bug de redimensionamento em Safari mobile) */}
+      <div className="app-bg-image fixed inset-0 bg-[url('/por-do-sol.jpg')] bg-cover bg-center -z-20 pointer-events-none"></div>
+      {/* Camada escura de 60% para garantir contraste do texto sem embaçar a imagem */}
+      <div className="fixed inset-0 bg-slate-950/60 -z-10 pointer-events-none"></div>
       <div className="max-w-4xl mx-auto space-y-8 relative z-10">
         
         {/* Header */}

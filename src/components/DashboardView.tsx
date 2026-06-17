@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { getHistoricalPrice } from '../lib/yahoo';
+import { getHistoricalPrice, getCurrentPrice } from '../lib/yahoo';
 import { 
   ALL_BEST_30_ASSETS, 
   Asset 
@@ -179,9 +179,6 @@ export function DashboardView() {
     fetchAllYahooPrices();
   }, [walletAssets, referenceDateISO]);
 
-  // Busca o preço atual via Yahoo Finance — equivale a: =GOOGLEFINANCE(Ticker)
-  const todayISO = new Date().toISOString().split('T')[0];
-
   useEffect(() => {
     const fetchAllCurrentPrices = async () => {
       setIsLoadingCurrentPrices(true);
@@ -189,7 +186,7 @@ export function DashboardView() {
       const results = await Promise.allSettled(
         assets.map(async (asset) => {
           const tickerToFetch = (asset.type === 'stocks' || asset.type === 'fii') ? `${asset.ticker}.SA` : asset.ticker;
-          const p = await getHistoricalPrice(tickerToFetch, todayISO);
+          const p = await getCurrentPrice(tickerToFetch);
           return { ticker: asset.ticker, price: p };
         })
       );
@@ -203,7 +200,7 @@ export function DashboardView() {
       setIsLoadingCurrentPrices(false);
     };
     fetchAllCurrentPrices();
-  }, [walletAssets, todayISO]);
+  }, [walletAssets]);
 
   useEffect(() => {
     localStorage.setItem('sheet_initial_price_col_idx', overrideInitialPriceColIdx.toString());
@@ -216,6 +213,19 @@ export function DashboardView() {
   useEffect(() => {
     localStorage.setItem('sheet_current_price_col_idx', overrideCurrentPriceColIdx.toString());
   }, [overrideCurrentPriceColIdx]);
+
+  const sheetHeaders = useMemo<string[]>(() => {
+    try {
+      const savedLocal = localStorage.getItem('local_uploaded_sheet_data');
+      if (savedLocal) {
+        const localRows: any[][] = JSON.parse(savedLocal);
+        if (Array.isArray(localRows) && localRows.length > 0 && Array.isArray(localRows[0])) {
+          return localRows[0].map(cell => String(cell).trim());
+        }
+      }
+    } catch (e) {}
+    return [];
+  }, [walletAssets]);
 
   const maxYieldInPortfolio = Math.max(
     ...walletAssets.map(a => typeof a.yield === 'number' && !isNaN(a.yield) ? a.yield : 0),
@@ -271,39 +281,7 @@ export function DashboardView() {
     'CMIN3': 5.0
   };
 
-  // Preços atuais de mercado (Jun/2026) obtidos via Yahoo Finance
-  const PRECOS_ATUAIS: Record<string, number> = {
-    'ITUB4': 38.72,
-    'WEGE3': 42.61,
-    'TAEE11': 38.79,
-    'HGLG11': 153.97,
-    'MXRF11': 9.80,
-    'XPML11': 106.00,
-    'VALE3': 81.79,
-    'PETR4': 62.93,
-    'BBAS3': 30.29,
-    'EGIE3': 39.76,
-    'ABEV3': 13.13,
-    'ELET3': 53.76,
-    'KLBN11': 24.70,
-    'KNIP11': 89.69,
-    'KNCR11': 101.80,
-    'XPLG11': 93.90,
-    'BTLG11': 104.00,
-    'VISC11': 105.00,
-    'HGBS11': 215.00,
-    'ALZR11': 113.00,
-    'AAPL': 311.23,
-    'MSFT': 428.05,
-    'NVDA': 205.19,
-    'AMZN': 389.42,
-    'GOOGL': 372.19,
-    'META': 637.46,
-    'TSLA': 392.99,
-    'BRK.B': 544.18,
-    'JPM': 268.24,
-    'LLY': 930.20
-  };
+  // Preços atuais obtidos exclusivamente via Yahoo Finance (sem fallback estático)
 
   // Função auxiliar para recuperar o preço de um ativo ignorando diferenças de caixa (maiúscula/minúscula) e espaços em branco
   const getAssetPriceAtPoint = (point: HistoricalPoint | undefined, ticker: string, fallbackPrice: number): number => {
@@ -494,6 +472,114 @@ export function DashboardView() {
     return asset ? asset.price * 0.9 : 0;
   };
 
+  // Tenta recuperar o preço atual da planilha carregada pelo usuário
+  const getCurrentPriceFromSheetData = (ticker: string): number | null => {
+    try {
+      const savedLocal = localStorage.getItem('local_uploaded_sheet_data');
+      if (!savedLocal) return null;
+      const localRows: any[][] = JSON.parse(savedLocal);
+      if (!Array.isArray(localRows) || localRows.length < 2) return null;
+
+      const cleanTicker = ticker.trim().toUpperCase();
+
+      // Encontra a linha do ativo correspondente
+      const matchedRow = localRows.find((row, idx) => {
+        if (idx === 0) return false;
+        return Array.isArray(row) && row.some(cell => {
+          const s = String(cell).trim().toUpperCase();
+          return s === cleanTicker || s === `${cleanTicker}.SA` || s.replace('.SA', '') === cleanTicker;
+        });
+      });
+
+      if (!matchedRow) return null;
+
+      // Se há um índice explícito de preço atual configurado pelo usuário
+      if (overrideCurrentPriceColIdx !== -1 && matchedRow[overrideCurrentPriceColIdx] !== undefined) {
+        const valStr = String(matchedRow[overrideCurrentPriceColIdx]).trim();
+        const num = parsePortugueseNumber(valStr);
+        if (!isNaN(num) && num > 0) {
+          return num;
+        }
+      }
+
+      // Senão, adota mapeamento automático pelo cabeçalho
+      const headerRow = localRows[0].map(cell => String(cell).trim().toLowerCase());
+      
+      // Procura colunas que tenham relação com o preço atual/mercado ou fechamento simulador
+      let colIndex = -1;
+      for (let i = 0; i < headerRow.length; i++) {
+        const header = headerRow[i];
+        if (
+          header.includes('atual') || 
+          header.includes('hoje') || 
+          header.includes('agora') || 
+          header.includes('realtime') || 
+          header.includes('venda') || 
+          header.includes('cotação') || 
+          header.includes('cotacao') || 
+          header.includes('mercado') ||
+          header.includes('current') ||
+          header.includes('junho') ||
+          header.includes('jun/26') ||
+          header.includes('jun') ||
+          header.includes('final') ||
+          header.includes('simulado') ||
+          header.includes('fim') ||
+          header.includes('desempenho')
+        ) {
+          if (
+            !header.includes('inicial') && 
+            !header.includes('custo') && 
+            !header.includes('compra') && 
+            !header.includes('medio') && 
+            !header.includes('médio') &&
+            !header.includes('02/01/2026') &&
+            !header.includes('jan') &&
+            !header.includes('janeiro')
+          ) {
+            colIndex = i;
+            break;
+          }
+        }
+      }
+
+      if (colIndex !== -1 && matchedRow[colIndex] !== undefined) {
+        const cellVal = String(matchedRow[colIndex]).trim();
+        const num = parsePortugueseNumber(cellVal);
+        if (!isNaN(num) && num > 0) {
+          return num;
+        }
+      }
+
+      // Se não encontrou e temos apenas um preço atualizado da planilha no walletAssets
+      const currentAsset = walletAssets.find(a => a.ticker.trim().toUpperCase() === cleanTicker);
+      if (currentAsset && currentAsset.price > 0) {
+        return currentAsset.price;
+      }
+    } catch (e) {
+      console.error('Error finding current price from uploaded sheet:', e);
+    }
+    return null;
+  };
+
+  // Emula a cotação atual do Yahoo Finance ou busca da planilha do usuário
+  const emulateCurrentPrice = (ticker: string): number => {
+    const cleanTicker = (ticker || '').trim().toUpperCase();
+
+    // 1ª prioridade: Preço atual extraído diretamente da planilha
+    const sheetPrice = getCurrentPriceFromSheetData(cleanTicker);
+    if (sheetPrice && sheetPrice > 0) return sheetPrice;
+
+    // 2ª prioridade: Preço do Yahoo Finance carregado em tempo real
+    const apiPrice = currentPrices[cleanTicker];
+    if (apiPrice && apiPrice > 0) return apiPrice;
+
+    // 3ª prioridade: Preço padrão do objeto Asset
+    const asset = walletAssets.find(a => (a.ticker || '').trim().toUpperCase() === cleanTicker) ||
+                  ALL_BEST_30_ASSETS.find(a => (a.ticker || '').trim().toUpperCase() === cleanTicker);
+    return asset ? asset.price : 0;
+  };
+
   // Gerador determinístico de dados históricos para exibição consistente a partir da data de referência
   const getHistoricalData = (): HistoricalPoint[] => {
     const activeDates = ['Jan 26', 'Fev 26', 'Mar 26', 'Abr 26', 'Mai 26'];
@@ -519,9 +605,9 @@ export function DashboardView() {
         
         // Mesma fórmula usada nas colunas Preço Inicial e Preço Atual:
         // - Preço Inicial = emulateGoogleFinanceClose (Yahoo Finance → Sheet → Tabela estática → 90% asset.price)
-        // - Preço Atual = currentPrices da API → PRECOS_ATUAIS → asset.price
+        // - Preço Atual = currentPrices da API → asset.price
         const startPrice = emulateGoogleFinanceClose(asset.ticker, referenceDateBR);
-        const endPrice = currentPrices[cleanTicker] || PRECOS_ATUAIS[asset.ticker] || asset.price;
+        const endPrice = emulateCurrentPrice(asset.ticker);
 
         if (idx === 0) {
           prices[cleanTicker] = Number(startPrice.toFixed(2));
@@ -738,7 +824,7 @@ export function DashboardView() {
     const allocated = investmentBudget * (w / 100);
     totalAllocated += allocated;
     const initialPrice = emulateGoogleFinanceClose(asset.ticker, referenceDateBR);
-    const currentPrice = currentPrices[asset.ticker] || getAssetPriceAtPoint(lastDataPoint, asset.ticker, PRECOS_ATUAIS[asset.ticker] || asset.price);
+    const currentPrice = emulateCurrentPrice(asset.ticker);
     const ratio = getBRLPrice(asset.ticker, currentPrice) / (getBRLPrice(asset.ticker, initialPrice) || 1);
     currentTotalValuation += allocated * ratio;
   });
@@ -785,7 +871,7 @@ export function DashboardView() {
     const w = walletWeights[asset.ticker] || 0;
     if (w <= 0) return acc;
     const initialPrice = emulateGoogleFinanceClose(asset.ticker, referenceDateBR);
-    const currentPrice = currentPrices[asset.ticker] || getAssetPriceAtPoint(lastDataPoint, asset.ticker, PRECOS_ATUAIS[asset.ticker] || asset.price);
+    const currentPrice = emulateCurrentPrice(asset.ticker);
     const appreciation = ((currentPrice - initialPrice) / initialPrice) * 100;
     acc.sum += appreciation * w;
     acc.totalWeight += w;
@@ -1654,28 +1740,63 @@ export function DashboardView() {
 
       {/* Grid bottom row: Asset List with Growth Indicators */}
       <div className="bg-black/30 border border-white/10 rounded-3xl p-6 shadow-xl space-y-6">
-        <div className="flex items-center justify-between border-b border-white/10 pb-4">
-          <h3 className="text-lg font-bold text-white flex items-center gap-2">
-            <Info className="w-5 h-5 text-indigo-400" />
-            Variação e Desempenho por Ativo
-          </h3>
-          <div className="flex items-center gap-3">
-            <label className="text-xs text-slate-400 flex items-center gap-1.5">
-              <span>Data Inicial:</span>
-              <input
-                type="date"
-                value={referenceDateISO}
-                onChange={(e) => {
-                  const iso = e.target.value;
-                  const parts = iso.split('-');
-                  if (parts.length === 3) {
-                    setReferenceDateBR(`${parts[2]}/${parts[1]}/${parts[0]}`);
-                  }
-                }}
-                className="bg-black/40 border border-white/10 rounded-lg px-2 py-1 text-xs text-slate-200 font-mono w-36 cursor-pointer focus:outline-none focus:ring-1 focus:ring-indigo-400/50"
-              />
-            </label>
+        <div className="flex flex-col gap-4 border-b border-white/10 pb-4">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <h3 className="text-lg font-bold text-white flex items-center gap-2">
+              <Info className="w-5 h-5 text-indigo-400" />
+              Variação e Desempenho por Ativo
+            </h3>
+            <div className="flex items-center gap-3">
+              <label className="text-xs text-slate-400 flex items-center gap-1.5">
+                <span>Data Inicial:</span>
+                <input
+                  type="date"
+                  value={referenceDateISO}
+                  onChange={(e) => {
+                    const iso = e.target.value;
+                    const parts = iso.split('-');
+                    if (parts.length === 3) {
+                      setReferenceDateBR(`${parts[2]}/${parts[1]}/${parts[0]}`);
+                    }
+                  }}
+                  className="bg-black/40 border border-white/10 rounded-lg px-2 py-1 text-xs text-slate-200 font-mono w-36 cursor-pointer focus:outline-none focus:ring-1 focus:ring-indigo-400/50"
+                />
+              </label>
+            </div>
           </div>
+
+          {/* Seletor Manual de Colunas para Mapeamento Preciso de Preços */}
+          {sheetHeaders.length > 0 && (
+            <div className="flex flex-wrap gap-4 text-xs text-slate-300 bg-black/25 p-4 rounded-2xl border border-white/5">
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-slate-400">Coluna Preço Inicial:</span>
+                <select
+                  value={overrideInitialPriceColIdx}
+                  onChange={(e) => setOverrideInitialPriceColIdx(Number(e.target.value))}
+                  className="bg-slate-900 border border-white/10 rounded-lg px-2.5 py-1.5 text-slate-200 focus:outline-none cursor-pointer focus:ring-1 focus:ring-indigo-400/50"
+                >
+                  <option value={-1}>Detectar Automaticamente (Ex: 02/01/2026)</option>
+                  {sheetHeaders.map((header, idx) => (
+                    <option key={`col-init-${idx}`} value={idx}>{header || `Coluna ${idx + 1}`} (Col {idx + 1})</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-slate-400">Coluna Preço Atual/Final:</span>
+                <select
+                  value={overrideCurrentPriceColIdx}
+                  onChange={(e) => setOverrideCurrentPriceColIdx(Number(e.target.value))}
+                  className="bg-slate-900 border border-white/10 rounded-lg px-2.5 py-1.5 text-slate-200 focus:outline-none cursor-pointer focus:ring-1 focus:ring-indigo-400/50"
+                >
+                  <option value={-1}>Detectar Automaticamente (Ex: Junho/2026)</option>
+                  {sheetHeaders.map((header, idx) => (
+                    <option key={`col-curr-${idx}`} value={idx}>{header || `Coluna ${idx + 1}`} (Col {idx + 1})</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="overflow-x-auto">
@@ -1708,9 +1829,8 @@ export function DashboardView() {
               {walletAssets.map((asset) => {
                 // Equivale a: =INDEX(GOOGLEFINANCE(Ticker; "close"; Data); 2; 2)
                 const initialPrice = emulateGoogleFinanceClose(asset.ticker, referenceDateBR);
-                const lastPoint = dataPoints[dataPoints.length - 1];
                 // Equivale a: =GOOGLEFINANCE(Ticker)
-                const currentPrice = currentPrices[asset.ticker] || getAssetPriceAtPoint(lastPoint, asset.ticker, PRECOS_ATUAIS[asset.ticker] || asset.price);
+                const currentPrice = emulateCurrentPrice(asset.ticker);
                 const assetAppreciation = ((currentPrice - initialPrice) / initialPrice) * 100;
                 const weight = walletWeights[asset.ticker] || 0;
 

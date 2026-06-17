@@ -181,6 +181,12 @@ export const initAuth = (
             }
           }
         } else {
+          const hasToken = localStorage.getItem('google_access_token') || sessionStorage.getItem('google_access_token');
+          // If we have a token but no user yet, Firebase may still be restoring
+          // the session from persistence — don't clear anything, just wait.
+          if (hasToken && !auth.currentUser) {
+            return;
+          }
           cachedAccessToken = null;
           localStorage.removeItem('google_access_token');
           sessionStorage.removeItem('google_access_token');

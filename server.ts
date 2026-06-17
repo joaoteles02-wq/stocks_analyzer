@@ -8,6 +8,13 @@ import YahooFinance from 'yahoo-finance2';
 
 const yahooFinance = new YahooFinance();
 
+// Prevent server from crashing on unhandled Yahoo Finance / network errors
+process.on('uncaughtException', (err) => {
+  console.error('[Server] Uncaught Exception (server kept alive):', err.message);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[Server] Unhandled Rejection (server kept alive):', reason);
+});
 
 async function startServer() {
   const app = express();
@@ -105,6 +112,26 @@ Mantenha uma linguagem muito profissional, direta e sofisticada. Não use tabela
     } catch (error: any) {
       console.error("Wallet Insight Error:", error);
       res.status(500).json({ error: error.message || "Ocorreu um erro ao obter análise da carteira" });
+    }
+  });
+
+  // Proxy for Yahoo Finance real-time quote — replicates =GOOGLEFINANCE(Ticker)
+  app.get("/api/current-price", async (req, res) => {
+    const { ticker } = req.query;
+    if (!ticker) {
+      return res.status(400).json({ error: "Missing ticker" });
+    }
+
+    try {
+      const quote = await yahooFinance.quote(ticker as string);
+      const price = quote.regularMarketPrice ?? quote.previousClose ?? null;
+      if (price === null) {
+        return res.status(404).json({ error: "Price not available" });
+      }
+      res.json({ price });
+    } catch (error: any) {
+      console.error("Current Price Error:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch current price" });
     }
   });
 

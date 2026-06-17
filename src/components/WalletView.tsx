@@ -1236,39 +1236,48 @@ export function WalletView() {
                   {/* Category Arcs */}
                   {/* Arc Ações Stocks (Green) */}
                   {stocksWeight > 0 && (
-                    <path
-                      d={getPiePath(0, stocksWeight, 40)}
+                    <circle
+                      cx="50"
+                      cy="50"
+                      r="40"
                       fill="none"
                       stroke="#10b981"
                       strokeWidth="10"
                       strokeDasharray={`${(stocksWeight / 100) * 251.2} 251.2`}
                       strokeDashoffset="0"
+                      strokeLinecap="butt"
                       className="transition-all duration-500"
                     />
                   )}
 
                   {/* Arc FIIs (Amber) */}
                   {fiiWeight > 0 && (
-                    <path
-                      d={getPiePath(0, fiiWeight, 40)}
+                    <circle
+                      cx="50"
+                      cy="50"
+                      r="40"
                       fill="none"
                       stroke="#f59e0b"
                       strokeWidth="10"
                       strokeDasharray={`${(fiiWeight / 100) * 251.2} 251.2`}
                       strokeDashoffset={-((stocksWeight / 100) * 251.2)}
+                      strokeLinecap="butt"
                       className="transition-all duration-500"
                     />
                   )}
 
                   {/* Arc S&P 500 (Blue/Lightblue) */}
                   {sp500Weight > 0 && (
-                    <path
-                      d={getPiePath(0, sp500Weight, 40)}
+                    <circle
+                      cx="50"
+                      cy="50"
+                      r="40"
                       fill="none"
                       stroke="#3b82f6"
                       strokeWidth="10"
                       strokeDasharray={`${(sp500Weight / 100) * 251.2} 251.2`}
                       strokeDashoffset={-(((stocksWeight + fiiWeight) / 100) * 251.2)}
+                      strokeLinecap="butt"
                       className="transition-all duration-500"
                     />
                   )}

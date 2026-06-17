@@ -1,0 +1,23 @@
+{
+  "short_name": "Stocks",
+  "name": "Exodus Stocks Analyzer",
+  "description": "Análise de performance real e otimização inteligente de ativos",
+  "icons": [
+    {
+      "src": "/Azul1.png?v=3",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "/Azul1.png?v=3",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "display": "standalone",
+  "orientation": "portrait"
+}

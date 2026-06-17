@@ -65,3 +65,23 @@
     @apply border-b-0;
   }
 }
+
+/* Safe areas spacing for PWA standalone mode (installed app on iOS/Android) */
+@media (display-mode: standalone) {
+  html, body {
+    padding-top: env(safe-area-inset-top, 20px);
+    padding-bottom: env(safe-area-inset-bottom, 20px);
+  }
+}
+
+/* Zoom-out de 20% na imagem de fundo apenas no celular, cobrindo toda a tela */
+@media (max-width: 768px) {
+  .app-bg-image {
+    width: 125% !important;
+    height: 125% !important;
+    top: -12.5% !important;
+    left: -12.5% !important;
+    transform: scale(0.8) !important;
+    transform-origin: center center !important;
+  }
+}

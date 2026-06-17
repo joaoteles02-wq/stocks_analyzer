@@ -1,0 +1,10 @@
+Valor de uma ação em um adata especifica, por exemplo para Data Inicial:
+
+
+=INDEX(GOOGLEFINANCE(Ticker; "close"; Data); 2; 2)
+
+
+
+Crypto Price:
+
+=IMPORTDATA(CONCATENATE("https://www.cryptoprices.cc/",ticker)
