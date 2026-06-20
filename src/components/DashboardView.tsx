@@ -566,11 +566,10 @@ export function DashboardView() {
     return null;
   };
 
-  // Emula a cotação atual do Yahoo Finance — replica: =GOOGLEFINANCE(Ticker)
-  const emulateCurrentPrice = (ticker: string): number => {
+  // Replica exatamente: =GOOGLEFINANCE(Ticker) — só retorna a cotação ao vivo, sem fallback
+  const emulateCurrentPrice = (ticker: string): number | null => {
     const cleanTicker = (ticker || '').trim().toUpperCase();
 
-    // 1ª prioridade: Preço do Yahoo Finance em tempo real (como =GOOGLEFINANCE(Ticker))
     const apiPrice = currentPrices[cleanTicker];
     if (apiPrice && apiPrice > 0) return apiPrice;
 
@@ -580,14 +579,7 @@ export function DashboardView() {
       if (apiPriceAlt && apiPriceAlt > 0) return apiPriceAlt;
     }
 
-    // 2ª prioridade: Preço atual extraído da planilha do usuário (fallback)
-    const sheetPrice = getCurrentPriceFromSheetData(cleanTicker);
-    if (sheetPrice && sheetPrice > 0) return sheetPrice;
-
-    // 3ª prioridade: Preço padrão do objeto Asset (fallback estático)
-    const asset = walletAssets.find(a => (a.ticker || '').trim().toUpperCase() === cleanTicker) ||
-                  ALL_BEST_30_ASSETS.find(a => (a.ticker || '').trim().toUpperCase() === cleanTicker);
-    return asset ? asset.price : 0;
+    return null;
   };
 
   // Gerador determinístico de dados históricos para exibição consistente a partir da data de referência
@@ -615,11 +607,13 @@ export function DashboardView() {
         
         // Mesma fórmula usada nas colunas Preço Inicial e Preço Atual:
         // - Preço Inicial = emulateGoogleFinanceClose (Yahoo Finance → Sheet → Tabela estática → 90% asset.price)
-        // - Preço Atual = currentPrices da API → asset.price
+        // - Preço Atual = currentPrices da API (sem fallback)
         const startPrice = emulateGoogleFinanceClose(asset.ticker, referenceDateBR);
         const endPrice = emulateCurrentPrice(asset.ticker);
 
-        if (idx === 0) {
+        if (endPrice === null) {
+          prices[cleanTicker] = Number(startPrice.toFixed(2));
+        } else if (idx === 0) {
           prices[cleanTicker] = Number(startPrice.toFixed(2));
         } else if (idx === activeDates.length - 1) {
           prices[cleanTicker] = Number(endPrice.toFixed(2));
@@ -835,8 +829,12 @@ export function DashboardView() {
     totalAllocated += allocated;
     const initialPrice = emulateGoogleFinanceClose(asset.ticker, referenceDateBR);
     const currentPrice = emulateCurrentPrice(asset.ticker);
-    const ratio = getBRLPrice(asset.ticker, currentPrice) / (getBRLPrice(asset.ticker, initialPrice) || 1);
-    currentTotalValuation += allocated * ratio;
+    if (currentPrice !== null) {
+      const ratio = getBRLPrice(asset.ticker, currentPrice) / (getBRLPrice(asset.ticker, initialPrice) || 1);
+      currentTotalValuation += allocated * ratio;
+    } else {
+      currentTotalValuation += allocated;
+    }
   });
   const initialTotalValuation = totalAllocated || investmentBudget;
   const appreciationPercent = ((currentTotalValuation - initialTotalValuation) / initialTotalValuation) * 100;
@@ -882,7 +880,7 @@ export function DashboardView() {
     if (w <= 0) return acc;
     const initialPrice = emulateGoogleFinanceClose(asset.ticker, referenceDateBR);
     const currentPrice = emulateCurrentPrice(asset.ticker);
-    const appreciation = ((currentPrice - initialPrice) / initialPrice) * 100;
+    const appreciation = currentPrice !== null ? ((currentPrice - initialPrice) / initialPrice) * 100 : 0;
     acc.sum += appreciation * w;
     acc.totalWeight += w;
     return acc;
@@ -1806,7 +1804,7 @@ export function DashboardView() {
                 const initialPrice = emulateGoogleFinanceClose(asset.ticker, referenceDateBR);
                 // Equivale a: =GOOGLEFINANCE(Ticker)
                 const currentPrice = emulateCurrentPrice(asset.ticker);
-                const assetAppreciation = ((currentPrice - initialPrice) / initialPrice) * 100;
+                const assetAppreciation = currentPrice !== null ? ((currentPrice - initialPrice) / initialPrice) * 100 : null;
                 const weight = walletWeights[asset.ticker] || 0;
 
                 return (
@@ -1832,19 +1830,25 @@ export function DashboardView() {
                         className="text-white cursor-help hover:text-indigo-400 transition-colors"
                         title={`=GOOGLEFINANCE("${asset.ticker}")`}
                       >
-                        {isLoadingCurrentPrices && !currentPrices[asset.ticker] ? (
+                        {isLoadingCurrentPrices && currentPrice === null ? (
                           <span className="text-slate-500 animate-pulse">carregando...</span>
-                        ) : (
+                        ) : currentPrice !== null ? (
                           <>{asset.currency === 'USD' ? 'US$' : 'R$'} {currentPrice.toFixed(2)}</>
+                        ) : (
+                          <span className="text-slate-600">—</span>
                         )}
                       </div>
                     </td>
                     <td className="py-3.5 text-right">
+                      {assetAppreciation !== null ? (
                        <span className={`font-bold font-mono text-xs inline-flex items-center gap-0.5 ${
                         assetAppreciation >= 0 ? 'text-emerald-400' : 'text-rose-400'
                       }`}>
                         {assetAppreciation >= 0 ? '+' : ''}{assetAppreciation.toFixed(1)}%
                       </span>
+                      ) : (
+                        <span className="text-slate-600 font-mono text-xs">—</span>
+                      )}
                     </td>
                     <td className="py-3.5 text-right font-mono text-xs pr-2">
                       <div 
