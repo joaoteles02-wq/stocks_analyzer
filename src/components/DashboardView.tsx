@@ -566,7 +566,7 @@ export function DashboardView() {
     return null;
   };
 
-  // Replica exatamente: =GOOGLEFINANCE(Ticker) — só retorna a cotação ao vivo, sem fallback
+  // Replica exatamente: =GOOGLEFINANCE(Ticker) — tenta API ao vivo, depois fallback para dados da planilha
   const emulateCurrentPrice = (ticker: string): number | null => {
     const cleanTicker = (ticker || '').trim().toUpperCase();
 
@@ -578,6 +578,9 @@ export function DashboardView() {
       const apiPriceAlt = currentPrices[tickerWithoutSA];
       if (apiPriceAlt && apiPriceAlt > 0) return apiPriceAlt;
     }
+
+    const sheetPrice = getCurrentPriceFromSheetData(cleanTicker);
+    if (sheetPrice && sheetPrice > 0) return sheetPrice;
 
     return null;
   };
