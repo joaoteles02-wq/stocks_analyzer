@@ -5,8 +5,12 @@ import { GoogleGenAI } from "@google/genai";
 import cors from "cors";
 import fs from "fs";
 import os from "os";
-import YahooFinance from 'yahoo-finance2';
+import YahooFinanceImport from 'yahoo-finance2';
 
+// Workaround: esbuild CJS output wrappa o módulo ESM com __toESM,
+// colocando o module.exports inteiro em .default. Esta verificação
+// garante o construtor correto tanto em dev (tsx) quanto em produção (esbuild).
+const YahooFinance = (YahooFinanceImport as any).default ?? YahooFinanceImport;
 const yahooFinance = new YahooFinance();
 
 // Prevent server from crashing on unhandled Yahoo Finance / network errors
