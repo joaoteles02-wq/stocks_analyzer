@@ -570,19 +570,19 @@ export function DashboardView() {
   const emulateCurrentPrice = (ticker: string): number => {
     const cleanTicker = (ticker || '').trim().toUpperCase();
 
-    // 1ª prioridade: Preço atual extraído diretamente da planilha do usuário
-    const sheetPrice = getCurrentPriceFromSheetData(cleanTicker);
-    if (sheetPrice && sheetPrice > 0) return sheetPrice;
-
-    // 2ª prioridade: Preço do Yahoo Finance carregado em tempo real
-    // Tenta sem .SA primeiro (como foi indexado no state currentPrices)
+    // 1ª prioridade: Preço do Yahoo Finance em tempo real (como =GOOGLEFINANCE(Ticker))
     const apiPrice = currentPrices[cleanTicker];
     if (apiPrice && apiPrice > 0) return apiPrice;
 
-    // Tenta também sem sufixo .SA (caso o ticker venha com .SA de alguma fonte)
     const tickerWithoutSA = cleanTicker.replace(/\.SA$/i, '');
-    const apiPriceAlt = currentPrices[tickerWithoutSA];
-    if (apiPriceAlt && apiPriceAlt > 0) return apiPriceAlt;
+    if (tickerWithoutSA !== cleanTicker) {
+      const apiPriceAlt = currentPrices[tickerWithoutSA];
+      if (apiPriceAlt && apiPriceAlt > 0) return apiPriceAlt;
+    }
+
+    // 2ª prioridade: Preço atual extraído da planilha do usuário (fallback)
+    const sheetPrice = getCurrentPriceFromSheetData(cleanTicker);
+    if (sheetPrice && sheetPrice > 0) return sheetPrice;
 
     // 3ª prioridade: Preço padrão do objeto Asset (fallback estático)
     const asset = walletAssets.find(a => (a.ticker || '').trim().toUpperCase() === cleanTicker) ||
