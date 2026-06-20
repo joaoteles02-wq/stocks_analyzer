@@ -7,6 +7,7 @@ import { searchStocksFilterSheet } from './lib/drive';
 import { getSpreadsheetData, getSpreadsheetSheets } from './lib/sheets';
 import { WalletView } from './components/WalletView';
 import { DashboardView } from './components/DashboardView';
+import { pullWalletConfig } from './lib/sync';
 
 export default function App() {
   const [needsAuth, setNeedsAuth] = useState(true);
@@ -38,6 +39,15 @@ export default function App() {
 
   const [rawPasteText, setRawPasteText] = useState('');
   const [pasteSuccess, setPasteSuccess] = useState(false);
+
+  useEffect(() => {
+    pullWalletConfig().then((synced) => {
+      if (synced) {
+        localStorage.setItem('data_source', dataSource);
+        window.location.reload();
+      }
+    });
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('data_source', dataSource);

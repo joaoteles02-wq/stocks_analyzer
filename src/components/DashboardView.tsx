@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { getHistoricalPrice, getCurrentPrice } from '../lib/yahoo';
+import { pushWalletConfig } from '../lib/sync';
 import { 
   ALL_BEST_30_ASSETS, 
   Asset 
@@ -204,14 +205,17 @@ export function DashboardView() {
 
   useEffect(() => {
     localStorage.setItem('sheet_initial_price_col_idx', overrideInitialPriceColIdx.toString());
+    pushWalletConfig();
   }, [overrideInitialPriceColIdx]);
 
   useEffect(() => {
     localStorage.setItem('sheet_reference_date', referenceDateBR);
+    pushWalletConfig();
   }, [referenceDateBR]);
 
   useEffect(() => {
     localStorage.setItem('sheet_current_price_col_idx', overrideCurrentPriceColIdx.toString());
+    pushWalletConfig();
   }, [overrideCurrentPriceColIdx]);
 
   const sheetHeaders = useMemo<string[]>(() => {
@@ -320,12 +324,12 @@ export function DashboardView() {
 
       const cleanTicker = ticker.trim().toUpperCase();
 
-      // Encontra a linha do ativo correspondente
-      const matchedRow = localRows.find((row, idx) => {
-        if (idx === 0) return false;
+      // Encontra a linha do ativo correspondente de forma extremamente flexível (cobrindo .SA ou sem .SA e permitindo ler da linha 0)
+      const matchedRow = localRows.find((row) => {
         return Array.isArray(row) && row.some(cell => {
-          const s = String(cell).trim().toUpperCase();
-          return s === cleanTicker || s === `${cleanTicker}.SA` || s.replace('.SA', '') === cleanTicker;
+          const s = String(cell).trim().toUpperCase().replace('.SA', '');
+          const clean = cleanTicker.replace('.SA', '');
+          return s === clean;
         });
       });
 
@@ -482,12 +486,12 @@ export function DashboardView() {
 
       const cleanTicker = ticker.trim().toUpperCase();
 
-      // Encontra a linha do ativo correspondente
-      const matchedRow = localRows.find((row, idx) => {
-        if (idx === 0) return false;
+      // Encontra a linha do ativo correspondente de forma extremamente flexível (cobrindo .SA ou sem .SA e permitindo ler da linha 0)
+      const matchedRow = localRows.find((row) => {
         return Array.isArray(row) && row.some(cell => {
-          const s = String(cell).trim().toUpperCase();
-          return s === cleanTicker || s === `${cleanTicker}.SA` || s.replace('.SA', '') === cleanTicker;
+          const s = String(cell).trim().toUpperCase().replace('.SA', '');
+          const clean = cleanTicker.replace('.SA', '');
+          return s === clean;
         });
       });
 
@@ -625,7 +629,7 @@ export function DashboardView() {
     });
   };
 
-  const dataPoints = useMemo(() => getHistoricalData(), [walletAssets, yahooPrices, currentPrices, overrideInitialPriceColIdx, referenceDateBR]);
+  const dataPoints = useMemo(() => getHistoricalData(), [walletAssets, yahooPrices, currentPrices, overrideInitialPriceColIdx, overrideCurrentPriceColIdx, referenceDateBR]);
 
   // Helper selectors
   const toggleTickerSelection = (ticker: string) => {
@@ -886,13 +890,13 @@ export function DashboardView() {
       
       {/* Simulation Header and Cards section wrapper */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between gap-2 pb-1">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-1">
           <div className="flex items-center gap-2">
             <Coins className="w-5 h-5 text-amber-400" />
             <h2 className="text-base sm:text-lg font-bold text-white uppercase tracking-wider">Simulador de Carteira</h2>
           </div>
-          <label className="text-xs text-slate-400 flex items-center gap-1.5">
-            <span>Data Início:</span>
+          <label className="flex items-center gap-2 bg-white/[0.06] backdrop-blur-xl border border-white/15 rounded-full px-4 py-2 shadow-lg shadow-indigo-500/5 cursor-pointer transition-all duration-300 hover:bg-white/[0.1] hover:shadow-indigo-500/10 active:scale-[0.97] select-none">
+            <span className="text-sm font-bold text-white/80">Data Início:</span>
             <input
               type="date"
               value={referenceDateISO}
@@ -903,7 +907,7 @@ export function DashboardView() {
                   setReferenceDateBR(`${parts[2]}/${parts[1]}/${parts[0]}`);
                 }
               }}
-              className="bg-black/40 border border-white/10 rounded-lg px-2 py-1 text-xs text-slate-200 font-mono w-36 cursor-pointer focus:outline-none focus:ring-1 focus:ring-indigo-400/50"
+              className="bg-transparent border border-white/20 rounded-full px-3 py-1 text-sm text-white font-semibold font-mono cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-400/50 w-auto [color-scheme:dark]"
             />
           </label>
         </div>
@@ -1740,63 +1744,28 @@ export function DashboardView() {
 
       {/* Grid bottom row: Asset List with Growth Indicators */}
       <div className="bg-black/30 border border-white/10 rounded-3xl p-6 shadow-xl space-y-6">
-        <div className="flex flex-col gap-4 border-b border-white/10 pb-4">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <h3 className="text-lg font-bold text-white flex items-center gap-2">
-              <Info className="w-5 h-5 text-indigo-400" />
-              Variação e Desempenho por Ativo
-            </h3>
-            <div className="flex items-center gap-3">
-              <label className="text-xs text-slate-400 flex items-center gap-1.5">
-                <span>Data Inicial:</span>
-                <input
-                  type="date"
-                  value={referenceDateISO}
-                  onChange={(e) => {
-                    const iso = e.target.value;
-                    const parts = iso.split('-');
-                    if (parts.length === 3) {
-                      setReferenceDateBR(`${parts[2]}/${parts[1]}/${parts[0]}`);
-                    }
-                  }}
-                  className="bg-black/40 border border-white/10 rounded-lg px-2 py-1 text-xs text-slate-200 font-mono w-36 cursor-pointer focus:outline-none focus:ring-1 focus:ring-indigo-400/50"
-                />
-              </label>
-            </div>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-white/10 pb-4">
+          <h3 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+            <Info className="w-5 h-5 text-indigo-400" />
+            Variação e Desempenho por Ativo
+          </h3>
+          <div className="flex items-center">
+            <label className="flex items-center gap-2 bg-white/[0.06] backdrop-blur-xl border border-white/15 rounded-full px-3.5 py-1.5 shadow-lg shadow-indigo-500/5 cursor-pointer transition-all duration-300 hover:bg-white/[0.1] hover:shadow-indigo-500/10 active:scale-[0.97] select-none text-xs sm:text-sm">
+              <span className="font-bold text-white/80">Data Inicial:</span>
+              <input
+                type="date"
+                value={referenceDateISO}
+                onChange={(e) => {
+                  const iso = e.target.value;
+                  const parts = iso.split('-');
+                  if (parts.length === 3) {
+                    setReferenceDateBR(`${parts[2]}/${parts[1]}/${parts[0]}`);
+                  }
+                }}
+                className="bg-transparent border border-white/20 rounded-full px-2 py-0.5 text-xs text-white font-semibold font-mono cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-400/50 w-auto [color-scheme:dark]"
+              />
+            </label>
           </div>
-
-          {/* Seletor Manual de Colunas para Mapeamento Preciso de Preços */}
-          {sheetHeaders.length > 0 && (
-            <div className="flex flex-wrap gap-4 text-xs text-slate-300 bg-black/25 p-4 rounded-2xl border border-white/5">
-              <div className="flex items-center gap-2">
-                <span className="font-semibold text-slate-400">Coluna Preço Inicial:</span>
-                <select
-                  value={overrideInitialPriceColIdx}
-                  onChange={(e) => setOverrideInitialPriceColIdx(Number(e.target.value))}
-                  className="bg-slate-900 border border-white/10 rounded-lg px-2.5 py-1.5 text-slate-200 focus:outline-none cursor-pointer focus:ring-1 focus:ring-indigo-400/50"
-                >
-                  <option value={-1}>Detectar Automaticamente (Ex: 02/01/2026)</option>
-                  {sheetHeaders.map((header, idx) => (
-                    <option key={`col-init-${idx}`} value={idx}>{header || `Coluna ${idx + 1}`} (Col {idx + 1})</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <span className="font-semibold text-slate-400">Coluna Preço Atual/Final:</span>
-                <select
-                  value={overrideCurrentPriceColIdx}
-                  onChange={(e) => setOverrideCurrentPriceColIdx(Number(e.target.value))}
-                  className="bg-slate-900 border border-white/10 rounded-lg px-2.5 py-1.5 text-slate-200 focus:outline-none cursor-pointer focus:ring-1 focus:ring-indigo-400/50"
-                >
-                  <option value={-1}>Detectar Automaticamente (Ex: Junho/2026)</option>
-                  {sheetHeaders.map((header, idx) => (
-                    <option key={`col-curr-${idx}`} value={idx}>{header || `Coluna ${idx + 1}`} (Col {idx + 1})</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          )}
         </div>
 
         <div className="overflow-x-auto">
@@ -1809,20 +1778,20 @@ export function DashboardView() {
                 <th className="pb-3 text-right">
                   <span 
                     className="cursor-help hover:text-indigo-400 transition-colors border-b border-dashed border-slate-500/50 pb-0.5"
-                    title={`Calculado dinamicamente usando a fórmula: =INDEX(GOOGLEFINANCE(Ticker; "close"; "${referenceDateBR}"); 2; 2)`}
-                  >
-                    Preço Inicial
-                  </span>
-                </th>
-                <th className="pb-3 text-right">
-                  <span 
-                    className="cursor-help hover:text-indigo-400 transition-colors border-b border-dashed border-slate-500/50 pb-0.5"
                     title='Calculado dinamicamente usando a fórmula: =GOOGLEFINANCE(Ticker)'
                   >
                     Preço Atual
                   </span>
                 </th>
-                <th className="pb-3 text-right pr-2">Var. Estimada</th>
+                <th className="pb-3 text-right">Variação</th>
+                <th className="pb-3 text-right pr-2">
+                  <span 
+                    className="cursor-help hover:text-indigo-400 transition-colors border-b border-dashed border-slate-500/50 pb-0.5"
+                    title={`Calculado dinamicamente usando a fórmula: =INDEX(GOOGLEFINANCE(Ticker; "close"; "${referenceDateBR}"); 2; 2)`}
+                  >
+                    Valor
+                  </span>
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
@@ -1852,7 +1821,21 @@ export function DashboardView() {
                       </span>
                     </td>
                     <td className="py-3.5 text-center font-bold text-slate-300 font-mono">{weight}%</td>
-                    <td className="py-3.5 text-right font-mono text-xs">
+                    <td className="py-3.5 text-right font-mono font-bold text-white text-xs">
+                      {isLoadingCurrentPrices && !currentPrices[asset.ticker] ? (
+                        <span className="text-slate-500 animate-pulse">carregando...</span>
+                      ) : (
+                        <>{asset.currency === 'USD' ? 'US$' : 'R$'} {currentPrice.toFixed(2)}</>
+                      )}
+                    </td>
+                    <td className="py-3.5 text-right">
+                       <span className={`font-bold font-mono text-xs inline-flex items-center gap-0.5 ${
+                        assetAppreciation >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                      }`}>
+                        {assetAppreciation >= 0 ? '+' : ''}{assetAppreciation.toFixed(1)}%
+                      </span>
+                    </td>
+                    <td className="py-3.5 text-right font-mono text-xs pr-2">
                       <div 
                         className="text-slate-200 cursor-help hover:text-indigo-400 transition-colors"
                         title={`=INDEX(GOOGLEFINANCE("${asset.ticker}"; "close"; "${referenceDateBR}"); 2; 2)`}
@@ -1864,20 +1847,6 @@ export function DashboardView() {
                         )}
                       </div>
                     </td>
-                    <td className="py-3.5 text-right font-mono font-bold text-white text-xs">
-                      {isLoadingCurrentPrices && !currentPrices[asset.ticker] ? (
-                        <span className="text-slate-500 animate-pulse">carregando...</span>
-                      ) : (
-                        <>{asset.currency === 'USD' ? 'US$' : 'R$'} {currentPrice.toFixed(2)}</>
-                      )}
-                    </td>
-                    <td className="py-3.5 text-right pr-2">
-                       <span className={`font-bold font-mono text-xs inline-flex items-center gap-0.5 ${
-                        assetAppreciation >= 0 ? 'text-emerald-400' : 'text-rose-400'
-                      }`}>
-                        {assetAppreciation >= 0 ? '+' : ''}{assetAppreciation.toFixed(1)}%
-                      </span>
-                    </td>
                   </tr>
                 );
               })}
@@ -1886,14 +1855,15 @@ export function DashboardView() {
               <tr className="border-t border-white/10 bg-white/[0.03]">
                 <td colSpan={2} className="py-3.5 pl-2 text-sm text-slate-300 font-bold uppercase tracking-wider">Média Ponderada</td>
                 <td className="py-3.5 text-center text-white font-bold font-mono text-sm">{weightedVariationData.totalWeight.toFixed(0)}%</td>
-                <td colSpan={2}></td>
-                <td className="py-3.5 text-right pr-2">
+                <td></td>
+                <td className="py-3.5 text-right">
                   <span className={`font-bold font-mono text-sm inline-flex items-center gap-0.5 ${
                     weightedAvgVariation >= 0 ? 'text-emerald-400' : 'text-rose-400'
                   }`}>
                     {weightedAvgVariation >= 0 ? '+' : ''}{weightedAvgVariation.toFixed(1)}%
                   </span>
                 </td>
+                <td className="pr-2"></td>
               </tr>
             </tfoot>
           </table>

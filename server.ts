@@ -4,6 +4,7 @@ import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import cors from "cors";
 import fs from "fs";
+import os from "os";
 import YahooFinance from 'yahoo-finance2';
 
 const yahooFinance = new YahooFinance();
@@ -16,8 +17,9 @@ process.on('unhandledRejection', (reason) => {
   console.error('[Server] Unhandled Rejection (server kept alive):', reason);
 });
 
+const app = express();
+
 async function startServer() {
-  const app = express();
   const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
   // Add CORS to allow external frontends (e.g. GitHub Pages) to hit this API
@@ -171,7 +173,8 @@ Mantenha uma linguagem muito profissional, direta e sofisticada. Não use tabela
   });
 
   // Persistent server side session store for Google Access Tokens
-  const tokenFilePath = path.join(process.cwd(), "user_tokens.json");
+  const tokenFilePath = path.join(os.tmpdir(), "user_tokens.json");
+  let inMemoryTokens: Record<string, string> = {};
 
   const getStoredTokens = (): Record<string, string> => {
     try {
@@ -181,7 +184,7 @@ Mantenha uma linguagem muito profissional, direta e sofisticada. Não use tabela
     } catch (e) {
       console.error("Error reading token file:", e);
     }
-    return {};
+    return inMemoryTokens;
   };
 
   const saveStoredTokens = (tokens: Record<string, string>) => {
@@ -190,6 +193,7 @@ Mantenha uma linguagem muito profissional, direta e sofisticada. Não use tabela
     } catch (e) {
       console.error("Error writing token file:", e);
     }
+    inMemoryTokens = tokens;
   };
 
   app.post("/api/save-token", (req, res) => {
@@ -212,6 +216,42 @@ Mantenha uma linguagem muito profissional, direta e sofisticada. Não use tabela
     const tokens = getStoredTokens();
     const token = tokens[uid] || null;
     res.json({ token });
+  });
+
+  // Persistent wallet config sync across devices
+  const walletConfigPath = path.join(os.tmpdir(), "wallet_config.json");
+  let inMemoryWalletConfig: Record<string, any> = {};
+
+  const getWalletConfig = (): Record<string, any> => {
+    try {
+      if (fs.existsSync(walletConfigPath)) {
+        return JSON.parse(fs.readFileSync(walletConfigPath, "utf8"));
+      }
+    } catch (e) {
+      console.error("Error reading wallet config:", e);
+    }
+    return inMemoryWalletConfig;
+  };
+
+  const saveWalletConfig = (data: Record<string, any>) => {
+    try {
+      fs.writeFileSync(walletConfigPath, JSON.stringify(data, null, 2), "utf8");
+    } catch (e) {
+      console.error("Error writing wallet config:", e);
+    }
+    inMemoryWalletConfig = data;
+  };
+
+  app.get("/api/wallet-config", (_req, res) => {
+    const config = getWalletConfig();
+    res.json(config);
+  });
+
+  app.post("/api/wallet-config", (req, res) => {
+    const data = req.body || {};
+    saveWalletConfig(data);
+    console.log("=> Wallet config saved");
+    res.json({ success: true });
   });
 
   app.all("/api/process-data", async (req, res) => {
@@ -453,19 +493,21 @@ Mantenha uma linguagem muito profissional, direta e sofisticada. Não use tabela
     next();
   });
 
-  // Vite middleware for development
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
+  // Vite middleware for development (only run when NOT on Vercel)
+  if (!process.env.VERCEL) {
+    if (process.env.NODE_ENV !== "production") {
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: "spa",
+      });
+      app.use(vite.middlewares);
+    } else {
+      const distPath = path.join(process.cwd(), 'dist');
+      app.use(express.static(distPath));
+      app.get('*', (req, res) => {
+        res.sendFile(path.join(distPath, 'index.html'));
+      });
+    }
   }
 
   // Global Error Handler for API routes to prevent HTML responses
@@ -478,9 +520,16 @@ Mantenha uma linguagem muito profissional, direta e sofisticada. Não use tabela
     }
   });
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
+  // Only listen to port if NOT running on Vercel environment
+  if (!process.env.VERCEL) {
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+    });
+  }
 }
 
+// Start the server setup (Vite integration / listener)
 startServer();
+
+// Export app for serverless function use (Vercel)
+export { app };

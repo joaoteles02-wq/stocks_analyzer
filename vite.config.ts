@@ -12,8 +12,9 @@ export default defineConfig(() => {
       },
     },
     server: {
-      // HMR is disabled in AI Studio via DISABLE_HMR env var.
+      // HMR desligado para evitar "piscar" no celular
       hmr: false,
+      host: '0.0.0.0',
       watch: process.env.DISABLE_HMR === 'true' || process.env.DISABLE_HMR === '1'
         ? null
         : {

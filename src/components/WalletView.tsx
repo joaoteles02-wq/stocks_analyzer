@@ -16,7 +16,8 @@ import {
   RefreshCw,
   HelpCircle
 } from 'lucide-react';
-
+import { pushWalletConfig } from '../lib/sync';
+ 
 export interface Asset {
   ticker: string;
   name: string;
@@ -503,6 +504,7 @@ export function WalletView() {
     setActiveStrategy(strategyType);
     if (typeof window !== 'undefined') {
       localStorage.setItem('active_strategy', strategyType);
+      pushWalletConfig();
     }
 
     setSuccessMsg(`AI Reload Completo! Sua carteira foi reestruturada na estratégia [${strategyName}] com base nos top ativos recomendados da IA. O total soma 100%!`);
@@ -535,10 +537,12 @@ export function WalletView() {
     localStorage.setItem('saved_interactive_wallet_full', JSON.stringify(wallet));
     const compactFormat = wallet.map(w => ({ ticker: w.asset.ticker, weight: w.weight }));
     localStorage.setItem('saved_interactive_wallet', JSON.stringify(compactFormat));
+    pushWalletConfig();
   }, [wallet]);
 
   useEffect(() => {
     localStorage.setItem('saved_wallet_budget', String(investmentBudget));
+    pushWalletConfig();
   }, [investmentBudget]);
 
   // Compute stats
