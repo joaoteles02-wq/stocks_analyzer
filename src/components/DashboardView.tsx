@@ -567,21 +567,12 @@ export function DashboardView() {
   };
 
   // Replica exatamente: =GOOGLEFINANCE(Ticker)
-  // Prioridade: planilha do usuário (já tem o =GOOGLEFINANCE calculado) → Yahoo Finance API ao vivo
+  // Usa exclusivamente os dados da planilha (que já tem o =GOOGLEFINANCE calculado)
   const emulateCurrentPrice = (ticker: string): number | null => {
     const cleanTicker = (ticker || '').trim().toUpperCase();
 
     const sheetPrice = getCurrentPriceFromSheetData(cleanTicker);
     if (sheetPrice && sheetPrice > 0) return sheetPrice;
-
-    const apiPrice = currentPrices[cleanTicker];
-    if (apiPrice && apiPrice > 0) return apiPrice;
-
-    const tickerWithoutSA = cleanTicker.replace(/\.SA$/i, '');
-    if (tickerWithoutSA !== cleanTicker) {
-      const apiPriceAlt = currentPrices[tickerWithoutSA];
-      if (apiPriceAlt && apiPriceAlt > 0) return apiPriceAlt;
-    }
 
     return null;
   };
