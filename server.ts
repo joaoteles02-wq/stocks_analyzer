@@ -121,7 +121,58 @@ Mantenha uma linguagem muito profissional, direta e sofisticada. Não use tabela
     }
   });
 
+  // Proxy for Brapi API real-time quote — obtém o preço unitário do ativo
+  // Replica: =GOOGLEFINANCE(Ticker) usando dados de mercado Brapi
+  app.get("/api/brapi-price", async (req, res) => {
+    const { ticker } = req.query;
+    if (!ticker) {
+      return res.status(400).json({ error: "Missing ticker" });
+    }
+
+    try {
+      // Normaliza o ticker: remove .SA, BVMF: e espaços, converte para maiúsculas
+      const rawTicker = (ticker as string).trim().toUpperCase();
+      const cleanTicker = rawTicker
+        .replace(/\.SA$/, '')
+        .replace(/^BVMF:/, '')
+        .trim();
+
+      const apiToken = process.env.BRAPI_API_KEY;
+      if (!apiToken) {
+        return res.status(500).json({ error: "BRAPI_API_KEY not configured" });
+      }
+
+      const url = `https://brapi.dev/api/quote/${encodeURIComponent(cleanTicker)}?token=${encodeURIComponent(apiToken)}`;
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+
+      const response = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeout);
+
+      if (!response.ok) {
+        return res.status(response.status).json({ error: `Brapi API error: ${response.statusText}` });
+      }
+
+      const data = await response.json();
+      const price = data?.results?.[0]?.regularMarketPrice ?? null;
+
+      if (price === null) {
+        return res.status(404).json({ error: "Price not available from Brapi" });
+      }
+
+      res.json({ price, ticker: cleanTicker });
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        return res.status(504).json({ error: "Brapi API timeout" });
+      }
+      console.error("Brapi Price Error:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch current price from Brapi" });
+    }
+  });
+
   // Proxy for Yahoo Finance real-time quote — replicates =GOOGLEFINANCE(Ticker)
+  // Mantido como fallback para compatibilidade
   app.get("/api/current-price", async (req, res) => {
     const { ticker } = req.query;
     if (!ticker) {

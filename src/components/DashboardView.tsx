@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { getHistoricalPrice, getCurrentPrice } from '../lib/yahoo';
+import { getHistoricalPrice, fetchFinancialMarketInfo } from '../lib/yahoo';
 import { pushWalletConfig } from '../lib/sync';
 import { 
   ALL_BEST_30_ASSETS, 
@@ -186,9 +186,9 @@ export function DashboardView() {
       const assets = walletAssets.length > 0 ? walletAssets : ALL_BEST_30_ASSETS;
       const results = await Promise.allSettled(
         assets.map(async (asset) => {
-          const tickerToFetch = (asset.type === 'stocks' || asset.type === 'fii') ? `${asset.ticker}.SA` : asset.ticker;
-          const p = await getCurrentPrice(tickerToFetch);
-          return { ticker: asset.ticker, price: p };
+          const marketInfo = await fetchFinancialMarketInfo(asset.ticker, referenceDateISO);
+          const b3PrecoUn = marketInfo?.price || 0;
+          return { ticker: asset.ticker, price: b3PrecoUn };
         })
       );
       const prices: Record<string, number> = {};
@@ -201,7 +201,7 @@ export function DashboardView() {
       setIsLoadingCurrentPrices(false);
     };
     fetchAllCurrentPrices();
-  }, [walletAssets]);
+  }, [walletAssets, referenceDateISO]);
 
   useEffect(() => {
     localStorage.setItem('sheet_initial_price_col_idx', overrideInitialPriceColIdx.toString());
@@ -566,10 +566,14 @@ export function DashboardView() {
     return null;
   };
 
-  // Replica exatamente: =GOOGLEFINANCE(Ticker)
-  // Usa exclusivamente os dados da planilha (que já tem o =GOOGLEFINANCE calculado)
+  // Obtém o preço unitário do ativo (b3PrecoUn)
+  // 1ª prioridade: dados da Brapi API via currentPrices state
+  // 2ª prioridade: dados da planilha do usuário
   const emulateCurrentPrice = (ticker: string): number | null => {
     const cleanTicker = (ticker || '').trim().toUpperCase();
+
+    const brapiPrice = currentPrices[cleanTicker];
+    if (brapiPrice && brapiPrice > 0) return brapiPrice;
 
     const sheetPrice = getCurrentPriceFromSheetData(cleanTicker);
     if (sheetPrice && sheetPrice > 0) return sheetPrice;

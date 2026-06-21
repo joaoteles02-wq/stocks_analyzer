@@ -25,3 +25,38 @@ export const getCurrentPrice = async (ticker: string): Promise<number | null> =>
     return null;
   }
 };
+
+interface MarketInfo {
+  price: number | null;
+}
+
+export const fetchFinancialMarketInfo = async (ticker: string, formattedDate?: string): Promise<MarketInfo> => {
+  try {
+    const cleanTicker = (ticker || '')
+      .trim()
+      .toUpperCase()
+      .replace(/\.SA$/, '')
+      .replace(/^BVMF:/, '')
+      .trim();
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+
+    const response = await fetch(
+      `/api/brapi-price?ticker=${encodeURIComponent(cleanTicker)}`,
+      { signal: controller.signal }
+    );
+    clearTimeout(timeout);
+
+    if (!response.ok) {
+      console.warn(`fetchFinancialMarketInfo: Brapi API error for ${ticker}`, response.status);
+      return { price: null };
+    }
+
+    const data = await response.json();
+    return { price: data.price ?? null };
+  } catch (error) {
+    console.error(`fetchFinancialMarketInfo: Error fetching market info for ${ticker}:`, error);
+    return { price: null };
+  }
+};
