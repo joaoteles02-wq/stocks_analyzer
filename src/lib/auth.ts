@@ -57,12 +57,16 @@ export const tryAutoRefreshToken = async (): Promise<string | null> => {
   const currentUser = auth.currentUser;
   if (!currentUser || isSigningIn) return null;
 
+  // On mobile, popups are blocked — skip silent refresh via popup
+  if (isMobileDevice()) {
+    console.log('[Auth] Mobile detected — skipping popup-based silent refresh.');
+    return null;
+  }
+
   try {
     isSigningIn = true;
     console.log('[Auth] Attempting silent token refresh...');
 
-    // signInWithPopup causes Google to silently re-issue a token
-    // if the user still has an active Google session in the browser
     const silentProvider = new GoogleAuthProvider();
     silentProvider.addScope('https://www.googleapis.com/auth/drive.readonly');
     silentProvider.addScope('https://www.googleapis.com/auth/spreadsheets.readonly');
@@ -80,7 +84,6 @@ export const tryAutoRefreshToken = async (): Promise<string | null> => {
       return cachedAccessToken;
     }
   } catch (error: any) {
-    // popup_closed_by_user or cancelled_popup_request are non-critical
     const errCode = error?.code || '';
     if (errCode === 'auth/popup-closed-by-user' || errCode === 'auth/cancelled-popup-request') {
       console.log('[Auth] Silent refresh popup closed — user intervention needed.');
@@ -219,13 +222,17 @@ const isMobileDevice = (): boolean => {
   return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 };
 
-export const googleSignIn = async (method: 'popup' | 'redirect' = 'popup'): Promise<{ user: User; accessToken: string } | null> => {
+export const googleSignIn = async (method?: 'popup' | 'redirect'): Promise<{ user: User; accessToken: string } | null> => {
+  // Auto-detect mobile: redirect is required since popups are blocked on mobile browsers
+  const resolvedMethod = method ?? (isMobileDevice() ? 'redirect' : 'popup');
+
   try {
     isSigningIn = true;
-    
-    if (method === 'redirect') {
+
+    if (resolvedMethod === 'redirect') {
+      console.log('[Auth] Mobile detected — using signInWithRedirect.');
       await signInWithRedirect(auth, provider);
-      return null;
+      return null; // Page will reload; result handled by getRedirectResult in initAuth
     }
 
     const result = await signInWithPopup(auth, provider);
