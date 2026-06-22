@@ -1,4 +1,4 @@
-import { initializeApp } from 'firebase/app';
+﻿import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, onAuthStateChanged, setPersistence, browserLocalPersistence, User } from 'firebase/auth';
 import firebaseConfig from '../../firebase-applet-config.json';
 
@@ -57,16 +57,12 @@ export const tryAutoRefreshToken = async (): Promise<string | null> => {
   const currentUser = auth.currentUser;
   if (!currentUser || isSigningIn) return null;
 
-  // On mobile, popups are blocked — skip silent refresh via popup
-  if (isMobileDevice()) {
-    console.log('[Auth] Mobile detected — skipping popup-based silent refresh.');
-    return null;
-  }
-
   try {
     isSigningIn = true;
     console.log('[Auth] Attempting silent token refresh...');
 
+    // signInWithPopup causes Google to silently re-issue a token
+    // if the user still has an active Google session in the browser
     const silentProvider = new GoogleAuthProvider();
     silentProvider.addScope('https://www.googleapis.com/auth/drive.readonly');
     silentProvider.addScope('https://www.googleapis.com/auth/spreadsheets.readonly');
@@ -84,9 +80,10 @@ export const tryAutoRefreshToken = async (): Promise<string | null> => {
       return cachedAccessToken;
     }
   } catch (error: any) {
+    // popup_closed_by_user or cancelled_popup_request are non-critical
     const errCode = error?.code || '';
     if (errCode === 'auth/popup-closed-by-user' || errCode === 'auth/cancelled-popup-request') {
-      console.log('[Auth] Silent refresh popup closed — user intervention needed.');
+      console.log('[Auth] Silent refresh popup closed ÔÇö user intervention needed.');
     } else {
       console.warn('[Auth] Silent token refresh failed:', error?.message || error);
     }
@@ -107,7 +104,7 @@ const startRefreshInterval = (user: User) => {
     console.log('[Auth] Background token refresh triggered.');
     const newToken = await tryAutoRefreshToken();
     if (!newToken && onRefreshFailure) {
-      console.warn('[Auth] Background refresh failed — user may need to re-authenticate.');
+      console.warn('[Auth] Background refresh failed ÔÇö user may need to re-authenticate.');
     }
   }, 45 * 60 * 1000);
 };
@@ -171,8 +168,8 @@ export const initAuth = (
               console.error('Error fetching token on auth state changed:', err);
             }
 
-            // No token found — attempt silent refresh before giving up
-            console.log('[Auth] No token found after login — attempting silent refresh...');
+            // No token found ÔÇö attempt silent refresh before giving up
+            console.log('[Auth] No token found after login ÔÇö attempting silent refresh...');
             const silentToken = await tryAutoRefreshToken();
             if (!silentToken) {
               cachedAccessToken = null;
@@ -186,7 +183,7 @@ export const initAuth = (
         } else {
           const hasToken = localStorage.getItem('google_access_token') || sessionStorage.getItem('google_access_token');
           // If we have a token but no user yet, Firebase may still be restoring
-          // the session from persistence — don't clear anything, just wait.
+          // the session from persistence ÔÇö don't clear anything, just wait.
           if (hasToken && !auth.currentUser) {
             return;
           }
@@ -222,17 +219,13 @@ const isMobileDevice = (): boolean => {
   return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 };
 
-export const googleSignIn = async (method?: 'popup' | 'redirect'): Promise<{ user: User; accessToken: string } | null> => {
-  // Auto-detect mobile: redirect is required since popups are blocked on mobile browsers
-  const resolvedMethod = method ?? (isMobileDevice() ? 'redirect' : 'popup');
-
+export const googleSignIn = async (method: 'popup' | 'redirect' = 'popup'): Promise<{ user: User; accessToken: string } | null> => {
   try {
     isSigningIn = true;
-
-    if (resolvedMethod === 'redirect') {
-      console.log('[Auth] Mobile detected — using signInWithRedirect.');
+    
+    if (method === 'redirect') {
       await signInWithRedirect(auth, provider);
-      return null; // Page will reload; result handled by getRedirectResult in initAuth
+      return null;
     }
 
     const result = await signInWithPopup(auth, provider);
