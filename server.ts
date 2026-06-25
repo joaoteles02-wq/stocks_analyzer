@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
 import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
@@ -7,6 +7,8 @@ import cors from "cors";
 import fs from "fs";
 import os from "os";
 import YahooFinanceImport from 'yahoo-finance2';
+
+if (!process.env.VERCEL) dotenv.config();
 
 // Workaround: esbuild CJS output wrappa o módulo ESM com __toESM,
 // colocando o module.exports inteiro em .default. Esta verificação
