@@ -147,3 +147,34 @@ Formula =GOOGLEFINANCE(Ticker)
 ## Deploy
 - Publicado no Google AI Studio: `https://ai.studio/apps/da9468b6-4298-48e2-90d1-3f8216d2b6c0`
 - Atualização manual via Share/Export no AI Studio
+
+
+## Coluna "Preço Atual"
+
+**Documentação Técnica: Cálculo de "Preço Atual"**
+A obtenção do preço unitário de um ativo (b3PrecoUn) segue estes passos:
+Normalização do Ticker:
+O ticker é limpo: espaços são removidos, convertido para maiúsculas e remove-se sufixos como .SA ou prefixos como BVMF:.
+Exemplo: PETR4.SA torna-se PETR4.
+Consulta à API de Mercado (Brapi):
+O sistema realiza uma requisição fetch para https://brapi.dev/api/quote/{ticker}.
+É necessário um token de autenticação (API Token) configurado nas variáveis de ambiente.
+A requisição exige timeout de 8 segundos para evitar travamento da interface.
+Obtenção do Preço:
+A resposta da API é um JSON. O sistema acessa o primeiro resultado (data.results[0]).
+O valor do preço unitário retornado é definido pelo campo: regularMarketPrice.
+Fallback (Segurança):
+Se a API falhar, não retornar dados ou o ticker for inválido, a função retorna null (ou 0 na lógica final que preenche o campo b3PrecoUn).
+Como o valor é utilizado no código principal:
+code
+TypeScript
+// 1. Busca as informações de mercado baseada no ticker e data
+const marketInfo = await fetchFinancialMarketInfo(ticker, formattedDate);
+
+// 2. Define o preço unitário (se não encontrar, define como 0)
+const b3PrecoUn = marketInfo?.price || 0;
+A "fórmula" é:
+b3PrecoUn = API_Resultado.regularMarketPrice (ou 0, caso a API falhe).
+
+
+

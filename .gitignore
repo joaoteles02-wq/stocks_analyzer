@@ -10,3 +10,4 @@ user_tokens.json
 wallet_config.json
 .env*
 !.env.example
+.vercel
