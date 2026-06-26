@@ -821,19 +821,23 @@ export function DashboardView() {
 
   // Cumulative yield and portfolio comparison values (using real prices with FX)
   let totalAllocated = 0;
-  let currentTotalValuation = 0;
   walletAssets.forEach(asset => {
     const w = walletWeights[asset.ticker] || 0;
-    const allocated = investmentBudget * (w / 100);
-    totalAllocated += allocated;
+    totalAllocated += investmentBudget * (w / 100);
   });
   const initialTotalValuation = totalAllocated || investmentBudget;
+  let currentTotalValuation = 0;
   walletAssets.forEach(asset => {
     const w = walletWeights[asset.ticker] || 0;
     const initialPrice = emulateGoogleFinanceClose(asset.ticker, referenceDateBR);
     const currentPrice = emulateCurrentPrice(asset.ticker);
-    const assetAppreciation = currentPrice !== null ? ((currentPrice - initialPrice) / initialPrice) : 0;
-    currentTotalValuation += initialTotalValuation * (w / 100) * (1 + assetAppreciation);
+    const allocated = investmentBudget * (w / 100);
+    if (currentPrice !== null) {
+      const assetAppreciation = (currentPrice - initialPrice) / initialPrice;
+      currentTotalValuation += allocated * (1 + assetAppreciation);
+    } else {
+      currentTotalValuation += allocated;
+    }
   });
   const appreciationPercent = ((currentTotalValuation - initialTotalValuation) / initialTotalValuation) * 100;
   const isPositiveGrowth = appreciationPercent >= 0;
