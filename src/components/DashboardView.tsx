@@ -919,7 +919,7 @@ export function DashboardView() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           
           {/* Metric - Patrimônio Inicial */}
-          <div className="bg-black/25 border border-white/10 rounded-2xl p-5 flex items-center justify-between shadow-lg">
+          <div className="bg-white/10 border border-white/10 rounded-2xl p-5 flex items-center justify-between shadow-lg">
             <div>
               <span className="text-xs text-slate-400 font-bold block uppercase tracking-wider mb-1">Patrimônio Inicial</span>
               <span className="text-2xl font-black text-white">
@@ -933,7 +933,7 @@ export function DashboardView() {
           </div>
 
           {/* Metric 1 */}
-          <div className="bg-black/25 border border-white/10 rounded-2xl p-5 flex items-center justify-between shadow-lg">
+          <div className="bg-white/10 border border-white/10 rounded-2xl p-5 flex items-center justify-between shadow-lg">
             <div>
               <span className="text-xs text-slate-400 font-bold block uppercase tracking-wider mb-1">Patrimônio Consolidado</span>
               <span className="text-2xl font-black text-white">
@@ -947,7 +947,7 @@ export function DashboardView() {
           </div>
 
           {/* Metric 2 */}
-          <div className="bg-black/25 border border-white/10 rounded-2xl p-5 flex items-center justify-between shadow-lg">
+          <div className="bg-white/10 border border-white/10 rounded-2xl p-5 flex items-center justify-between shadow-lg">
             <div>
               <span className="text-xs text-slate-400 font-bold block uppercase tracking-wider mb-1">Rentabilidade do Período</span>
               <div className="flex items-baseline gap-2">
@@ -970,7 +970,7 @@ export function DashboardView() {
           </div>
 
           {/* Metric 3 */}
-          <div className="bg-black/25 border border-white/10 rounded-2xl p-5 flex items-center justify-between shadow-lg">
+          <div className="bg-white/10 border border-white/10 rounded-2xl p-5 flex items-center justify-between shadow-lg">
             <div>
               <span className="text-xs text-slate-400 font-bold block uppercase tracking-wider mb-1">Balanço do Período (R$)</span>
               <span className={`text-2xl font-black ${isPositiveGrowth ? 'text-emerald-400' : 'text-rose-400'}`}>
@@ -990,7 +990,7 @@ export function DashboardView() {
           <div className="hidden lg:block lg:col-span-2"></div>
           
           {/* Yield Médio Ponderado Card */}
-          <div className="bg-black/25 border border-white/10 rounded-2xl p-5 flex items-center justify-between shadow-lg">
+          <div className="bg-white/10 border border-white/10 rounded-2xl p-5 flex items-center justify-between shadow-lg">
             <div>
               <span className="text-xs text-slate-400 font-bold block uppercase tracking-wider mb-1">Yield Médio Ponderado</span>
               <span className="text-2xl font-black text-emerald-400">
@@ -1004,7 +1004,7 @@ export function DashboardView() {
           </div>
 
           {/* Renda Passiva do Período Card */}
-          <div className="bg-black/25 border border-white/10 rounded-2xl p-5 flex items-center justify-between shadow-lg">
+          <div className="bg-white/10 border border-white/10 rounded-2xl p-5 flex items-center justify-between shadow-lg">
             <div>
               <span className="text-xs text-slate-400 font-bold block uppercase tracking-wider mb-1">Renda Passiva do Período</span>
               <span className="text-2xl font-black text-white">
@@ -1022,7 +1022,7 @@ export function DashboardView() {
       </div>
 
       {/* Main Graph Card */}
-      <div className="bg-black/30 border border-white/10 rounded-3xl p-6 shadow-2xl relative">
+      <div className="bg-white/10 border border-white/10 rounded-3xl p-6 shadow-2xl relative">
         
         {/* Toggle Mode selectors inside the chart */}
         <div className="flex items-center justify-between flex-wrap gap-4 border-b border-white/10 pb-4 mb-6">
@@ -1486,7 +1486,7 @@ export function DashboardView() {
       </div>
 
       {/* Yields Bar Chart Section */}
-      <div className="bg-black/30 border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6">
+      <div className="bg-white/10 border border-white/10 rounded-3xl p-6 shadow-2xl space-y-6">
         <div className="flex items-center justify-between flex-wrap gap-4 border-b border-white/10 pb-4">
           <div className="flex items-center gap-2.5">
             <BarChart2 className="w-6 h-6 text-emerald-400" />
@@ -1746,7 +1746,7 @@ export function DashboardView() {
       </div>
 
       {/* Grid bottom row: Asset List with Growth Indicators */}
-      <div className="bg-black/30 border border-white/10 rounded-3xl p-6 shadow-xl space-y-6">
+      <div className="bg-white/10 border border-white/10 rounded-3xl p-6 shadow-xl space-y-6">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-white/10 pb-4">
           <h3 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
             <Info className="w-5 h-5 text-indigo-400" />

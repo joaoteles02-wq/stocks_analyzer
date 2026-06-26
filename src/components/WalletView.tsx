@@ -908,7 +908,7 @@ export function WalletView() {
       )}
 
       {/* Top Section and Welcome Descriptor */}
-      <div className="bg-black/30 border border-white/10 rounded-3xl p-6 md:p-8 flex flex-col md:flex-row items-center justify-between gap-6 shadow-xl">
+      <div className="bg-white/10 border border-white/10 rounded-3xl p-6 md:p-8 flex flex-col md:flex-row items-center justify-between gap-6 shadow-xl">
         <div className="space-y-2 text-center md:text-left">
           <h2 className="text-3xl font-extrabold text-white tracking-tight flex items-center justify-center md:justify-start gap-3">
             <Wallet className="w-8 h-8 text-indigo-400" />
@@ -1037,7 +1037,7 @@ export function WalletView() {
         
         {/* LEFT COLUMN: Asset selection & weights slider */}
         <div className="lg:col-span-2 space-y-6">
-          <div className="bg-black/20 border border-white/10 rounded-3xl p-6 shadow-md space-y-6">
+          <div className="bg-white/[0.06] border border-white/10 rounded-3xl p-6 shadow-md space-y-6">
             
             {/* Header Control row */}
             <div className="border-b border-white/10 pb-4 space-y-3">
@@ -1207,7 +1207,7 @@ export function WalletView() {
         <div className="space-y-6">
 
           {/* Custom Graphical Charts Panel */}
-          <div className="bg-black/30 border border-white/10 rounded-3xl p-6 shadow-lg space-y-6">
+          <div className="bg-white/10 border border-white/10 rounded-3xl p-6 shadow-lg space-y-6">
             <h3 className="text-lg font-bold text-white flex items-center gap-2 border-b border-white/10 pb-3">
               <Briefcase className="w-5 h-5 text-indigo-400" />
               Distribuição Patrimonial
@@ -1361,7 +1361,7 @@ export function WalletView() {
 
           {/* Markdown advice display */}
           {aiReport && (
-            <div className="bg-black/40 border border-white/10 rounded-2xl p-6 md:p-8 text-slate-200 text-sm leading-relaxed animate-in fade-in duration-300">
+            <div className="bg-white/[0.06] border border-white/10 rounded-2xl p-6 md:p-8 text-slate-200 text-sm leading-relaxed animate-in fade-in duration-300">
               <div className="markdown-body">
                 <Markdown>{aiReport}</Markdown>
               </div>

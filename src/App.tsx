@@ -644,7 +644,7 @@ export default function App() {
           )}
         </header>
 
-        <main className="bg-white/10 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/20 p-8 relative">
+        <main className="bg-black/30 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/20 p-8 relative">
           
           {tokenExpired && (
             <div className="mb-6 p-5 bg-amber-500/15 border border-amber-400/30 text-amber-200 rounded-2xl flex flex-col gap-4 shadow-xl backdrop-blur-md animate-in fade-in slide-in-from-top-4 duration-300">
