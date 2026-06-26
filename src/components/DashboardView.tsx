@@ -826,16 +826,15 @@ export function DashboardView() {
     const w = walletWeights[asset.ticker] || 0;
     const allocated = investmentBudget * (w / 100);
     totalAllocated += allocated;
-    const initialPrice = emulateGoogleFinanceClose(asset.ticker, referenceDateBR);
-    const currentPrice = emulateCurrentPrice(asset.ticker);
-    if (currentPrice !== null) {
-      const ratio = getBRLPrice(asset.ticker, currentPrice) / (getBRLPrice(asset.ticker, initialPrice) || 1);
-      currentTotalValuation += allocated * ratio;
-    } else {
-      currentTotalValuation += allocated;
-    }
   });
   const initialTotalValuation = totalAllocated || investmentBudget;
+  walletAssets.forEach(asset => {
+    const w = walletWeights[asset.ticker] || 0;
+    const initialPrice = emulateGoogleFinanceClose(asset.ticker, referenceDateBR);
+    const currentPrice = emulateCurrentPrice(asset.ticker);
+    const assetAppreciation = currentPrice !== null ? ((currentPrice - initialPrice) / initialPrice) : 0;
+    currentTotalValuation += initialTotalValuation * (w / 100) * (1 + assetAppreciation);
+  });
   const appreciationPercent = ((currentTotalValuation - initialTotalValuation) / initialTotalValuation) * 100;
   const isPositiveGrowth = appreciationPercent >= 0;
 
