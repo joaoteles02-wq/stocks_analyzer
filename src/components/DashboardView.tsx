@@ -1932,9 +1932,8 @@ export function DashboardView() {
 
                 return (
                   <tr key={`ranking-item-${asset.ticker}`} className="hover:bg-white/5 transition-colors">
-                    <td className="py-3.5 pl-2">
-                      <div className="font-bold text-white font-mono tracking-wide">{asset.ticker}</div>
-                      <div className="text-[11px] text-slate-400 truncate max-w-[200px]">{asset.name}</div>
+                    <td className="py-3.5 pl-2 whitespace-nowrap">
+                      <div className="font-bold text-white font-mono tracking-wide" title={asset.name}>{asset.ticker}</div>
                     </td>
                     <td className="py-3.5 text-center">
                       <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border ${
