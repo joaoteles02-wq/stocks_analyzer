@@ -621,7 +621,7 @@ export default function App() {
       {/* Background Image fixo de alta performance (evita bug de redimensionamento em Safari mobile) */}
       <div className="app-bg-image fixed inset-0 bg-[url('/por-do-sol.jpg')] bg-cover bg-center -z-20 pointer-events-none"></div>
       {/* Camada escura de 60% para garantir contraste do texto sem embaçar a imagem */}
-      <div className="fixed inset-0 bg-slate-950/60 -z-10 pointer-events-none"></div>
+      <div className="fixed inset-0 bg-slate-950/30 -z-10 pointer-events-none"></div>
       <div className="max-w-4xl mx-auto space-y-8 relative z-10">
         
         {/* Header */}

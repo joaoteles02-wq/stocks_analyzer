@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { getHistoricalPrice, fetchFinancialMarketInfo } from '../lib/yahoo';
+import { getHistoricalPrice, fetchFinancialMarketInfo, fetchDividendYield } from '../lib/yahoo';
 import { pushWalletConfig } from '../lib/sync';
 import { 
   ALL_BEST_30_ASSETS, 
   Asset 
 } from './WalletView';
+import { CalendarPicker } from './CalendarPicker';
 import { 
   LineChart, 
   Calendar, 
@@ -27,8 +28,17 @@ interface HistoricalPoint {
   prices: Record<string, number>; // Ticker -> Price
 }
 
+const TICKER_ALIASES: Record<string, string> = {
+  'ELET3': 'AXIA3',
+};
+
 export function DashboardView() {
-  const USD_BRL_RATE = 5.15;
+  const [usdBrlRate, setUsdBrlRate] = useState<number>(5.15);
+
+  const normalizeTicker = (ticker: string): string => {
+    const clean = (ticker || '').trim().toUpperCase();
+    return TICKER_ALIASES[clean] || clean;
+  };
 
   // Converte DD/MM/YYYY → YYYY-MM-DD (padrão ISO exigido pela API do Yahoo Finance)
   const toISODate = (ddmmyyyy: string): string => {
@@ -113,14 +123,60 @@ export function DashboardView() {
     }
 
     // Default Fallback matching standard WalletView default setup
-    const defaultTickers = ['GOOGL', 'AMZN', 'META', 'AAPL', 'PETR4', 'LLY', 'ELET3', 'VALE3', 'ITUB4', 'BTLG11'];
+    const defaultTickers = ['GOOGL', 'AMZN', 'META', 'AAPL', 'PETR4', 'LLY', 'AXIA3', 'VALE3', 'ITUB4', 'BTLG11'];
     const defaultWeights: Record<string, number> = {
-      'GOOGL': 20, 'AMZN': 20, 'META': 15, 'AAPL': 10, 'PETR4': 10, 'LLY': 5, 'ELET3': 5, 'VALE3': 5, 'ITUB4': 5, 'BTLG11': 5
+      'GOOGL': 20, 'AMZN': 20, 'META': 15, 'AAPL': 10, 'PETR4': 10, 'LLY': 5, 'AXIA3': 5, 'VALE3': 5, 'ITUB4': 5, 'BTLG11': 5
     };
     const defaultList = ALL_BEST_30_ASSETS.filter(a => defaultTickers.includes(a.ticker));
     setWalletAssets(defaultList);
     setWalletWeights(defaultWeights);
   }, []);
+
+  // Re-aplica o Dividend Yield da planilha (colunas específicas) ao carregar carteira salva
+  useEffect(() => {
+    if (walletAssets.length === 0) return;
+    try {
+      const savedLocal = localStorage.getItem('local_uploaded_sheet_data');
+      if (!savedLocal) return;
+      const localRows: any[][] = JSON.parse(savedLocal);
+      if (!Array.isArray(localRows) || localRows.length < 2) return;
+
+      const headerRow = localRows[0].map((c: any) => String(c).trim().toLowerCase());
+      const stockYieldIdx = headerRow.findIndex((h: string) => h.includes('div. yield') || h.includes('div yield') || h === 'dividend yield');
+      const fiiYieldIdx = headerRow.findIndex((h: string) => h.includes('dy (ano)') || h.includes('dy ano') || h === 'dy');
+
+      let updated = false;
+      const newAssets = walletAssets.map(asset => {
+        const row = localRows.find((r: any[]) =>
+          Array.isArray(r) && r.some((c: any) => {
+            const s = String(c).trim().toUpperCase();
+            return s === asset.ticker || s === `${asset.ticker}.SA` || s.replace('.SA', '') === asset.ticker;
+          })
+        );
+        if (!row) return asset;
+
+        const idx = asset.type === 'stocks' ? stockYieldIdx : asset.type === 'fii' ? fiiYieldIdx : -1;
+        if (idx === -1 || row[idx] === undefined) return asset;
+
+        const cleanVal = String(row[idx]).replace('%', '').replace(',', '.').trim();
+        const num = Number(cleanVal);
+        if (isNaN(num) || num <= 0) return asset;
+
+        const newYield = num > 1 ? num / 100 : num;
+        if (Math.abs(newYield - asset.yield) > 0.0001) {
+          updated = true;
+          return { ...asset, yield: newYield, description: 'Dividend Yield atualizado da planilha.' };
+        }
+        return asset;
+      });
+
+      if (updated) {
+        setWalletAssets(newAssets);
+      }
+    } catch (e) {
+      console.error('Failed to re-apply sheet yields:', e);
+    }
+  }, [walletAssets.length]);
 
   // 2. Selectable Tickers for plotting
   const [selectedTickers, setSelectedTickers] = useState<string[]>([]);
@@ -154,6 +210,7 @@ export function DashboardView() {
 
   const [yahooPrices, setYahooPrices] = useState<Record<string, number>>({});
   const [currentPrices, setCurrentPrices] = useState<Record<string, number>>({});
+  const [dividendYields, setDividendYields] = useState<Record<string, number>>({});
   const [isLoadingPrices, setIsLoadingPrices] = useState<boolean>(true);
   const [isLoadingCurrentPrices, setIsLoadingCurrentPrices] = useState<boolean>(true);
 
@@ -187,8 +244,7 @@ export function DashboardView() {
       const results = await Promise.allSettled(
         assets.map(async (asset) => {
           const marketInfo = await fetchFinancialMarketInfo(asset.ticker, referenceDateISO);
-          const b3PrecoUn = marketInfo?.price || 0;
-          return { ticker: asset.ticker, price: b3PrecoUn };
+          return { ticker: asset.ticker, price: marketInfo?.price || 0 };
         })
       );
       const prices: Record<string, number> = {};
@@ -202,6 +258,43 @@ export function DashboardView() {
     };
     fetchAllCurrentPrices();
   }, [walletAssets, referenceDateISO]);
+
+  useEffect(() => {
+    const fetchUsdRate = async () => {
+      try {
+        const marketInfo = await fetchFinancialMarketInfo('USDBRL', referenceDateISO);
+        if (marketInfo?.price && marketInfo.price > 0) {
+          setUsdBrlRate(marketInfo.price);
+        }
+      } catch (e) {
+        console.error('Failed to fetch USD/BRL rate:', e);
+      }
+    };
+    fetchUsdRate();
+  }, [referenceDateISO]);
+
+  useEffect(() => {
+    const fetchAllDividendYields = async () => {
+      const assets = walletAssets.length > 0 ? walletAssets : ALL_BEST_30_ASSETS;
+      const results = await Promise.allSettled(
+        assets.map(async (asset) => {
+          const tickerToFetch = (asset.type === 'stocks' || asset.type === 'fii') ? `${asset.ticker}.SA` : asset.ticker;
+          const dy = await fetchDividendYield(tickerToFetch);
+          return { ticker: asset.ticker, yield: dy };
+        })
+      );
+      const yields: Record<string, number> = {};
+      for (const r of results) {
+        if (r.status === 'fulfilled' && r.value.yield !== null && r.value.yield > 0) {
+          yields[r.value.ticker] = r.value.yield;
+        }
+      }
+      if (Object.keys(yields).length > 0) {
+        setDividendYields(yields);
+      }
+    };
+    fetchAllDividendYields();
+  }, [walletAssets]);
 
   useEffect(() => {
     localStorage.setItem('sheet_initial_price_col_idx', overrideInitialPriceColIdx.toString());
@@ -259,7 +352,7 @@ export function DashboardView() {
     'WEGE3': 48.25,
     'EGIE3': 41.80,
     'ABEV3': 13.10,
-    'ELET3': 40.50,
+    'AXIA3': 50.00,
     'KLBN11': 21.10,
     'TAEE11': 34.20,
     'MXRF11': 10.35,
@@ -446,9 +539,8 @@ export function DashboardView() {
   //   1) Yahoo Finance API — preço real de fechamento para a data solicitada (cache pré-carregado)
   //   2) Planilha do usuário — coluna de preço inicial identificada automaticamente
   //   3) Tabela estática local — preços reais de 02/01/2026 (fallback offline)
-  //   4) Estimativa — 90% do preço atual (último recurso)
   const emulateGoogleFinanceClose = (ticker: string, referenceDate: string = referenceDateBR): number => {
-    const cleanTicker = (ticker || '').trim().toUpperCase();
+    const cleanTicker = normalizeTicker((ticker || '').trim().toUpperCase());
 
     // Converte a data do formato Google Sheets (DD/MM/YYYY) para ISO (YYYY-MM-DD)
     const isoDate = toISODate(referenceDate);
@@ -458,6 +550,12 @@ export function DashboardView() {
     if (isoDate === referenceDateISO) {
       const yahooPrice = yahooPrices[cleanTicker];
       if (yahooPrice && yahooPrice > 0) return yahooPrice;
+      // Tenta o alias original também (caso o Yahoo tenha o ticker antigo)
+      const rawTicker = (ticker || '').trim().toUpperCase();
+      if (rawTicker !== cleanTicker) {
+        const yahooPriceRaw = yahooPrices[rawTicker];
+        if (yahooPriceRaw && yahooPriceRaw > 0) return yahooPriceRaw;
+      }
     }
 
     // 2ª prioridade: preço inicial da planilha do usuário
@@ -468,12 +566,16 @@ export function DashboardView() {
     if (isoDate === referenceDateISO) {
       const staticPrice = PRECOS_REAIS_02_01_2026[cleanTicker];
       if (staticPrice && staticPrice > 0) return staticPrice;
+      // Tenta o alias original na tabela estática
+      const rawTicker = (ticker || '').trim().toUpperCase();
+      if (rawTicker !== cleanTicker) {
+        const staticPriceRaw = PRECOS_REAIS_02_01_2026[rawTicker];
+        if (staticPriceRaw && staticPriceRaw > 0) return staticPriceRaw;
+      }
     }
 
-    // Último recurso: estimativa de 90% do preço atual
-    const asset = walletAssets.find(a => (a.ticker || '').trim().toUpperCase() === cleanTicker) ||
-                  ALL_BEST_30_ASSETS.find(a => (a.ticker || '').trim().toUpperCase() === cleanTicker);
-    return asset ? asset.price * 0.9 : 0;
+    // Sem preço disponível de nenhuma fonte
+    return 0;
   };
 
   // Tenta recuperar o preço atual da planilha carregada pelo usuário
@@ -605,7 +707,7 @@ export function DashboardView() {
         const seed = getSeed(cleanTicker);
         
         // Mesma fórmula usada nas colunas Preço Inicial e Preço Atual:
-        // - Preço Inicial = emulateGoogleFinanceClose (Yahoo Finance → Sheet → Tabela estática → 90% asset.price)
+        // - Preço Inicial = emulateGoogleFinanceClose (Yahoo Finance → Sheet → Tabela estática)
         // - Preço Atual = currentPrices da API (sem fallback)
         const startPrice = emulateGoogleFinanceClose(asset.ticker, referenceDateBR);
         const endPrice = emulateCurrentPrice(asset.ticker);
@@ -647,7 +749,7 @@ export function DashboardView() {
     const asset = walletAssets.find(a => (a.ticker || '').trim().toUpperCase() === cleanTicker) || 
                   ALL_BEST_30_ASSETS.find(a => (a.ticker || '').trim().toUpperCase() === cleanTicker);
     if (!asset) return rawPrice;
-    return asset.currency === 'USD' ? rawPrice * USD_BRL_RATE : rawPrice;
+    return asset.currency === 'USD' ? rawPrice * usdBrlRate : rawPrice;
   };
 
   // Last data point for real-price lookups (must be before any usage)
@@ -832,7 +934,7 @@ export function DashboardView() {
     const initialPrice = emulateGoogleFinanceClose(asset.ticker, referenceDateBR);
     const currentPrice = emulateCurrentPrice(asset.ticker);
     const allocated = investmentBudget * (w / 100);
-    if (currentPrice !== null) {
+    if (currentPrice !== null && initialPrice > 0) {
       const assetAppreciation = (currentPrice - initialPrice) / initialPrice;
       currentTotalValuation += allocated * (1 + assetAppreciation);
     } else {
@@ -901,21 +1003,18 @@ export function DashboardView() {
             <Coins className="w-5 h-5 text-amber-400" />
             <h2 className="text-base sm:text-lg font-bold text-white uppercase tracking-wider">Simulador de Carteira</h2>
           </div>
-          <label className="flex items-center gap-2 bg-white/[0.06] backdrop-blur-xl border border-white/15 rounded-full px-4 py-2 shadow-lg shadow-indigo-500/5 cursor-pointer transition-all duration-300 hover:bg-white/[0.1] hover:shadow-indigo-500/10 active:scale-[0.97] select-none">
+          <div className="flex items-center gap-3">
             <span className="text-sm font-bold text-white/80">Data Início:</span>
-            <input
-              type="date"
+            <CalendarPicker
               value={referenceDateISO}
-              onChange={(e) => {
-                const iso = e.target.value;
+              onChange={(_, iso) => {
                 const parts = iso.split('-');
                 if (parts.length === 3) {
                   setReferenceDateBR(`${parts[2]}/${parts[1]}/${parts[0]}`);
                 }
               }}
-              className="bg-transparent border border-white/20 rounded-full px-3 py-1 text-sm text-white font-semibold font-mono cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-400/50 w-auto [color-scheme:dark]"
             />
-          </label>
+          </div>
         </div>
 
         {/* Metrics Row */}
@@ -1755,22 +1854,17 @@ export function DashboardView() {
             <Info className="w-5 h-5 text-indigo-400" />
             Variação e Desempenho por Ativo
           </h3>
-          <div className="flex items-center">
-            <label className="flex items-center gap-2 bg-white/[0.06] backdrop-blur-xl border border-white/15 rounded-full px-3.5 py-1.5 shadow-lg shadow-indigo-500/5 cursor-pointer transition-all duration-300 hover:bg-white/[0.1] hover:shadow-indigo-500/10 active:scale-[0.97] select-none text-xs sm:text-sm">
-              <span className="font-bold text-white/80">Data Inicial:</span>
-              <input
-                type="date"
-                value={referenceDateISO}
-                onChange={(e) => {
-                  const iso = e.target.value;
-                  const parts = iso.split('-');
-                  if (parts.length === 3) {
-                    setReferenceDateBR(`${parts[2]}/${parts[1]}/${parts[0]}`);
-                  }
-                }}
-                className="bg-transparent border border-white/20 rounded-full px-2 py-0.5 text-xs text-white font-semibold font-mono cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-400/50 w-auto [color-scheme:dark]"
-              />
-            </label>
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-white/80 text-xs sm:text-sm">Data Inicial:</span>
+            <CalendarPicker
+              value={referenceDateISO}
+              onChange={(_, iso) => {
+                const parts = iso.split('-');
+                if (parts.length === 3) {
+                  setReferenceDateBR(`${parts[2]}/${parts[1]}/${parts[0]}`);
+                }
+              }}
+            />
           </div>
         </div>
 
@@ -1790,12 +1884,20 @@ export function DashboardView() {
                   </span>
                 </th>
                 <th className="pb-3 text-right">Variação</th>
+                <th className="pb-3 text-right">
+                  <span 
+                    className="cursor-help hover:text-indigo-400 transition-colors border-b border-dashed border-slate-500/50 pb-0.5"
+                    title="Valor (preço inicial) convertido para Dólar Americano (USD)"
+                  >
+                    Preço (USD)
+                  </span>
+                </th>
                 <th className="pb-3 text-right pr-2">
                   <span 
                     className="cursor-help hover:text-indigo-400 transition-colors border-b border-dashed border-slate-500/50 pb-0.5"
                     title={`Calculado dinamicamente usando a fórmula: =INDEX(GOOGLEFINANCE(Ticker; "close"; "${referenceDateBR}"); 2; 2)`}
                   >
-                    Valor
+                    Valor (R$)
                   </span>
                 </th>
               </tr>
@@ -1806,7 +1908,7 @@ export function DashboardView() {
                 const initialPrice = emulateGoogleFinanceClose(asset.ticker, referenceDateBR);
                 // Equivale a: =GOOGLEFINANCE(Ticker)
                 const currentPrice = emulateCurrentPrice(asset.ticker);
-                const assetAppreciation = currentPrice !== null ? ((currentPrice - initialPrice) / initialPrice) * 100 : null;
+                const assetAppreciation = currentPrice !== null && initialPrice > 0 ? ((currentPrice - initialPrice) / initialPrice) * 100 : null;
                 const weight = walletWeights[asset.ticker] || 0;
 
                 return (
@@ -1852,15 +1954,35 @@ export function DashboardView() {
                         <span className="text-slate-600 font-mono text-xs">—</span>
                       )}
                     </td>
+                    <td className="py-3.5 text-right font-mono text-xs text-slate-300">
+                      {asset.currency === 'USD' ? (
+                        <div title={`Valor em USD: US$ ${initialPrice.toFixed(2)}`}>
+                          {isLoadingPrices && !yahooPrices[asset.ticker] ? (
+                            <span className="text-slate-500 animate-pulse">carregando...</span>
+                          ) : initialPrice > 0 ? (
+                            <>US$ {initialPrice.toFixed(2)}</>
+                          ) : (
+                            <span className="text-slate-600">—</span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-slate-600">—</span>
+                      )}
+                    </td>
                     <td className="py-3.5 text-right font-mono text-xs pr-2">
                       <div 
                         className="text-slate-200 cursor-help hover:text-indigo-400 transition-colors"
-                        title={`=INDEX(GOOGLEFINANCE("${asset.ticker}"; "close"; "${referenceDateBR}"); 2; 2)`}
+                        title={`Valor em R$: ${asset.currency === 'USD' ? `US$ ${initialPrice.toFixed(2)} × ${usdBrlRate.toFixed(2)}` : `R$ ${initialPrice.toFixed(2)}`}`}
                       >
                         {isLoadingPrices && !yahooPrices[asset.ticker] ? (
                           <span className="text-slate-500 animate-pulse">carregando...</span>
+                        ) : initialPrice > 0 ? (
+                          <>R$ {asset.currency === 'USD' && usdBrlRate > 0
+                            ? (initialPrice * usdBrlRate).toFixed(2)
+                            : initialPrice.toFixed(2)}
+                          </>
                         ) : (
-                          <>{asset.currency === 'USD' ? 'US$' : 'R$'} {initialPrice.toFixed(2)}</>
+                          <span className="text-slate-600">—</span>
                         )}
                       </div>
                     </td>
@@ -1880,6 +2002,7 @@ export function DashboardView() {
                     {weightedAvgVariation >= 0 ? '+' : ''}{weightedAvgVariation.toFixed(1)}%
                   </span>
                 </td>
+                <td></td>
                 <td className="pr-2"></td>
               </tr>
             </tfoot>

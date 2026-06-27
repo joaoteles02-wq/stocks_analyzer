@@ -38,7 +38,7 @@ export const ALL_BEST_30_ASSETS: Asset[] = [
   { ticker: 'WEGE3', name: 'Weg S.A.', type: 'stocks', price: 42.60, currency: 'BRL', yield: 0.018, sector: 'Bens de Capital', description: 'Gigante multinacional de fabricação de motores elétricos, geradores e automação industrial.' },
   { ticker: 'EGIE3', name: 'Engie Brasil Energia S.A.', type: 'stocks', price: 44.15, currency: 'BRL', yield: 0.076, sector: 'Utilidade Pública', description: 'Maior geradora privada de energia 100% limpa do país, referência sob critérios ESG.' },
   { ticker: 'ABEV3', name: 'Ambev S.A.', type: 'stocks', price: 12.80, currency: 'BRL', yield: 0.055, sector: 'Consumo Não-Cíclico', description: 'Líder absoluta do mercado de bebidas latinas com fortíssima geração de caixa operacional.' },
-  { ticker: 'ELET3', name: 'Eletrobras S.A.', type: 'stocks', price: 39.50, currency: 'BRL', yield: 0.035, sector: 'Utilidade Pública', description: 'Potência privatizada de geração e transmissão de energia térmica e hidroelétrica nacional.' },
+  { ticker: 'AXIA3', name: 'Eletrobras S.A.', type: 'stocks', price: 39.50, currency: 'BRL', yield: 0.035, sector: 'Utilidade Pública', description: 'Potência privatizada de geração e transmissão de energia térmica e hidroelétrica nacional.' },
   { ticker: 'KLBN11', name: 'Klabin S.A.', type: 'stocks', price: 21.30, currency: 'BRL', yield: 0.065, sector: 'Materiais Básicos', description: 'Maior produtora e exportadora de papéis para embalagens e celulose de alta eficiência.' },
   { ticker: 'TAEE11', name: 'Taesa S.A.', type: 'stocks', price: 35.80, currency: 'BRL', yield: 0.095, sector: 'Utilidade Pública', description: 'Referência em transmissão de energia elétrica com contratos longos de receita previsível.' },
 
@@ -75,7 +75,7 @@ const DEFAULT_WALLET_SLOTS: { assetTicker: string; weight: number }[] = [
   { assetTicker: 'AAPL', weight: 10 },
   { assetTicker: 'PETR4', weight: 10 },
   { assetTicker: 'LLY', weight: 5 },
-  { assetTicker: 'ELET3', weight: 5 },
+  { assetTicker: 'AXIA3', weight: 5 },
   { assetTicker: 'VALE3', weight: 5 },
   { assetTicker: 'ITUB4', weight: 5 },
   { assetTicker: 'BTLG11', weight: 5 },
@@ -323,17 +323,21 @@ export function WalletView() {
             const h = headerRow[i];
             const isCurrent = h.includes('atual') || h.includes('hoje') || h.includes('agora') || h.includes('realtime') || h.includes('venda') || h.includes('cotação') || h.includes('cotacao') || h.includes('mercado');
             const isInitial = h.includes('02/01/2026') || h.includes('inicial') || h.includes('custo') || h.includes('compra') || h.includes('medio') || h.includes('médio') || h.includes('pago') || h.includes('aquisição') || h.includes('aquisicao') || h.includes('yoc') || h.includes('cost');
-            const isYield = h.includes('yield') || h.includes('dy') || h.includes('dividendo');
             
             if (isCurrent && !isInitial) {
               currentPriceColIndex = i;
             } else if (isInitial && !isCurrent) {
               initialPriceColIndex = i;
             }
-            if (isYield) {
-              yieldColIndex = i;
-            }
           }
+
+          // Coluna de Dividend Yield específica por tipo de ativo
+          if (assetBase.type === 'stocks') {
+            yieldColIndex = headerRow.findIndex(h => h.includes('div. yield') || h.includes('div yield') || h === 'dividend yield');
+          } else if (assetBase.type === 'fii') {
+            yieldColIndex = headerRow.findIndex(h => h.includes('dy (ano)') || h.includes('dy ano') || h === 'dy');
+          }
+          // Sem fallback genérico — se não achou a coluna específica, mantém o yield padrão do ativo
           
           // Get name
           let matchedName = assetBase.name;

@@ -157,13 +157,15 @@ Mantenha uma linguagem muito profissional, direta e sofisticada. Não use tabela
       }
 
       const data = await response.json();
-      const price = data?.results?.[0]?.regularMarketPrice ?? null;
+      const quote = data?.results?.[0] ?? null;
+      const price = quote?.regularMarketPrice ?? null;
+      const dividendYield = quote?.dividendYield ?? null;
 
       if (price === null) {
         return res.status(404).json({ error: "Price not available from Brapi" });
       }
 
-      res.json({ price, ticker: cleanTicker });
+      res.json({ price, dividendYield, ticker: cleanTicker });
     } catch (error: any) {
       if (error.name === 'AbortError') {
         return res.status(504).json({ error: "Brapi API timeout" });
@@ -191,6 +193,23 @@ Mantenha uma linguagem muito profissional, direta e sofisticada. Não use tabela
     } catch (error: any) {
       console.error("Current Price Error:", error);
       res.status(500).json({ error: error.message || "Failed to fetch current price" });
+    }
+  });
+
+  // Retorna o Dividend Yield via Yahoo Finance (campo dividendYield da quote)
+  app.get("/api/dividend-yield", async (req, res) => {
+    const { ticker } = req.query;
+    if (!ticker) {
+      return res.status(400).json({ error: "Missing ticker" });
+    }
+
+    try {
+      const quote = await yahooFinance.quote(ticker as string);
+      const dividendYield = quote.dividendYield ?? null;
+      res.json({ dividendYield, ticker });
+    } catch (error: any) {
+      console.error("Dividend Yield Error:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch dividend yield" });
     }
   });
 
