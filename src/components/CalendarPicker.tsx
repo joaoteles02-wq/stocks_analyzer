@@ -52,24 +52,7 @@ export function CalendarPicker({ value, onChange }: CalendarPickerProps) {
           padding: '10px 12px',
         }}
       >
-        <div className="flex items-center justify-between w-full mb-0.5">
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); changeDay(-1); }}
-            className="text-white/50 hover:text-white transition-colors text-xs leading-none px-1"
-          >
-            ◀
-          </button>
-          <span className="text-white/80 text-[10px] font-bold uppercase tracking-wider px-1">{monthName}</span>
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); changeDay(1); }}
-            className="text-white/50 hover:text-white transition-colors text-xs leading-none px-1"
-          >
-            ▶
-          </button>
-        </div>
-
+        <span className="text-white/60 text-[10px] font-bold uppercase tracking-wider mb-0.5">{monthName}</span>
         <span className="text-white/45 text-[9px] font-medium leading-none">{dayName}</span>
         <span className="text-white text-3xl font-black my-0.5 leading-tight">{dayNum}</span>
         <span className="text-white/45 text-[9px] font-medium leading-none">{year}</span>
