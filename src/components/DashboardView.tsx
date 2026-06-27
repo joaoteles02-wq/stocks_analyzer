@@ -1913,21 +1913,12 @@ export function DashboardView() {
                     Preço Atual
                   </span>
                 </th>
-                <th className="pb-3 text-right">Variação</th>
-                <th className="pb-3 text-right">
-                  <span 
-                    className="cursor-help hover:text-indigo-400 transition-colors border-b border-dashed border-slate-500/50 pb-0.5"
-                    title="Valor (preço inicial) convertido para Dólar Americano (USD)"
-                  >
-                    Preço (USD)
-                  </span>
-                </th>
                 <th className="pb-3 text-right pr-2">
                   <span 
                     className="cursor-help hover:text-indigo-400 transition-colors border-b border-dashed border-slate-500/50 pb-0.5"
-                    title={`Calculado dinamicamente usando a fórmula: =INDEX(GOOGLEFINANCE(Ticker; "close"; "${referenceDateBR}"); 2; 2)`}
+                    title={`Valor inicial calculado via =INDEX(GOOGLEFINANCE(Ticker; "close"; "${referenceDateBR}"); 2; 2) e variação percentual em relação ao Preço Atual`}
                   >
-                    Valor (R$)
+                    Preço Inicial / Variação
                   </span>
                 </th>
               </tr>
@@ -1965,7 +1956,7 @@ export function DashboardView() {
                         {asset.type === 'stocks' ? 'Ação BR' : asset.type === 'fii' ? 'FII' : 'S&P 500'}
                       </span>
                     </td>
-                    <td className="py-3.5 text-center font-bold text-slate-300 font-mono">{weight}%</td>
+                    <td className="py-3.5 text-center font-bold text-slate-300 font-mono">{weight.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%</td>
                     <td className="py-3.5 text-right font-mono font-bold text-white text-xs">
                       <div 
                         className="text-white cursor-help hover:text-indigo-400 transition-colors"
@@ -1974,30 +1965,26 @@ export function DashboardView() {
                         {isLoadingCurrentPrices && currentPrice === null ? (
                           <span className="text-slate-500 animate-pulse">carregando...</span>
                         ) : currentPrice !== null ? (
-                          <>{asset.currency === 'USD' ? 'US$' : 'R$'} {currentPrice.toFixed(2)}</>
+                          <>{asset.currency === 'USD' ? 'US$' : 'R$'} {currentPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</>
                         ) : (
                           <span className="text-slate-600">—</span>
                         )}
                       </div>
                     </td>
-                    <td className="py-3.5 text-right">
-                      {assetAppreciation !== null ? (
-                       <span className={`font-bold font-mono text-xs inline-flex items-center gap-0.5 ${
-                        assetAppreciation >= 0 ? 'text-emerald-400' : 'text-rose-400'
-                      }`}>
-                        {assetAppreciation >= 0 ? '+' : ''}{assetAppreciation.toFixed(1)}%
-                      </span>
-                      ) : (
-                        <span className="text-slate-600 font-mono text-xs">—</span>
-                      )}
-                    </td>
-                    <td className="py-3.5 text-right font-mono text-xs text-slate-300">
-                      {asset.currency === 'USD' ? (
-                        <div title={`Valor em USD: US$ ${initialPrice.toFixed(2)}`}>
-                          {isLoadingPrices && !yahooPrices[asset.ticker] ? (
-                            <span className="text-slate-500 animate-pulse">carregando...</span>
-                          ) : initialPrice > 0 ? (
-                            <>US$ {initialPrice.toFixed(2)}</>
+                    <td className="py-3.5 text-right font-mono text-xs pr-2">
+                      {isLoadingPrices && !yahooPrices[asset.ticker] ? (
+                        <span className="text-slate-500 animate-pulse">carregando...</span>
+                      ) : initialPrice > 0 ? (
+                        <div className="flex flex-col items-end gap-0.5">
+                          <span className="text-slate-200">
+                            {asset.currency === 'USD' ? 'US$' : 'R$'} {initialPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                          {assetAppreciation !== null ? (
+                            <span className={`font-bold inline-flex items-center gap-0.5 ${
+                              assetAppreciation >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                            }`}>
+                              {assetAppreciation >= 0 ? '+' : ''}{assetAppreciation.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
+                            </span>
                           ) : (
                             <span className="text-slate-600">—</span>
                           )}
@@ -2006,23 +1993,6 @@ export function DashboardView() {
                         <span className="text-slate-600">—</span>
                       )}
                     </td>
-                    <td className="py-3.5 text-right font-mono text-xs pr-2">
-                      <div 
-                        className="text-slate-200 cursor-help hover:text-indigo-400 transition-colors"
-                        title={`Valor em R$: ${asset.currency === 'USD' ? `US$ ${initialPrice.toFixed(2)} × ${usdBrlRate.toFixed(2)}` : `R$ ${initialPrice.toFixed(2)}`}`}
-                      >
-                        {isLoadingPrices && !yahooPrices[asset.ticker] ? (
-                          <span className="text-slate-500 animate-pulse">carregando...</span>
-                        ) : initialPrice > 0 ? (
-                          <>R$ {asset.currency === 'USD' && usdBrlRate > 0
-                            ? (initialPrice * usdBrlRate).toFixed(2)
-                            : initialPrice.toFixed(2)}
-                          </>
-                        ) : (
-                          <span className="text-slate-600">—</span>
-                        )}
-                      </div>
-                    </td>
                   </tr>
                 );
               })}
@@ -2030,17 +2000,15 @@ export function DashboardView() {
             <tfoot>
               <tr className="border-t border-white/10 bg-white/[0.03]">
                 <td colSpan={2} className="py-3.5 pl-2 text-sm text-slate-300 font-bold uppercase tracking-wider">Média Ponderada</td>
-                <td className="py-3.5 text-center text-white font-bold font-mono text-sm">{weightedVariationData.totalWeight.toFixed(0)}%</td>
+                <td className="py-3.5 text-center text-white font-bold font-mono text-sm">{weightedVariationData.totalWeight.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%</td>
                 <td></td>
-                <td className="py-3.5 text-right">
+                <td className="py-3.5 text-right pr-2">
                   <span className={`font-bold font-mono text-sm inline-flex items-center gap-0.5 ${
                     weightedAvgVariation >= 0 ? 'text-emerald-400' : 'text-rose-400'
                   }`}>
-                    {weightedAvgVariation >= 0 ? '+' : ''}{weightedAvgVariation.toFixed(1)}%
+                    {weightedAvgVariation >= 0 ? '+' : ''}{weightedAvgVariation.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
                   </span>
                 </td>
-                <td></td>
-                <td className="pr-2"></td>
               </tr>
             </tfoot>
           </table>
