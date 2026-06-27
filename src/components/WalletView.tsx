@@ -958,63 +958,65 @@ export function WalletView() {
             <button
               type="button"
               onClick={() => {
-                setIsReloadModalOpen(true);
+                setConfirmModal({
+                  title: "Estratégia Ativa",
+                  message: (() => {
+                    if (activeStrategy === 'renda') return "Estratégia Renda & Dividendos (Renda Passiva) — 60% FIIs, 30% Ações BR, 10% S&P 500. Deseja reaplicar esta estratégia?";
+                    if (activeStrategy === 'crescimento') return "Estratégia Crescimento Global (Alto Upside) — 60% S&P 500, 30% Ações BR, 10% FIIs. Deseja reaplicar esta estratégia?";
+                    return "Estratégia Equilíbrio Global (Moderada) — 40% FIIs, 30% Ações BR, 30% S&P 500. Deseja reaplicar esta estratégia?";
+                  })(),
+                  onConfirm: () => applyStrategyReload(activeStrategy)
+                });
               }}
               className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold text-xs uppercase tracking-wider rounded-xl transition duration-300 active:scale-95 shadow-lg shadow-amber-500/20 cursor-pointer border border-amber-300/30 font-sans"
             >
               Estratégia Selecionada
             </button>
 
-            {/* Selector dropdown/list if they want to choose a specific category */}
+            {/* Strategy quick-select buttons */}
             <div className="flex gap-1.5 flex-wrap justify-center">
-              {hasStocksAnalysis && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setConfirmModal({
-                      title: "Confirmar Top 10 Ações BR",
-                      message: "Deseja substituir sua carteira atual pelas 10 melhores Ações Brasileiras recomendadas pelo relatório de inteligência artificial?",
-                      onConfirm: () => applyTop10('stocks')
-                    });
-                  }}
-                  className="px-3 py-2 bg-white/5 hover:bg-white/10 hover:border-amber-500/30 border border-white/10 rounded-lg text-[10px] font-bold text-slate-300 hover:text-white transition cursor-pointer"
-                  title="Aplicar Ações BR"
-                >
-                  Moderada
-                </button>
-              )}
-              {hasFiiAnalysis && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setConfirmModal({
-                      title: "Confirmar Top 10 FIIs BR",
-                      message: "Deseja substituir sua carteira atual pelos 10 melhores Fundos Imobiliários recomendados pelo relatório de inteligência artificial?",
-                      onConfirm: () => applyTop10('fii')
-                    });
-                  }}
-                  className="px-3 py-2 bg-white/5 hover:bg-white/10 hover:border-amber-500/30 border border-white/10 rounded-lg text-[10px] font-bold text-slate-300 hover:text-white transition cursor-pointer"
-                  title="Aplicar FIIs BR"
-                >
-                  Renda Passiva
-                </button>
-              )}
-              {hasSp500Analysis && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setConfirmModal({
-                      title: "Confirmar Top 10 S&P 500",
-                      message: "Deseja substituir sua carteira atual pelos 10 melhores ativos americanos do S&P 500 recomendados pelo relatório de inteligência artificial?",
-                      onConfirm: () => applyTop10('sp500')
-                    });
-                  }}
-                  className="px-3 py-2 bg-white/5 hover:bg-white/10 hover:border-amber-500/30 border border-white/10 rounded-lg text-[10px] font-bold text-slate-300 hover:text-white transition cursor-pointer"
-                  title="Aplicar S&P 500"
-                >
-                  Alto Upside
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirmModal({
+                    title: "Estratégia Equilíbrio Global",
+                    message: "Deseja aplicar a estratégia Moderada (Equilíbrio Global)? Sua carteira será reestruturada com: 40% FIIs, 30% Ações BR, 30% S&P 500 (4 FIIs + 3 Ações + 3 S&P 500).",
+                    onConfirm: () => applyStrategyReload('equilibrada')
+                  });
+                }}
+                className="px-3 py-2 bg-white/5 hover:bg-white/10 hover:border-amber-500/30 border border-white/10 rounded-lg text-[10px] font-bold text-slate-300 hover:text-white transition cursor-pointer"
+                title="Equilíbrio Global — 40% FIIs, 30% Ações BR, 30% S&P 500"
+              >
+                Moderada
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirmModal({
+                    title: "Estratégia Renda & Dividendos",
+                    message: "Deseja aplicar a estratégia Renda Passiva (Renda & Dividendos)? Sua carteira será reestruturada com: 60% FIIs, 30% Ações BR, 10% S&P 500 (5 FIIs + 3 Ações + 2 S&P 500).",
+                    onConfirm: () => applyStrategyReload('renda')
+                  });
+                }}
+                className="px-3 py-2 bg-white/5 hover:bg-white/10 hover:border-amber-500/30 border border-white/10 rounded-lg text-[10px] font-bold text-slate-300 hover:text-white transition cursor-pointer"
+                title="Renda & Dividendos — 60% FIIs, 30% Ações BR, 10% S&P 500"
+              >
+                Renda Passiva
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirmModal({
+                    title: "Estratégia Crescimento Global",
+                    message: "Deseja aplicar a estratégia Alto Upside (Crescimento Global)? Sua carteira será reestruturada com: 60% S&P 500, 30% Ações BR, 10% FIIs (5 S&P 500 + 3 Ações + 2 FIIs).",
+                    onConfirm: () => applyStrategyReload('crescimento')
+                  });
+                }}
+                className="px-3 py-2 bg-white/5 hover:bg-white/10 hover:border-amber-500/30 border border-white/10 rounded-lg text-[10px] font-bold text-slate-300 hover:text-white transition cursor-pointer"
+                title="Crescimento Global — 60% S&P 500, 30% Ações BR, 10% FIIs"
+              >
+                Alto Upside
+              </button>
             </div>
           </div>
         </div>
@@ -1045,7 +1047,7 @@ export function WalletView() {
                   ? { title: 'Renda & Dividendos', badge: 'Renda Passiva', color: 'border-amber-500/20 bg-amber-500/10 text-amber-400' }
                   : activeStrategy === 'crescimento'
                     ? { title: 'Crescimento Global', badge: 'Alto Upside', color: 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400' }
-                    : { title: 'Equilíbrio Global', badge: 'Moderado', color: 'border-blue-500/20 bg-blue-500/10 text-blue-400' };
+                    : { title: 'Equilíbrio Global', badge: 'Moderada', color: 'border-blue-500/20 bg-blue-500/10 text-blue-400' };
                 
                 return (
                   <div className="flex items-center gap-2 flex-wrap text-left">
