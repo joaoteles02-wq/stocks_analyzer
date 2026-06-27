@@ -314,6 +314,7 @@ export function WalletView() {
         if (matchedRow) {
           // Identify headers
           const headerRow = localRows[0].map(cell => String(cell).trim().toLowerCase());
+          console.log('[Yield Debug] Header row:', headerRow);
           
           let currentPriceColIndex = -1;
           let initialPriceColIndex = -1;
@@ -337,6 +338,7 @@ export function WalletView() {
           } else if (assetBase.type === 'fii') {
             yieldColIndex = headerRow.findIndex(h => h.includes('dy (ano)') || h.includes('dy ano') || h === 'dy');
           }
+          console.log(`[Yield Debug] Ticker: ${ticker}, Type: ${assetBase.type}, yieldColIndex: ${yieldColIndex}, matchedRow[${yieldColIndex}]:`, yieldColIndex !== -1 ? matchedRow[yieldColIndex] : 'N/A');
           // Sem fallback genérico — se não achou a coluna específica, mantém o yield padrão do ativo
           
           // Get name
@@ -387,6 +389,7 @@ export function WalletView() {
           if (yieldColIndex !== -1 && matchedRow[yieldColIndex] !== undefined) {
             const cleanVal = String(matchedRow[yieldColIndex]).replace('%', '').replace(',', '.').trim();
             const num = Number(cleanVal);
+            console.log(`[Yield Debug] ${ticker}: column found at ${yieldColIndex}, raw="${matchedRow[yieldColIndex]}", clean="${cleanVal}", num=${num}`);
             if (!isNaN(num)) {
               matchedYield = num > 1 ? num / 100 : num;
             }
@@ -397,6 +400,7 @@ export function WalletView() {
               matchedYield = num > 1 ? num / 100 : num;
             }
           }
+          console.log(`[Yield Debug] ${ticker}: final yield=${matchedYield} (was ${assetBase.yield})`);
           assetBase.yield = matchedYield;
 
           // Get Sector

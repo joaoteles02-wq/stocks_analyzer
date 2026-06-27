@@ -142,8 +142,10 @@ export function DashboardView() {
       if (!Array.isArray(localRows) || localRows.length < 2) return;
 
       const headerRow = localRows[0].map((c: any) => String(c).trim().toLowerCase());
+      console.log('[Dashboard Yield] Header row:', headerRow);
       const stockYieldIdx = headerRow.findIndex((h: string) => h.includes('div. yield') || h.includes('div yield') || h === 'dividend yield');
       const fiiYieldIdx = headerRow.findIndex((h: string) => h.includes('dy (ano)') || h.includes('dy ano') || h === 'dy');
+      console.log('[Dashboard Yield] stockYieldIdx:', stockYieldIdx, 'fiiYieldIdx:', fiiYieldIdx);
 
       let updated = false;
       const newAssets = walletAssets.map(asset => {
@@ -153,16 +155,26 @@ export function DashboardView() {
             return s === asset.ticker || s === `${asset.ticker}.SA` || s.replace('.SA', '') === asset.ticker;
           })
         );
-        if (!row) return asset;
+        if (!row) {
+          console.log(`[Dashboard Yield] Row not found for ${asset.ticker}`);
+          return asset;
+        }
 
         const idx = asset.type === 'stocks' ? stockYieldIdx : asset.type === 'fii' ? fiiYieldIdx : -1;
-        if (idx === -1 || row[idx] === undefined) return asset;
+        if (idx === -1 || row[idx] === undefined) {
+          console.log(`[Dashboard Yield] No column for ${asset.ticker} (idx=${idx}, row[${idx}]=${row[idx]})`);
+          return asset;
+        }
 
         const cleanVal = String(row[idx]).replace('%', '').replace(',', '.').trim();
         const num = Number(cleanVal);
-        if (isNaN(num) || num <= 0) return asset;
+        if (isNaN(num) || num <= 0) {
+          console.log(`[Dashboard Yield] Invalid num for ${asset.ticker}: "${cleanVal}" -> ${num}`);
+          return asset;
+        }
 
         const newYield = num > 1 ? num / 100 : num;
+        console.log(`[Dashboard Yield] ${asset.ticker}: old=${asset.yield}, new=${newYield}, raw="${row[idx]}"`);
         if (Math.abs(newYield - asset.yield) > 0.0001) {
           updated = true;
           return { ...asset, yield: newYield, description: 'Dividend Yield atualizado da planilha.' };
