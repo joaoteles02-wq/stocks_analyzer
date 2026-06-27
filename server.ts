@@ -185,14 +185,20 @@ Mantenha uma linguagem muito profissional, direta e sofisticada. Não use tabela
 
     try {
       const quote = await yahooFinance.quote(ticker as string);
-      const price = quote.regularMarketPrice ?? quote.previousClose ?? null;
+      const price = quote?.regularMarketPrice ?? quote?.previousClose ?? null;
       if (price === null) {
         return res.status(404).json({ error: "Price not available" });
       }
       res.json({ price });
     } catch (error: any) {
-      console.error("Current Price Error:", error);
-      res.status(500).json({ error: error.message || "Failed to fetch current price" });
+      if (error?.result?.[0]) {
+        const price = error.result[0].regularMarketPrice ?? error.result[0].previousClose ?? null;
+        if (price !== null) {
+          return res.json({ price });
+        }
+      }
+      console.error("Current Price Error:", error.message);
+      res.status(404).json({ error: "Price not available" });
     }
   });
 
@@ -205,11 +211,15 @@ Mantenha uma linguagem muito profissional, direta e sofisticada. Não use tabela
 
     try {
       const quote = await yahooFinance.quote(ticker as string);
-      const dividendYield = quote.dividendYield ?? null;
+      const dividendYield = quote?.dividendYield ?? null;
       res.json({ dividendYield, ticker });
     } catch (error: any) {
-      console.error("Dividend Yield Error:", error);
-      res.status(500).json({ error: error.message || "Failed to fetch dividend yield" });
+      if (error?.result?.[0]) {
+        const dy = error.result[0].dividendYield ?? null;
+        return res.json({ dividendYield: dy, ticker });
+      }
+      console.error("Dividend Yield Error:", error.message);
+      res.json({ dividendYield: null, ticker });
     }
   });
 
@@ -222,10 +232,6 @@ Mantenha uma linguagem muito profissional, direta e sofisticada. Não use tabela
     }
 
     try {
-      // Yahoo Finance requires a date range (period1 < period2).
-      // We search from the target date up to 7 days later to capture
-      // the closing price of the target day or the next available trading day.
-      const startDate = new Date(date as string);
       const endDate = new Date(date as string);
       endDate.setDate(endDate.getDate() + 7);
 
@@ -240,11 +246,10 @@ Mantenha uma linguagem muito profissional, direta e sofisticada. Não use tabela
         return res.status(404).json({ error: "Price not found" });
       }
 
-      // Return the first available closing price (closest to the requested date)
       res.json({ price: result[0].close });
     } catch (error: any) {
-      console.error("Historical Price Error:", error);
-      res.status(500).json({ error: error.message || "Failed to fetch price" });
+      console.error("Historical Price Error:", error.message);
+      res.status(404).json({ error: "Price not available" });
     }
   });
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { getHistoricalPrice, fetchFinancialMarketInfo, fetchDividendYield } from '../lib/yahoo';
+import { getHistoricalPrice, fetchFinancialMarketInfo, fetchDividendYield, getCurrentPrice } from '../lib/yahoo';
 import { pushWalletConfig } from '../lib/sync';
 import { 
   ALL_BEST_30_ASSETS, 
@@ -232,7 +232,8 @@ export function DashboardView() {
       const assets = walletAssets.length > 0 ? walletAssets : ALL_BEST_30_ASSETS;
       const results = await Promise.allSettled(
         assets.map(async (asset) => {
-          const tickerToFetch = (asset.type === 'stocks' || asset.type === 'fii') ? `${asset.ticker}.SA` : asset.ticker;
+          const normalized = normalizeTicker(asset.ticker);
+          const tickerToFetch = (asset.type === 'stocks' || asset.type === 'fii') ? `${normalized}.SA` : normalized;
           const p = await getHistoricalPrice(tickerToFetch, referenceDateISO);
           return { ticker: asset.ticker, price: p };
         })
@@ -255,7 +256,12 @@ export function DashboardView() {
       const assets = walletAssets.length > 0 ? walletAssets : ALL_BEST_30_ASSETS;
       const results = await Promise.allSettled(
         assets.map(async (asset) => {
-          const marketInfo = await fetchFinancialMarketInfo(asset.ticker, referenceDateISO);
+          const normalized = normalizeTicker(asset.ticker);
+          if (asset.type === 'sp500') {
+            const price = await getCurrentPrice(normalized);
+            return { ticker: asset.ticker, price: price || 0 };
+          }
+          const marketInfo = await fetchFinancialMarketInfo(normalized, referenceDateISO);
           return { ticker: asset.ticker, price: marketInfo?.price || 0 };
         })
       );
@@ -274,12 +280,12 @@ export function DashboardView() {
   useEffect(() => {
     const fetchUsdRate = async () => {
       try {
-        const marketInfo = await fetchFinancialMarketInfo('USDBRL', referenceDateISO);
-        if (marketInfo?.price && marketInfo.price > 0) {
-          setUsdBrlRate(marketInfo.price);
+        const price = await getCurrentPrice('USDBRL=X');
+        if (price && price > 0) {
+          setUsdBrlRate(price);
         }
       } catch (e) {
-        console.error('Failed to fetch USD/BRL rate:', e);
+        console.error('Failed to fetch USD rate:', e);
       }
     };
     fetchUsdRate();
@@ -290,7 +296,8 @@ export function DashboardView() {
       const assets = walletAssets.length > 0 ? walletAssets : ALL_BEST_30_ASSETS;
       const results = await Promise.allSettled(
         assets.map(async (asset) => {
-          const tickerToFetch = (asset.type === 'stocks' || asset.type === 'fii') ? `${asset.ticker}.SA` : asset.ticker;
+          const normalized = normalizeTicker(asset.ticker);
+          const tickerToFetch = (asset.type === 'stocks' || asset.type === 'fii') ? `${normalized}.SA` : normalized;
           const dy = await fetchDividendYield(tickerToFetch);
           return { ticker: asset.ticker, yield: dy };
         })
