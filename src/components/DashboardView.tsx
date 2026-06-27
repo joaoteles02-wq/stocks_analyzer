@@ -34,6 +34,7 @@ const TICKER_ALIASES: Record<string, string> = {
 
 export function DashboardView() {
   const [usdBrlRate, setUsdBrlRate] = useState<number>(5.15);
+  const [expandedTicker, setExpandedTicker] = useState<string | null>(null);
 
   const normalizeTicker = (ticker: string): string => {
     const clean = (ticker || '').trim().toUpperCase();
@@ -1932,8 +1933,16 @@ export function DashboardView() {
 
                 return (
                   <tr key={`ranking-item-${asset.ticker}`} className="hover:bg-white/5 transition-colors">
-                    <td className="py-3.5 pl-2 whitespace-nowrap">
-                      <div className="font-bold text-white font-mono tracking-wide" title={asset.name}>{asset.ticker}</div>
+                    <td className="py-3.5 pl-2 w-[1%] whitespace-nowrap">
+                      <span
+                        onClick={() => setExpandedTicker(expandedTicker === asset.ticker ? null : asset.ticker)}
+                        className="font-bold text-white font-mono tracking-wide cursor-default"
+                      >
+                        {asset.ticker}
+                      </span>
+                      {expandedTicker === asset.ticker && (
+                        <span className="text-[10px] text-slate-400 block leading-tight">{asset.name}</span>
+                      )}
                     </td>
                     <td className="py-3.5 text-center">
                       <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border ${
