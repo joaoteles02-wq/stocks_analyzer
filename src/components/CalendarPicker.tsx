@@ -33,16 +33,6 @@ export function CalendarPicker({ value, onChange }: CalendarPickerProps) {
     onChange(`${parts[2]}/${parts[1]}/${parts[0]}`, iso);
   };
 
-  const handleOpenPicker = () => {
-    if (inputRef.current) {
-      if (typeof inputRef.current.showPicker === 'function') {
-        inputRef.current.showPicker();
-      } else {
-        inputRef.current.focus();
-      }
-    }
-  };
-
   return (
     <div className="relative w-full max-w-[220px]">
       <div
@@ -50,10 +40,7 @@ export function CalendarPicker({ value, onChange }: CalendarPickerProps) {
         style={{ width: 60, height: 60, borderRadius: '50%', background: 'linear-gradient(to right, #833ab4, #fd1d1d, #fcb045)', right: -10, top: -20, opacity: 0.6 }}
       />
 
-      <div
-        onClick={handleOpenPicker}
-        onTouchStart={handleOpenPicker}
-        className="flex flex-col items-center cursor-pointer select-none w-full"
+      <div className="flex flex-col items-center pointer-events-none select-none w-full"
         style={{
           background: 'rgba(255,255,255,0.08)',
           border: '1px solid rgba(255,255,255,0.1)',
@@ -74,7 +61,8 @@ export function CalendarPicker({ value, onChange }: CalendarPickerProps) {
         type="date"
         value={value}
         onChange={handleNativeChange}
-        className="hidden"
+        className="absolute inset-0 w-full h-full cursor-pointer"
+        style={{ opacity: 0.01 }}
       />
     </div>
   );
