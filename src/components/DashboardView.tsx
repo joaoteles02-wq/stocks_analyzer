@@ -998,13 +998,17 @@ export function DashboardView() {
       
       {/* Simulation Header and Cards section wrapper */}
       <div className="space-y-4">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-1">
-          <div className="flex items-center gap-2">
-            <Coins className="w-5 h-5 text-amber-400" />
-            <h2 className="text-base sm:text-lg font-bold text-white uppercase tracking-wider">Simulador de Carteira</h2>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-sm font-bold text-white/80">Data Início:</span>
+        <div className="flex items-center gap-2 pb-1">
+          <Coins className="w-5 h-5 text-amber-400" />
+          <h2 className="text-base sm:text-lg font-bold text-white uppercase tracking-wider">Simulador de Carteira</h2>
+        </div>
+
+        {/* Metrics Row */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
+          
+          {/* Data Início Card */}
+          <div className="bg-white/10 border border-white/10 rounded-2xl p-5 flex flex-col items-center justify-center shadow-lg">
+            <span className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-2">Data Início</span>
             <CalendarPicker
               value={referenceDateISO}
               onChange={(_, iso) => {
@@ -1015,11 +1019,7 @@ export function DashboardView() {
               }}
             />
           </div>
-        </div>
 
-        {/* Metrics Row */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          
           {/* Metric - Patrimônio Inicial */}
           <div className="bg-white/10 border border-white/10 rounded-2xl p-5 flex items-center justify-between shadow-lg">
             <div>

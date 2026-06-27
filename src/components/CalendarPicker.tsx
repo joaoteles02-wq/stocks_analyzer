@@ -1,7 +1,7 @@
 import { useRef } from 'react';
 
 interface CalendarPickerProps {
-  value: string; // ISO YYYY-MM-DD
+  value: string;
   onChange: (ddmmyyyy: string, iso: string) => void;
 }
 
@@ -34,46 +34,45 @@ export function CalendarPicker({ value, onChange }: CalendarPickerProps) {
   };
 
   return (
-    <div className="relative" style={{ width: 260 }}>
-      <div className="circle absolute" style={{ width: 100, height: 100, borderRadius: '50%', background: 'linear-gradient(to right, #833ab4, #fd1d1d, #fcb045)', left: 170, top: -30 }} />
+    <div className="relative w-full max-w-[220px]">
+      <div
+        className="absolute pointer-events-none"
+        style={{ width: 60, height: 60, borderRadius: '50%', background: 'linear-gradient(to right, #833ab4, #fd1d1d, #fcb045)', right: -10, top: -20, opacity: 0.6 }}
+      />
 
       <div
         onClick={() => inputRef.current?.showPicker()}
-        className="flex flex-col items-center cursor-pointer select-none"
+        className="flex flex-col items-center cursor-pointer select-none w-full"
         style={{
-          background: 'rgba(255,255,255,0.1)',
-          border: '2px solid rgba(255,255,255,0.1)',
-          boxShadow: '30px 30px 40px rgba(0,0,0,0.2)',
-          borderRadius: 60,
+          background: 'rgba(255,255,255,0.08)',
+          border: '1px solid rgba(255,255,255,0.1)',
+          boxShadow: '0 8px 20px rgba(0,0,0,0.15)',
+          borderRadius: 40,
           backdropFilter: 'blur(10px)',
-          padding: '20px 30px',
+          padding: '10px 12px',
         }}
       >
-        <div className="flex items-center justify-between w-full mb-1">
+        <div className="flex items-center justify-between w-full mb-0.5">
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); changeDay(-1); }}
-            className="text-white/60 hover:text-white transition-colors text-lg leading-none px-1"
+            className="text-white/50 hover:text-white transition-colors text-xs leading-none px-1"
           >
             ◀
           </button>
-          <span className="text-white/80 text-sm font-bold uppercase tracking-wider px-2">{monthName}</span>
+          <span className="text-white/80 text-[10px] font-bold uppercase tracking-wider px-1">{monthName}</span>
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); changeDay(1); }}
-            className="text-white/60 hover:text-white transition-colors text-lg leading-none px-1"
+            className="text-white/50 hover:text-white transition-colors text-xs leading-none px-1"
           >
             ▶
           </button>
         </div>
 
-        <span className="text-white/50 text-xs font-medium mt-1">{dayName}</span>
-        <span className="text-white text-5xl font-black my-1 leading-tight">{dayNum}</span>
-        <span className="text-white/50 text-xs font-medium">{year}</span>
-
-        <span className="text-white/30 text-[10px] mt-2 border-t border-white/10 pt-2 w-full text-center">
-          Clique para alterar
-        </span>
+        <span className="text-white/45 text-[9px] font-medium leading-none">{dayName}</span>
+        <span className="text-white text-3xl font-black my-0.5 leading-tight">{dayNum}</span>
+        <span className="text-white/45 text-[9px] font-medium leading-none">{year}</span>
       </div>
 
       <input
