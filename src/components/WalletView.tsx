@@ -980,7 +980,7 @@ export function WalletView() {
                   className="px-3 py-2 bg-white/5 hover:bg-white/10 hover:border-amber-500/30 border border-white/10 rounded-lg text-[10px] font-bold text-slate-300 hover:text-white transition cursor-pointer"
                   title="Aplicar Ações BR"
                 >
-                  Ações BR
+                  Moderada
                 </button>
               )}
               {hasFiiAnalysis && (
@@ -996,7 +996,7 @@ export function WalletView() {
                   className="px-3 py-2 bg-white/5 hover:bg-white/10 hover:border-amber-500/30 border border-white/10 rounded-lg text-[10px] font-bold text-slate-300 hover:text-white transition cursor-pointer"
                   title="Aplicar FIIs BR"
                 >
-                  FIIs BR
+                  Renda Passiva
                 </button>
               )}
               {hasSp500Analysis && (
@@ -1012,7 +1012,7 @@ export function WalletView() {
                   className="px-3 py-2 bg-white/5 hover:bg-white/10 hover:border-amber-500/30 border border-white/10 rounded-lg text-[10px] font-bold text-slate-300 hover:text-white transition cursor-pointer"
                   title="Aplicar S&P 500"
                 >
-                  S&P 500
+                  Alto Upside
                 </button>
               )}
             </div>
@@ -1234,8 +1234,8 @@ export function WalletView() {
                 <svg viewBox="0 0 32 32" className="w-full h-full -rotate-90 rounded-full drop-shadow-[0_4px_12px_rgba(0,0,0,0.3)]">
                   <defs>
                     <linearGradient id="grad-stocks" x1="0%" y1="0%" x2="100%" y2="100%">
-                      <stop offset="0%" stop-color="#00ff87" stop-opacity="0.85" />
-                      <stop offset="100%" stop-color="#60efff" stop-opacity="0.85" />
+                      <stop offset="0%" stop-color="#ff007f" stop-opacity="0.85" />
+                      <stop offset="100%" stop-color="#7f00ff" stop-opacity="0.85" />
                     </linearGradient>
                     <linearGradient id="grad-fii" x1="0%" y1="0%" x2="100%" y2="100%">
                       <stop offset="0%" stop-color="#facc15" stop-opacity="0.85" />
@@ -1270,7 +1270,7 @@ export function WalletView() {
               </div>
               <div className="flex flex-col gap-3 min-w-0">
                 <div className="flex items-center gap-3">
-                  <span className="w-3 h-3 rounded-full" style={{ background: 'linear-gradient(135deg, #00ff87, #60efff)' }}></span>
+                  <span className="w-3 h-3 rounded-full" style={{ background: 'linear-gradient(135deg, #ff007f, #7f00ff)' }}></span>
                   <div className="flex flex-col">
                     <span className="text-sm font-medium text-white/80">Ações BR</span>
                     <span className="text-xs text-white/50">{stocksWeight}%</span>
