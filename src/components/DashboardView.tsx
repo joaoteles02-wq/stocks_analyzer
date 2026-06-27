@@ -144,8 +144,11 @@ export function DashboardView() {
 
       const headerRow = localRows[0].map((c: any) => String(c).trim().toLowerCase());
       console.log('[Dashboard Yield] Header row:', headerRow);
-      const stockYieldIdx = headerRow.findIndex((h: string) => h.includes('div. yield') || h.includes('div yield') || h === 'dividend yield');
-      const fiiYieldIdx = headerRow.findIndex((h: string) => h.includes('dy (ano)') || h.includes('dy ano') || h === 'dy');
+      let stockYieldIdx = headerRow.findIndex((h: string) => h.includes('div. yield') || h.includes('div yield') || h.includes('div.yield') || h === 'dividend yield');
+      if (stockYieldIdx === -1 && headerRow.length > 8) stockYieldIdx = 8; // Fallback para Coluna I (índice 8)
+
+      let fiiYieldIdx = headerRow.findIndex((h: string) => h.includes('div (ano)') || h.includes('div(ano)') || h.includes('div. (ano)') || h.includes('div ano') || h.includes('dy (ano)') || h.includes('dy ano') || h === 'dy');
+      if (fiiYieldIdx === -1 && headerRow.length > 7) fiiYieldIdx = 7; // Fallback para Coluna H (índice 7)
       console.log('[Dashboard Yield] stockYieldIdx:', stockYieldIdx, 'fiiYieldIdx:', fiiYieldIdx);
 
       let updated = false;
@@ -161,8 +164,15 @@ export function DashboardView() {
           return asset;
         }
 
-        const idx = asset.type === 'stocks' ? stockYieldIdx : asset.type === 'fii' ? fiiYieldIdx : -1;
-        if (idx === -1 || row[idx] === undefined) {
+        let idx = asset.type === 'stocks' ? stockYieldIdx : asset.type === 'fii' ? fiiYieldIdx : -1;
+        if ((idx === -1 || row[idx] === undefined || row[idx] === null || String(row[idx]).trim() === '')) {
+          const fallbackIdx = asset.type === 'stocks' ? 8 : asset.type === 'fii' ? 7 : -1;
+          if (fallbackIdx !== -1 && row[fallbackIdx] !== undefined) {
+            idx = fallbackIdx;
+          }
+        }
+
+        if (idx === -1 || row[idx] === undefined || row[idx] === null || String(row[idx]).trim() === '') {
           console.log(`[Dashboard Yield] No column for ${asset.ticker} (idx=${idx}, row[${idx}]=${row[idx]})`);
           return asset;
         }

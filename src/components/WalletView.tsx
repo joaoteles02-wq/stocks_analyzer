@@ -334,12 +334,13 @@ export function WalletView() {
 
           // Coluna de Dividend Yield específica por tipo de ativo
           if (assetBase.type === 'stocks') {
-            yieldColIndex = headerRow.findIndex(h => h.includes('div. yield') || h.includes('div yield') || h === 'dividend yield');
+            yieldColIndex = headerRow.findIndex(h => h.includes('div. yield') || h.includes('div yield') || h.includes('div.yield') || h === 'dividend yield');
+            if (yieldColIndex === -1 && headerRow.length > 8) yieldColIndex = 8; // Fallback coluna I (índice 8)
           } else if (assetBase.type === 'fii') {
-            yieldColIndex = headerRow.findIndex(h => h.includes('dy (ano)') || h.includes('dy ano') || h === 'dy');
+            yieldColIndex = headerRow.findIndex(h => h.includes('div (ano)') || h.includes('div(ano)') || h.includes('div. (ano)') || h.includes('div ano') || h.includes('dy (ano)') || h.includes('dy ano') || h === 'dy');
+            if (yieldColIndex === -1 && headerRow.length > 7) yieldColIndex = 7; // Fallback coluna H (índice 7)
           }
           console.log(`[Yield Debug] Ticker: ${ticker}, Type: ${assetBase.type}, yieldColIndex: ${yieldColIndex}, matchedRow[${yieldColIndex}]:`, yieldColIndex !== -1 ? matchedRow[yieldColIndex] : 'N/A');
-          // Sem fallback genérico — se não achou a coluna específica, mantém o yield padrão do ativo
           
           // Get name
           let matchedName = assetBase.name;
@@ -386,17 +387,12 @@ export function WalletView() {
 
           // Get Yield
           let matchedYield = assetBase.yield;
-          if (yieldColIndex !== -1 && matchedRow[yieldColIndex] !== undefined) {
-            const cleanVal = String(matchedRow[yieldColIndex]).replace('%', '').replace(',', '.').trim();
+          const targetYieldCol = yieldColIndex !== -1 ? yieldColIndex : (assetBase.type === 'stocks' ? 8 : assetBase.type === 'fii' ? 7 : -1);
+          if (targetYieldCol !== -1 && matchedRow[targetYieldCol] !== undefined && matchedRow[targetYieldCol] !== null && String(matchedRow[targetYieldCol]).trim() !== '') {
+            const cleanVal = String(matchedRow[targetYieldCol]).replace('%', '').replace(',', '.').trim();
             const num = Number(cleanVal);
-            console.log(`[Yield Debug] ${ticker}: column found at ${yieldColIndex}, raw="${matchedRow[yieldColIndex]}", clean="${cleanVal}", num=${num}`);
-            if (!isNaN(num)) {
-              matchedYield = num > 1 ? num / 100 : num;
-            }
-          } else if (matchedRow[8]) {
-            const cleanVal = String(matchedRow[8]).replace('%', '').replace(',', '.').trim();
-            const num = Number(cleanVal);
-            if (!isNaN(num)) {
+            console.log(`[Yield Debug] ${ticker}: column found at ${targetYieldCol}, raw="${matchedRow[targetYieldCol]}", clean="${cleanVal}", num=${num}`);
+            if (!isNaN(num) && num > 0) {
               matchedYield = num > 1 ? num / 100 : num;
             }
           }
