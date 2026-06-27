@@ -737,7 +737,7 @@ export function WalletView() {
                   title: 'Equilíbrio Global',
                   desc: '40% FIIs, 30% Ações BR, 30% S&P 500',
                   color: 'border-blue-500 bg-blue-500/5 text-blue-300',
-                  badge: 'Moderado',
+                  badge: 'Moderada',
                   distribution: '4 FIIs + 3 Ações + 3 S&P 500'
                 },
                 {
@@ -949,15 +949,9 @@ export function WalletView() {
           <div className="absolute top-0 right-0 w-[200px] h-[150px] bg-amber-500/5 blur-[50px] rounded-full -z-10"></div>
           
           <div className="space-y-1.5 text-center md:text-left">
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] uppercase font-black text-amber-300 bg-amber-500/20 border border-amber-500/30">
-              <Sparkles className="w-3 h-3 text-amber-400 animate-pulse" /> Recomendações de IA Disponíveis
-            </span>
             <h3 className="text-lg font-bold text-white">
-              AI Reload da Carteira
+              Estratégia Selecionada
             </h3>
-            <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
-              Deseja redefinir sua carteira de investimentos? Mescle automaticamente as <strong className="text-white font-bold">30 recomendações rankeadas pela IA</strong> (10 Ações, 10 FIIs e 10 S&P) selecionando a estratégia ideal com alocação otimizada.
-            </p>
           </div>
 
           <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto shrink-0 animate-pulse-slow">
@@ -968,7 +962,7 @@ export function WalletView() {
               }}
               className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold text-xs uppercase tracking-wider rounded-xl transition duration-300 active:scale-95 shadow-lg shadow-amber-500/20 cursor-pointer border border-amber-300/30 font-sans"
             >
-              📥 AI Reload da carteira
+              Estratégia Selecionada
             </button>
 
             {/* Selector dropdown/list if they want to choose a specific category */}
@@ -1234,89 +1228,69 @@ export function WalletView() {
               </div>
             </div>
 
-            {/* Custom Pie Chart constructed using SVG circles - extremely lightweight and highly compatible */}
-            <div className="flex flex-col items-center justify-center pt-2">
+            {/* Custom Pie Chart with gradients and glassmorphism */}
+            <div className="flex flex-col items-center gap-6 sm:flex-row sm:justify-around pt-2">
               <div className="relative w-36 h-36">
-                <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
-                  {/* Default Background */}
-                  <circle cx="50" cy="50" r="40" fill="none" stroke="#1e293b" strokeWidth="8" />
-                  
-                  {/* Category Arcs */}
-                  {/* Arc Ações Stocks (Green) */}
+                <svg viewBox="0 0 32 32" className="w-full h-full -rotate-90 rounded-full drop-shadow-[0_4px_12px_rgba(0,0,0,0.3)]">
+                  <defs>
+                    <linearGradient id="grad-stocks" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stop-color="#00ff87" stop-opacity="0.85" />
+                      <stop offset="100%" stop-color="#60efff" stop-opacity="0.85" />
+                    </linearGradient>
+                    <linearGradient id="grad-fii" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stop-color="#facc15" stop-opacity="0.85" />
+                      <stop offset="100%" stop-color="#f97316" stop-opacity="0.85" />
+                    </linearGradient>
+                    <linearGradient id="grad-sp500" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stop-color="#00f2fe" stop-opacity="0.85" />
+                      <stop offset="100%" stop-color="#4facfe" stop-opacity="0.85" />
+                    </linearGradient>
+                  </defs>
+                  <circle cx="16" cy="16" r="15.915494" fill="none" stroke="#1e293b" stroke-width="4" />
                   {stocksWeight > 0 && (
-                    <circle
-                      cx="50"
-                      cy="50"
-                      r="40"
-                      fill="none"
-                      stroke="#10b981"
-                      strokeWidth="10"
-                      strokeDasharray={`${(stocksWeight / 100) * 251.2} 251.2`}
-                      strokeDashoffset="0"
-                      strokeLinecap="butt"
-                      className="transition-all duration-500"
-                    />
+                    <circle cx="16" cy="16" r="15.915494" fill="none" stroke="url(#grad-stocks)" stroke-width="4"
+                      stroke-dasharray={`${(stocksWeight / 100) * 100} ${100 - (stocksWeight / 100) * 100}`}
+                      stroke-dashoffset="0" />
                   )}
-
-                  {/* Arc FIIs (Amber) */}
                   {fiiWeight > 0 && (
-                    <circle
-                      cx="50"
-                      cy="50"
-                      r="40"
-                      fill="none"
-                      stroke="#f59e0b"
-                      strokeWidth="10"
-                      strokeDasharray={`${(fiiWeight / 100) * 251.2} 251.2`}
-                      strokeDashoffset={-((stocksWeight / 100) * 251.2)}
-                      strokeLinecap="butt"
-                      className="transition-all duration-500"
-                    />
+                    <circle cx="16" cy="16" r="15.915494" fill="none" stroke="url(#grad-fii)" stroke-width="4"
+                      stroke-dasharray={`${(fiiWeight / 100) * 100} ${100 - (fiiWeight / 100) * 100}`}
+                      stroke-dashoffset={-((stocksWeight / 100) * 100)} />
                   )}
-
-                  {/* Arc S&P 500 (Blue/Lightblue) */}
                   {sp500Weight > 0 && (
-                    <circle
-                      cx="50"
-                      cy="50"
-                      r="40"
-                      fill="none"
-                      stroke="#3b82f6"
-                      strokeWidth="10"
-                      strokeDasharray={`${(sp500Weight / 100) * 251.2} 251.2`}
-                      strokeDashoffset={-(((stocksWeight + fiiWeight) / 100) * 251.2)}
-                      strokeLinecap="butt"
-                      className="transition-all duration-500"
-                    />
+                    <circle cx="16" cy="16" r="15.915494" fill="none" stroke="url(#grad-sp500)" stroke-width="4"
+                      stroke-dasharray={`${(sp500Weight / 100) * 100} ${100 - (sp500Weight / 100) * 100}`}
+                      stroke-dashoffset={-(((stocksWeight + fiiWeight) / 100) * 100)} />
                   )}
                 </svg>
-
-                {/* Inner label */}
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                  <span className="text-xs text-slate-400 font-bold tracking-tight">Ativos</span>
-                  <span className="text-xl font-extrabold text-white">10 Slots</span>
+                <div className="absolute inset-1.5 rounded-full border border-white/10 bg-black/20 backdrop-blur-md flex flex-col items-center justify-center text-center">
+                  <span className="text-[10px] text-white/50 font-bold tracking-tight">Ativos</span>
+                  <span className="text-lg font-extrabold text-white">10 Slots</span>
                 </div>
               </div>
-
-              {/* Legends list */}
-              <div className="w-full grid grid-cols-3 gap-2 mt-4 text-center">
-                <div className="bg-black/20 p-2 rounded-xl border border-white/5">
-                  <span className="block w-2.5 h-2.5 rounded-full bg-emerald-500 mx-auto mb-1"></span>
-                  <span className="text-[10px] text-slate-400 block font-bold">Ações BR</span>
-                  <span className="text-xs font-bold text-white">{stocksWeight}%</span>
+              <div className="flex flex-col gap-3 min-w-0">
+                <div className="flex items-center gap-3">
+                  <span className="w-3 h-3 rounded-full" style={{ background: 'linear-gradient(135deg, #00ff87, #60efff)' }}></span>
+                  <div className="flex flex-col">
+                    <span className="text-sm font-medium text-white/80">Ações BR</span>
+                    <span className="text-xs text-white/50">{stocksWeight}%</span>
+                  </div>
                 </div>
-                <div className="bg-black/20 p-2 rounded-xl border border-white/5">
-                  <span className="block w-2.5 h-2.5 rounded-full bg-amber-500 mx-auto mb-1"></span>
-                  <span className="text-[10px] text-slate-400 block font-bold">FIIs BR</span>
-                  <span className="text-xs font-bold text-white">{fiiWeight}%</span>
+                <div className="flex items-center gap-3">
+                  <span className="w-3 h-3 rounded-full" style={{ background: 'linear-gradient(135deg, #facc15, #f97316)' }}></span>
+                  <div className="flex flex-col">
+                    <span className="text-sm font-medium text-white/80">FIIs BR</span>
+                    <span className="text-xs text-white/50">{fiiWeight}%</span>
+                  </div>
                 </div>
-                <div className="bg-black/20 p-2 rounded-xl border border-white/5">
-                  <span className="block w-2.5 h-2.5 rounded-full bg-blue-500 mx-auto mb-1"></span>
-                  <span className="text-[10px] text-slate-400 block font-bold">S&P 500</span>
-                  <span className="text-xs font-bold text-white">{sp500Weight}%</span>
+                <div className="flex items-center gap-3">
+                  <span className="w-3 h-3 rounded-full" style={{ background: 'linear-gradient(135deg, #00f2fe, #4facfe)' }}></span>
+                  <div className="flex flex-col">
+                    <span className="text-sm font-medium text-white/80">S&P 500</span>
+                    <span className="text-xs text-white/50">{sp500Weight}%</span>
+                  </div>
                 </div>
               </div>
-
             </div>
 
           </div>
