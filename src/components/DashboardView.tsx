@@ -1913,12 +1913,13 @@ export function DashboardView() {
                     Preço Atual
                   </span>
                 </th>
-                <th className="pb-3 text-right pr-2">
+                <th className="pb-3 text-right pr-2 w-[1%] whitespace-nowrap">
                   <span 
                     className="cursor-help hover:text-indigo-400 transition-colors border-b border-dashed border-slate-500/50 pb-0.5"
                     title={`Valor inicial calculado via =INDEX(GOOGLEFINANCE(Ticker; "close"; "${referenceDateBR}"); 2; 2) e variação percentual em relação ao Preço Atual`}
                   >
-                    Preço Inicial / Variação
+                    <div className="leading-tight">Preço Inicial</div>
+                    <div className="leading-tight">/ Variação</div>
                   </span>
                 </th>
               </tr>
