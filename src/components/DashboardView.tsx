@@ -1956,7 +1956,7 @@ export function DashboardView() {
                         {asset.type === 'stocks' ? 'Ação BR' : asset.type === 'fii' ? 'FII' : 'S&P 500'}
                       </span>
                     </td>
-                    <td className="py-3.5 text-center font-bold text-slate-300 font-mono">{weight.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%</td>
+                    <td className="py-3.5 text-center font-bold text-slate-300 font-mono">{weight.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}%</td>
                     <td className="py-3.5 text-right font-mono font-bold text-white text-xs">
                       <div 
                         className="text-white cursor-help hover:text-indigo-400 transition-colors"
@@ -2000,7 +2000,7 @@ export function DashboardView() {
             <tfoot>
               <tr className="border-t border-white/10 bg-white/[0.03]">
                 <td colSpan={2} className="py-3.5 pl-2 text-sm text-slate-300 font-bold uppercase tracking-wider">Média Ponderada</td>
-                <td className="py-3.5 text-center text-white font-bold font-mono text-sm">{weightedVariationData.totalWeight.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%</td>
+                <td className="py-3.5 text-center text-white font-bold font-mono text-sm">{weightedVariationData.totalWeight.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}%</td>
                 <td></td>
                 <td className="py-3.5 text-right pr-2">
                   <span className={`font-bold font-mono text-sm inline-flex items-center gap-0.5 ${
