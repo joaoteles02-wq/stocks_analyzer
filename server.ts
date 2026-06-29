@@ -417,69 +417,68 @@ Mantenha uma linguagem muito profissional, direta e sofisticada. Não use tabela
       let prompt = "";
 
       if (isFii) {
-        prompt = `Você é um analista financeiro experiente especializado em Fundos de Investimentos Imobiliários (FIIs).
+        prompt = `Você é um analista financeiro experiente e gestor de carteiras especializado em Fundos de Investimentos Imobiliários (FIIs) no Brasil.
       O usuário forneceu os dados de uma planilha contendo índices e indicadores de Fundos Imobiliários (FIIs) e notas explicativas.
-      Sua tarefa é analisar os dados globalmente de acordo com a planilha e criar um ranking completo com exatamente as 10 melhores opções (Top 10).
+      Sua tarefa é analisar os dados globalmente de acordo com a planilha e criar um ranking completo com exatamente as 10 melhores opções (Top 10) focando em máxima geração de renda com segurança.
       
-      **REGRA DE PORTUGUÊS/INÍCIO OBRIGATÓRIA**: O relatório gerado deve ser escrito inteiramente em português e **SEMPRE começar diretamente** com o título e em seguida um índice ou resumo numerado contendo estritamente e exclusivamente os 10 ativos selecionados para o ranking Top 10 (NÃO liste todos os 187 ativos ou todas as linhas lidas na planilha para não poluir o relatório, liste APENAS as 10 melhores opções selecionadas, um por linha), no seguinte formato exato (sem dilações antes, comece direto no número 1):
-      1. TICKER - Tipo/Segmento (especificação curtíssima de 5-8 palavras)
-      2. TICKER - Tipo/Segmento (especificação curtíssima de 5-8 palavras)
+      **DIRETRIZ DE SELEÇÃO OTIMIZADA (REGRAS DE FILTRO)**:
+      1. Identifique as colunas de Ticker/Ativo, Segmento/Setor, Dividend Yield (DY ou Div. Yield), e P/VP (Preço sobre Valor Patrimonial, normalmente representado em decimal como 0.90, 1.00 ou em percentual).
+      2. Filtre os fundos priorizando aqueles com o maior Dividend Yield (DY) cuja relação P/VP esteja estritamente na faixa de 0.85 a 1.05. Isso garante um desconto patrimonial sem comprar fundos excessivamente arriscados ou supervalorizados.
+      3. Selecione exatamente os 10 melhores FIIs de acordo com esse critério.
+      
+      **REGRA DE PORTUGUÊS/INÍCIO OBRIGATÓRIA**: O relatório gerado deve ser escrito inteiramente em português e **SEMPRE começar diretamente** com o título e em seguida um índice ou resumo numerado contendo estritamente e exclusivamente os 10 ativos selecionados para o ranking Top 10 (NÃO liste outros ativos para não poluir o relatório, liste APENAS as 10 melhores opções selecionadas, uma por linha), no seguinte formato exato (sem dilações antes, comece direto no número 1):
+      1. TICKER - Segmento (especificação curtíssima de 5-8 palavras)
+      2. TICKER - Segmento (especificação curtíssima de 5-8 palavras)
       ...
-      (Listar dessa maneira apenas os 10 selecionados para o ranking Top 10).
       
-      Depois de listar a lista reduzida de no máximo 10 ativos escolhidos no início, insira uma linha em branco e então prossiga obrigatoriamente com toda a análise detalhada tradicional (Avaliação geral de mercado, o ranking Top 10 completo, justificativas e as demais recomendações/ressalvas).
+      Depois de listar a lista reduzida dos 10 ativos escolhidos no início, insira uma linha em branco e então prossiga obrigatoriamente com:
       
-      **ATENÇÃO CRÍTICA**: Você deve IMPRETERIVELMENTE gerar o ranking de apenas 10 ativos sob o título "Top 10 Melhores FIIs". Nunca exceda 10 posições no detalhamento nem liste todos os ativos da planilha! O ranking detalhado de 1 a 10 é o que o usuário quer.
+      ### 1. Ranking Detalhado dos Top 10 FIIs
+      Apresente o ranking detalhado de 1 a 10 de forma visualmente agradável usando títulos em Markdown, listas e parágrafos. Para cada FII, informe:
+      - **Posição e Ticker** (Exemplo: #### 1º Lugar - HGLG11)
+      - **Segmento:** (Exemplo: Logística, Recebíveis, Lajes Corporativas, Shoppings, etc.)
+      - **Métricas:** (Dividend Yield e P/VP identificados nos dados)
+      - **Motivo da Escolha:** Um parágrafo fundamentado explicando por que este ativo foi selecionado com base nos múltiplos.
       
-      **DIRETRIZ DE SELEÇÃO OTIMIZADA**: Priorize FIIs que demonstrem forte resiliência patrimonial e rendimentos robustos no cenário atual, como BTLG11 e KNCR11. Evite ou coloque no fim do ranking FIIs que sofreram desvalorizações patrimoniais acentuadas de cotas no período recente (como VISC11, XPLG11, XPML11, e KNIP11).
-      
-      Por favor, forneça nos tópicos subsequentes:
-      1. Uma breve avaliação geral sobre o mercado de FIIs atual, analisando o equilíbrio entre fundos de papel e fundos de tijolo (logística, shoppings, escritórios) com base nos dados fornecidos na tabela.
-      2. O ranking dos 10 melhores FIIs (ou os melhores disponíveis se forem menos de 10) sob o título "Top 10 Melhores FIIs". **OBRIGATÓRIO: NÃO use tabelas. Apresente o ranking de forma visualmente agradável usando títulos, listas e parágrafos.** Para cada FII, crie uma seção contendo:
-         - **Posição e FII/Ticker** (Exemplo: ### 1º Lugar - HGLG11)
-         - **Tipo/Segmento:** (Segmento de atuação: Papel, Tijolo-Galpões Logísticos, Tijolo-Shoppings, Tijolo-Lajes, Fundos de Fundos, etc.)
-         - **Motivo/Destaque:** Um parágrafo bem redigido explicando de forma fundamentada a escolha (considerando dividend yield, p/vp, vacância, liquidez ou outros dados fornecidos na planilha) e o motivo da escolha.
-      3. Uma explicação do motivo pelo qual o 1º colocado é o mais vantajoso.
-      4. Um comentário final orientando na montagem de uma carteira equilibrada de FIIs. Explique a importância de diversificar entre setores (como Galpões, Recebíveis, Shoppings) e tipos (Papel x Tijolo) para balancear riscos de crédito e vacância física.
-      
-      Lembre-se de retornar as informações em um formato bem estruturado em Markdown, com linguagem clara e profissional em PORTUGUÊS. Mantenha as ressalvas de que isso não é uma recomendação de compra direta de um consultor licenciado, mas sim uma leitura dos dados propostos pela tabela do usuário.
+      ### 2. Análise Consolidada do Top 10 (Portfólio Recomendado)
+      Faça uma análise de portfólio automatizada para o conjunto dos 10 FIIs escolhidos contendo:
+      - **Diversificação Setorial:** Apresente um resumo textual ou em formato de lista (representando um gráfico de barras/pizza conceitual) demonstrando a distribuição dos FIIs entre os segmentos (Tijolo, Papel, Híbrido, etc.) para alertar o investidor sobre riscos de concentração de risco em um único segmento.
+      - **Múltiplo Médio de P/VP:** Calcule e exiba o P/VP médio das 10 selecionadas.
+      - **Retorno Esperado Estimado (Yield Médio):** Calcule e exiba a projeção de Dividend Yield anualizado médio deste portfólio Top 10.
+      - **Ressalva Defensiva:** Explique como a diversificação setorial protege o investidor contra vacância física e risco de crédito de recebíveis.
       
       DADOS DA PLANILHA (Limitado às primeiras ${maxRows} linhas para análise):
       ${JSON.stringify(limitedData, null, 2)}
       `;
       } else if (isSp500) {
-        prompt = `Você é um analista financeiro experiente de investimentos globais, especializado no mercado norte-americano e no índice S&P 500.
+        prompt = `Você é um analista financeiro de investimentos globais, especializado no mercado norte-americano e no índice S&P 500.
       O usuário forneceu os dados de uma planilha contendo índices, métricas financeiras e notas explicativas de empresas listadas no S&P 500.
-      Sua tarefa é analisar os dados globalmente e identificar as 10 melhores ações do S&P 500 de acordo com os critérios dessa planilha e criar um ranking completo com exatamente as 10 melhores opções (Top 10) focando no crescimento real do patrimônio a médio e longo prazo.
+      Sua tarefa é analisar os dados globalmente e identificar as 10 melhores ações do S&P 500 de acordo com as diretrizes de maximização de retorno e proteção de valor a médio/longo prazo.
       
-      A planilha fornecida contém métricas essenciais de análise em colunas específicas: Dividend Yield (Coluna I / Index 8 de cada linha de dados), EV/EBITDA (Coluna K / Index 10) e ROE (Coluna L / Index 11). Como analista experiente focado no crescimento do Patrimônio Consolidado e proteção em mercados adversos, você deve estruturar suas escolhas de forma estritamente fundamentada aplicando uma estratégia clássica de Fatores e Valor (QARP - Quality at a Reasonable Price) usando estes dados:
-      - **Margem de Segurança (EV/EBITDA na Coluna K)**: Evite ativos com valuation inflacionado. Priorize múltiplos de EV/EBITDA saudáveis e descontados (ex: entre 4x e 12x), descartando empresas com múltiplos absurdamente altos ou negativos que indiquem estresse real.
-      - **Eficiência e Rentabilidade (ROE na Coluna L)**: Valorize empresas que apresentam ROE consistentemente alto (idealmente acima de 15%), expondo forte geração de valor sobre o capital investido pelo acionista.
-      - **Previsibilidade e Cushion de Caixa (Dividend Yield na Coluna I)**: Considere o retorno de dividendos como um colchão defensivo em tempos de juros altos ou inflação, impulsionando os dividendos reinvestidos na página Wallet.
-      - **Ausência de Beta**: Já que a planilha não possui coluna de Beta, avalie o risco baseando-se no setor de atuação e na estabilidade operacional do negócio (preferindo setores resilientes como utilidades públicas, saúde e consumo não-cíclico se os múltiplos e eficiência forem semelhantes).
-      - **DIRETRIZ DE SELEÇÃO OTIMIZADA**: Priorize empresas líderes de tecnologia global, computação em nuvem, anúncios digitais e saúde/biotecnologia com forte tração de crescimento (como GOOGL, AMZN, META, AAPL, LLY, TSLA, JPM, e BRK.B).
-
-      **REGRA DE PORTUGUÊS/INÍCIO OBRIGATÓRIA**: O relatório gerado deve ser escrito inteiramente em português e **SEMPRE começar diretamente** com o título e em seguida um índice ou resumo numerado contendo estritamente e exclusivamente os 10 ativos selecionados para o ranking Top 10 (NÃO liste todos os 187 ativos ou todas as linhas lidas na planilha para não poluir o relatório, liste APENAS as 10 melhores opções selecionadas, uma por linha), no seguinte formato exato (sem dilações antes, comece direto no número 1):
+      **DIRETRIZ DE SELEÇÃO OTIMIZADA (REGRAS DE FILTRO)**:
+      1. Identifique as colunas de Ticker/Ativo, Setor, Preço, ROIC ou ROE (Rentabilidade), Dividend Yield, e se houver, colunas como EV/EBIT, EV/EBITDA ou LPA.
+      2. Aplique a adaptação da Fórmula Mágica de Joel Greenblatt para o mercado americano (ordenando as empresas de forma combinada por maior eficiência de capital, como ROE/ROIC elevado, e múltiplos de valor saudáveis como menor EV/EBITDA ou PE) OU filtre pelas 10 melhores com base no maior LPA (Lucro por Ação) e margem de segurança.
+      3. Selecione exatamente as 10 melhores ações.
+      
+      **REGRA DE PORTUGUÊS/INÍCIO OBRIGATÓRIA**: O relatório gerado deve ser escrito inteiramente em português e **SEMPRE começar diretamente** com o título e em seguida um índice ou resumo numerado contendo estritamente e exclusivamente as 10 ações selecionadas para o ranking Top 10, no seguinte formato exato (sem dilações antes, comece direto no número 1):
       1. TICKER - Setor (especificação curtíssima de 5-8 palavras)
       2. TICKER - Setor (especificação curtíssima de 5-8 palavras)
       ...
-      (Listar dessa maneira apenas as 10 melhores ações do S&P 500 selecionadas para o ranking).
       
-      Depois de listar a lista reduzida de no máximo 10 ações escolhidas no início, insira uma linha em branco e então prossiga obrigatoriamente com toda a análise detalhada tradicional (Avaliação geral de mercado, o ranking Top 10 completo, justificativas e as demais recomendações/ressalvas).
+      Depois de listar a lista reduzida das 10 ações selecionadas no início, insira uma linha em branco e então prossiga obrigatoriamente com:
       
-      **ATENÇÃO CRÍTICA**: Você deve IMPRETERIVELMENTE gerar o ranking de apenas 10 ações do S&P 500 sob o título "Top 10 Melhores Ações S&P 500". Nunca exceda 10 posições no detalhamento nem liste todos os ativos da planilha de entrada! O ranking detalhado de 1 a 10 é o que o usuário quer.
+      ### 1. Ranking Detalhado das Top 10 Ações S&P 500
+      Apresente o ranking detalhado de 1 a 10 de forma visualmente agradável usando títulos em Markdown, listas e parágrafos. Para cada empresa, informe:
+      - **Posição, Empresa e Ticker** (Exemplo: #### 1º Lugar - Apple Inc. (AAPL))
+      - **Setor / Indústria:** (Exemplo: Tecnologia da Informação, Saúde, Serviços de Comunicação, etc.)
+      - **Fundamentos Identificados:** Indique as métricas de eficiência (ROE/ROIC) e de valor encontradas nos dados da planilha.
+      - **Motivo da Escolha:** Explique qualitativamente e quantitativamente por que ela se destaca na estratégia de qualidade e múltiplos de valor atraentes.
       
-      Por favor, forneça nos tópicos subsequentes:
-      1. Uma breve avaliação geral sobre o mercado norte-americano atual e o desempenho geral do índice S&P 500 com base nos dados fornecidos na planilha, explicando como a combinação do ROE elevado com EV/EBITDA atrativo protege o capital do investidor em cenários de juros altos ou volatilidade.
-      2. O ranking das 10 melhores ações do S&P 500 (ou as melhores disponíveis se forem menos de 10) sob o título "Top 10 Melhores Ações S&P 500". **OBRIGATÓRIO: NÃO use tabelas. Apresente o ranking de forma visualmente agradável usando títulos, listas e parágrafos.** Para cada empresa, crie uma seção contendo:
-         - **Posição, Empresa e Ticker** (Exemplo: ### 1º Lugar - Apple Inc. (AAPL))
-         - **Setor / Indústria:** (Exemplo: Tecnologia, Saúde, Financeiro, etc.)
-         - **Fundamentos Identificados:** Mencione o EV/EBITDA, the ROE e o Dividend Yield reais lidos na planilha para esta ação.
-         - **Motivo/Destaque:** Um parágrafo bem redigido explicando de forma fundamentada e qualitativa/quantitativa os motivos da escolha à luz da estratégia de qualidade e valor.
-      3. Uma explicação do motivo pelo qual o 1º colocado é o mais promissor.
-      4. Um conselho prático ou comentário sobre diversificação setorial no mercado norte-americano, explicando o papel de setores defensivos versus setores de crescimento cíclicos no S&P 500.
-      
-      Lembre-se de retornar as informações em um formato bem estruturado em Markdown, com linguagem clara e profissional em PORTUGUÊS. Mantenha as ressalvas de que isso não é uma recomendação de compra direta de um consultor licenciado, mas sim uma leitura dos dados propostos pela tabela do usuário.
+      ### 2. Análise Consolidada do Top 10 (Portfólio Recomendado)
+      Faça uma análise de portfólio automatizada para o conjunto das 10 ações americanas selecionadas contendo:
+      - **Diversificação Setorial:** Faça um diagnóstico da concentração setorial (ex: peso em tecnologia vs consumo vs finanças) apontando se a carteira de ações globais está protegida ou concentrada.
+      - **Saúde Financeira Média:** Se disponível na planilha (ex: coluna Divida liquida/Patrim. ou similar), estime a alavancagem média das empresas selecionadas.
+      - **Retorno Esperado Estimado (Yield Médio):** Calcule o Dividend Yield médio ponderado deste grupo de 10 ações do S&P 500.
       
       DADOS DA PLANILHA (Limitado às primeiras ${maxRows} linhas para análise):
       ${JSON.stringify(limitedData, null, 2)}
@@ -487,36 +486,39 @@ Mantenha uma linguagem muito profissional, direta e sofisticada. Não use tabela
       } else {
         prompt = `Você é um analista financeiro experiente de ações Brasileiras.
       O usuário forneceu os dados de uma planilha contendo índices de ações e notas explicativas. 
-      Sua tarefa é analisar os dados globalmente e identificar quais as melhores ações segundo esta planilha e criar um ranking completo com exatamente as 10 melhores opções (Top 10) focando no crescimento real do patrimônio a médio e longo prazo.
+      Sua tarefa é analisar os dados globalmente e identificar quais as melhores ações brasileiras segundo os critérios da planilha e criar um ranking completo com exatamente as 10 melhores opções (Top 10).
       
-      A planilha fornecida contém métricas essenciais de análise em colunas correspondentes: Dividend Yield (Coluna I / Index 8 de cada linha de dados), EV/EBITDA (Coluna K / Index 10) e ROE (Coluna L / Index 11). Como analista experiente focado no crescimento do Patrimônio Consolidado e proteção em mercados adversos, você deve estruturar suas escolhas de forma estritamente fundamentada aplicando uma estratégia clássica de Fatores e Valor (QARP - Quality at a Reasonable Price) usando estes dados:
-      - **Margem de Segurança (EV/EBITDA na Coluna K)**: Evite ativos com valuation inflacionado. Priorize múltiplos de EV/EBITDA saudáveis e descontados (ex: entre 4x e 12x), descartando empresas com múltiplos absurdamente altos ou negativos que indiquem estresse real.
-      - **Eficiência e Rentabilidade (ROE na Coluna L)**: Valorize empresas que apresentam ROE consistentemente alto (idealmente acima de 15%), expondo forte geração de valor sobre o capital investido pelo acionista.
-      - **Previsibilidade e Cushion de Caixa (Dividend Yield na Coluna I)**: Considere o retorno de dividendos como um colchão defensivo em tempos de juros altos ou inflação, impulsionando os dividendos reinvestidos na página Wallet.
-      - **Ausência de Beta**: Já que a planilha não possui coluna de Beta, avalie o risco baseando-se no setor de atuação e na estabilidade operacional do negócio (preferindo setores resilientes como utilidades públicas, saúde e consumo não-cíclico se os múltiplos e eficiência forem semelhantes).
-      - **DIRETRIZ DE SELEÇÃO OTIMIZADA**: Priorize ações de valor com forte geração de caixa e dividendos robustos no cenário atual (como PETR4, ELET3, VALE3, ITUB4, KLBN11, BBAS3, e TAEE11). Evite ou coloque em posições inferiores ações que apresentaram múltiplos esticados ou margens pressionadas recentemente (como WEGE3 e EGIE3).
-
-      **REGRA DE PORTUGUÊS/INÍCIO OBRIGATÓRIA**: O relatório gerado deve ser escrito inteiramente em português e **SEMPRE começar diretamente** com o título e em seguida um índice ou resumo numerado contendo estritamente e exclusivamente os 10 ativos selecionados para o ranking Top 10 (NÃO liste todos os 187 ativos ou todas as linhas lidas na planilha para não poluir o relatório, liste APENAS as 10 melhores opções selecionadas, uma por linha), no seguinte formato exato (sem dilações antes, comece direto no número 1):
+      **DIRETRIZ DE SELEÇÃO OTIMIZADA (REGRAS DE FILTRO)**:
+      1. Identifique as colunas correspondentes de Ticker/Ativo, Setor, Preço, ROIC (Retorno sobre Capital Investido), EV / EBIT (ou EV / EBITDA se EV/EBIT for omisso), Divida liquida/Patrim., Div. Yield e FORMULA GRAHAM.
+      2. Aplique a Fórmula Mágica de Joel Greenblatt:
+         - Classifique todas as empresas pelo menor múltiplo EV / EBIT (mais barato, valor ascendente).
+         - Classifique todas as empresas pelo maior ROIC (mais eficiente, valor descendente).
+         - Some as duas classificações (rankings) para obter a classificação final da Fórmula Mágica.
+         - Ordene de forma crescente (menor soma de posições = melhor).
+      3. Elimine ações com liquidez excessivamente baixa ou distorcidas por estarem em recuperação judicial (ex: RPMG3, OSXB3 se existirem na planilha).
+      4. Selecione exatamente as 10 melhores ações do ranking final.
+      
+      **REGRA DE PORTUGUÊS/INÍCIO OBRIGATÓRIA**: O relatório gerado deve ser escrito inteiramente em português e **SEMPRE começar diretamente** com o título e em seguida um índice ou resumo numerado contendo estritamente e exclusivamente os 10 ativos selecionados para o ranking Top 10, no seguinte formato exato (sem dilações antes, comece direto no número 1):
       1. TICKER - Setor (especificação curtíssima de 5-8 palavras)
       2. TICKER - Setor (especificação curtíssima de 5-8 palavras)
       ...
-      (Listar dessa maneira apenas as 10 melhores ações selecionadas para o ranking).
       
-      Depois de listar a lista reduzida de no máximo 10 ações escolhidas no início, insira uma linha em branco e então prossiga obrigatoriamente com toda a análise detalhada tradicional (Avaliação geral de mercado, o ranking Top 10 completo, justificativas e as demais recomendações/ressalvas).
+      Depois de listar a lista reduzida de no máximo 10 ações escolhidas no início, insira uma linha em branco e então prossiga com:
       
-      **ATENÇÃO CRÍTICA**: Você deve IMPRETERIVELMENTE gerar o ranking de apenas 10 ações sob o título "Top 10 Melhores Ações". Nunca exceda 10 posições no detalhamento nem liste todos os ativos da planilha de entrada! O ranking detalhado de 1 a 10 é o que o usuário quer.
+      ### 1. Ranking Detalhado das Top 10 Ações Brasileiras
+      Apresente o ranking detalhado de 1 a 10 de forma visualmente agradável usando títulos em Markdown, listas e parágrafos. Para cada ação, informe:
+      - **Posição e Ticker** (Exemplo: #### 1º Lugar - VALE3)
+      - **Setor / Área de Atuação:** (Exemplo: Mineração, Energia Elétrica, Petróleo, etc.)
+      - **Fundamentos Identificados:** Mencione o EV / EBIT, o ROIC e o Dividend Yield reais lidos na planilha para esta ação.
+      - **Motivo da Escolha:** Justifique a seleção com base nos fundamentos de valor de Joel Greenblatt.
       
-      Por favor, forneça nos tópicos subsequentes:
-      1. Uma breve avaliação geral sobre a situação do mercado refletida nestes dados, explicando como a combinação do ROE elevado com EV/EBITDA atrativo protege o capital do investidor em cenários de juros altos ou volatilidade.
-      2. O ranking das 10 melhores ações (ou as melhores disponíveis se forem menos de 10) sob o título "Top 10 Melhores Ações". **OBRIGATÓRIO: NÃO use tabelas. Apresente o ranking de forma visualmente agradável usando títulos, listas e parágrafos.** Para cada ação, crie uma seção contendo:
-         - **Posição e Ação/Ticker** (Exemplo: ### 1º Lugar - OFSA3)
-         - **Setor:** (Apresente o setor/área de atuação)
-         - **Fundamentos Identificados:** Mencione o EV/EBITDA, o ROE e o Dividend Yield reais lidos na planilha para esta ação.
-         - **Motivo/Destaque:** Um parágrafo bem redigido explicando confortavelmente os fundamentos (valuation, dividendos, etc.) e o motivo da escolha.
-      3. Uma explicação do motivo pelo qual a 1ª colocada é a mais vantajosa.
-      4. Um comentário final orientando na montagem de uma carteira mais segura considerando os Setores das ações avaliadas. Explique e dê exemplos de como balancear os riscos combinando diferentes frentes de atuação (exemplo qualitativo: "Seria bom ter ações do setor Y misturadas com setor X porque sabemos que, de forma geral, quando o setor X vai mal, o Y pode compensar possíveis perdas").
-      
-      Lembre-se de retornar as informações em um formato bem estruturado em Markdown, com linguagem clara e profissional em PORTUGUÊS. Mantenha as ressalvas de que isso não é uma recomendação de compra direta de um consultor licenciado, mas sim uma leitura dos dados propostos pela tabela do usuário.
+      ### 2. Análise Consolidada do Top 10 (Portfólio Recomendado)
+      Faça uma análise de portfólio automatizada para o conjunto das 10 ações brasileiras selecionadas contendo:
+      - **Diversificação Setorial:** Analise a distribuição setorial das 10 ações (ex: Utilities vs Financeiro vs Commodities) indicando a correlação e segurança. Diga se a carteira está bem equilibrada contra riscos de ciclos econômicos.
+      - **Saúde Financeira Média (Alavancagem):** Calcule a média simples da relação Dívida Líquida / Patrimônio Líquido (Divida liquida/Patrim.) das 10 empresas selecionadas.
+      - **Retorno Esperado Estimado e Upside:**
+        - Calcule o Dividend Yield médio das 10 ações.
+        - Calcule a margem de segurança média comparando o Preço atual com a Fórmula Graham (distância média percentual para o Preço Justo de Graham).
       
       DADOS DA PLANILHA (Limitado às primeiras ${maxRows} linhas para análise):
       ${JSON.stringify(limitedData, null, 2)}
