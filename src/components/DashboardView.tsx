@@ -1800,12 +1800,12 @@ export function DashboardView() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-slate-300">
+          <table className="w-full table-fixed text-left text-sm text-slate-300">
             <thead>
               <tr className="border-b border-white/5 text-xs text-slate-400 font-bold uppercase tracking-wider">
-                <th className="pb-3 pl-2 w-[1%] whitespace-nowrap">Ativo</th>
-                <th className="pb-3 text-center w-[1%] whitespace-nowrap">Tipo</th>
-                <th className="pb-3 text-center w-[1%] whitespace-nowrap">Peso</th>
+                <th className="pb-3 pl-2">Ativo</th>
+                <th className="pb-3 text-center">Tipo</th>
+                <th className="pb-3 text-center">Peso</th>
                 <th className="pb-3 text-right">
                   <span 
                     className="cursor-help hover:text-indigo-400 transition-colors border-b border-dashed border-slate-500/50 pb-0.5"
@@ -1814,7 +1814,7 @@ export function DashboardView() {
                     Preço Atual
                   </span>
                 </th>
-                <th className="pb-3 text-right pr-2 w-[1%] whitespace-nowrap">
+                <th className="pb-3 text-right pr-2">
                   <span 
                     className="cursor-help hover:text-indigo-400 transition-colors border-b border-dashed border-slate-500/50 pb-0.5"
                     title={`Valor inicial calculado via =INDEX(GOOGLEFINANCE(Ticker; "close"; "${referenceDateBR}"); 2; 2) e variação percentual em relação ao Preço Atual`}
@@ -1827,16 +1827,14 @@ export function DashboardView() {
             </thead>
             <tbody className="divide-y divide-white/5">
               {walletAssets.map((asset) => {
-                // Equivale a: =INDEX(GOOGLEFINANCE(Ticker; "close"; Data); 2; 2)
                 const initialPrice = emulateGoogleFinanceClose(asset.ticker, referenceDateBR);
-                // Equivale a: =GOOGLEFINANCE(Ticker)
                 const currentPrice = emulateCurrentPrice(asset.ticker);
                 const assetAppreciation = currentPrice !== null && initialPrice > 0 ? ((currentPrice - initialPrice) / initialPrice) * 100 : null;
                 const weight = walletWeights[asset.ticker] || 0;
 
                 return (
                   <tr key={`ranking-item-${asset.ticker}`} className="hover:bg-white/5 transition-colors">
-                    <td className="py-3.5 pl-2 w-[1%] whitespace-nowrap">
+                    <td className="py-3.5 pl-2 break-words pr-1">
                       <span
                         onClick={() => setExpandedTicker(expandedTicker === asset.ticker ? null : asset.ticker)}
                         className="font-bold text-white font-mono tracking-wide cursor-default"
@@ -1847,7 +1845,7 @@ export function DashboardView() {
                         <span className="text-[10px] text-slate-400 block leading-tight">{asset.name}</span>
                       )}
                     </td>
-                    <td className="py-3.5 text-center w-[1%] whitespace-nowrap">
+                    <td className="py-3.5 text-center">
                       <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border ${
                         asset.type === 'stocks' 
                           ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20' 
@@ -1858,8 +1856,8 @@ export function DashboardView() {
                         {asset.type === 'stocks' ? 'Ação BR' : asset.type === 'fii' ? 'FII' : 'S&P 500'}
                       </span>
                     </td>
-                    <td className="py-3.5 text-center font-bold text-slate-300 font-mono w-[1%] whitespace-nowrap">{weight.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}%</td>
-                    <td className="py-3.5 text-right font-mono font-bold text-white text-xs">
+                    <td className="py-3.5 text-center font-bold text-slate-300 font-mono break-words">{weight.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}%</td>
+                    <td className="py-3.5 text-right font-mono font-bold text-white text-xs break-words pr-1">
                       <div 
                         className="text-white cursor-help hover:text-indigo-400 transition-colors"
                         title={`=GOOGLEFINANCE("${asset.ticker}")`}
@@ -1873,7 +1871,7 @@ export function DashboardView() {
                         )}
                       </div>
                     </td>
-                    <td className="py-3.5 text-right font-mono text-xs pr-2">
+                    <td className="py-3.5 text-right font-mono text-xs pr-2 break-words">
                       {isLoadingPrices && !yahooPrices[asset.ticker] ? (
                         <span className="text-slate-500 animate-pulse">carregando...</span>
                       ) : initialPrice > 0 ? (
@@ -1901,8 +1899,8 @@ export function DashboardView() {
             </tbody>
             <tfoot>
               <tr className="border-t border-white/10 bg-white/[0.03]">
-                <td colSpan={2} className="py-2 pl-2 text-sm text-slate-300 font-bold uppercase tracking-wider align-middle w-[1%] whitespace-nowrap">Média Ponderada</td>
-                <td className="py-2 text-center text-white font-bold font-mono text-sm align-middle w-[1%] whitespace-nowrap">{weightedVariationData.totalWeight.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}%</td>
+                <td colSpan={2} className="py-2 pl-2 text-sm text-slate-300 font-bold uppercase tracking-wider align-middle">Média Ponderada</td>
+                <td className="py-2 text-center text-white font-bold font-mono text-sm align-middle">{weightedVariationData.totalWeight.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}%</td>
                 <td></td>
                 <td className="py-1 text-right pr-2 align-middle">
                   <div className="inline-flex justify-end w-[90px]">
