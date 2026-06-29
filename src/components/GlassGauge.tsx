@@ -22,11 +22,11 @@ export const GlassGauge: React.FC<GlassGaugeProps> = ({
   const clampedValue = Math.max(0, Math.min(100, value));
   const isSmall = size === 'sm';
   const padding = isSmall ? 'p-2' : 'p-5';
-  const gaugeSize = isSmall ? 'w-[80px] h-[80px]' : 'w-[140px] h-[140px]';
-  const svgView = isSmall ? '64 64' : '120 120';
-  const svgCenter = isSmall ? 32 : 60;
-  const circleRadius = isSmall ? 24 : 46;
-  const strokeW = isSmall ? 5 : 7;
+  const gaugeSize = isSmall ? 'w-[100px] h-[100px]' : 'w-[140px] h-[140px]';
+  const svgView = isSmall ? '84 84' : '120 120';
+  const svgCenter = isSmall ? 42 : 60;
+  const circleRadius = isSmall ? 33 : 46;
+  const strokeW = isSmall ? 6 : 7;
   const valFontSize = isSmall ? 'text-sm' : 'text-[26px]';
   const subtitleSize = isSmall ? 'text-[9px]' : 'text-xs';
 
@@ -43,8 +43,8 @@ export const GlassGauge: React.FC<GlassGaugeProps> = ({
       />
 
       {!noTitle && (
-        <div className={`relative z-[1] w-full flex justify-between items-center ${isSmall ? 'mb-1' : 'mb-2'}`}>
-          <span className="text-white/80 text-sm font-semibold">
+        <div className={`relative z-[1] w-full text-center ${isSmall ? 'mb-1' : 'mb-2'}`}>
+          <span className="text-white/80 text-xs font-semibold leading-snug whitespace-normal">
             {title}
           </span>
         </div>
