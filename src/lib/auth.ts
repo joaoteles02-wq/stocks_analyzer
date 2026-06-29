@@ -1,4 +1,4 @@
-﻿import { initializeApp } from 'firebase/app';
+import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, onAuthStateChanged, setPersistence, browserLocalPersistence, User } from 'firebase/auth';
 import firebaseConfig from '../../firebase-applet-config.json';
 
@@ -12,8 +12,6 @@ const provider = new GoogleAuthProvider();
 // Request Workspace scopes for Drive and Sheets
 provider.addScope('https://www.googleapis.com/auth/drive.readonly');
 provider.addScope('https://www.googleapis.com/auth/spreadsheets.readonly');
-// No custom prompt to keep the existing Google session alive
-// Scopes will trigger consent only on first grant
 
 export const saveTokenToServer = async (uid: string, token: string) => {
   try {
@@ -43,70 +41,72 @@ export const getTokenFromServer = async (uid: string): Promise<string | null> =>
 let isSigningIn = false;
 let cachedAccessToken: string | null = localStorage.getItem('google_access_token') || sessionStorage.getItem('google_access_token');
 let refreshIntervalId: ReturnType<typeof setInterval> | null = null;
+let tokenObtainedAt: number = parseInt(localStorage.getItem('google_token_obtained_at') || '0', 10);
 
 // Callbacks for notifying App.tsx of token refresh results
 let onRefreshSuccess: ((user: User, token: string) => void) | null = null;
 let onRefreshFailure: (() => void) | null = null;
 
+const TOKEN_LIFETIME_MS = 55 * 60 * 1000; // 55 minutes (Google tokens last 60min, refresh 5min early)
+
 /**
- * Attempts to silently refresh the Google OAuth access token.
- * Works without user interaction when the user is already logged in to Google in the browser.
- * Falls back gracefully if the silent refresh fails (e.g., if cookies are blocked).
+ * Checks if the cached Google OAuth token is likely still valid based on when it was obtained.
  */
-export const tryAutoRefreshToken = async (): Promise<string | null> => {
-  const currentUser = auth.currentUser;
-  if (!currentUser || isSigningIn) return null;
+const isTokenLikelyValid = (): boolean => {
+  if (!cachedAccessToken || !tokenObtainedAt) return false;
+  return (Date.now() - tokenObtainedAt) < TOKEN_LIFETIME_MS;
+};
 
+/**
+ * Saves the token along with a timestamp of when it was obtained.
+ */
+const persistToken = (token: string) => {
+  cachedAccessToken = token;
+  tokenObtainedAt = Date.now();
+  localStorage.setItem('google_access_token', token);
+  sessionStorage.setItem('google_access_token', token);
+  localStorage.setItem('google_token_obtained_at', String(tokenObtainedAt));
+};
+
+/**
+ * Attempts to recover the Google OAuth token from the server-side store.
+ * This is the primary "silent refresh" mechanism — no popups needed.
+ */
+const tryRecoverTokenFromServer = async (uid: string): Promise<string | null> => {
   try {
-    isSigningIn = true;
-    console.log('[Auth] Attempting silent token refresh...');
-
-    // signInWithPopup causes Google to silently re-issue a token
-    // if the user still has an active Google session in the browser
-    const silentProvider = new GoogleAuthProvider();
-    silentProvider.addScope('https://www.googleapis.com/auth/drive.readonly');
-    silentProvider.addScope('https://www.googleapis.com/auth/spreadsheets.readonly');
-
-    const result = await signInWithPopup(auth, silentProvider);
-    const credential = GoogleAuthProvider.credentialFromResult(result);
-
-    if (credential?.accessToken) {
-      cachedAccessToken = credential.accessToken;
-      localStorage.setItem('google_access_token', cachedAccessToken);
-      sessionStorage.setItem('google_access_token', cachedAccessToken);
-      await saveTokenToServer(currentUser.uid, cachedAccessToken);
-      console.log('[Auth] Silent token refresh successful.');
-      if (onRefreshSuccess) onRefreshSuccess(result.user, cachedAccessToken);
-      return cachedAccessToken;
+    const serverToken = await getTokenFromServer(uid);
+    if (serverToken) {
+      console.log('[Auth] Recovered token from server store.');
+      persistToken(serverToken);
+      return serverToken;
     }
-  } catch (error: any) {
-    // popup_closed_by_user or cancelled_popup_request are non-critical
-    const errCode = error?.code || '';
-    if (errCode === 'auth/popup-closed-by-user' || errCode === 'auth/cancelled-popup-request') {
-      console.log('[Auth] Silent refresh popup closed ÔÇö user intervention needed.');
-    } else {
-      console.warn('[Auth] Silent token refresh failed:', error?.message || error);
-    }
-  } finally {
-    isSigningIn = false;
+  } catch (err) {
+    console.error('[Auth] Failed to recover token from server:', err);
   }
   return null;
 };
 
 /**
- * Starts a background interval that refreshes the Google OAuth token
- * every 45 minutes (before the 1-hour expiry set by Google).
+ * Starts a background interval that checks token validity.
+ * When expired, it tries server recovery first. Only flags tokenExpired if that also fails.
+ * NO popups are opened in the background — ever.
  */
 const startRefreshInterval = (user: User) => {
   if (refreshIntervalId) clearInterval(refreshIntervalId);
-  // Refresh every 45 minutes (2700000ms) to stay ahead of the 1h expiry
+  // Check every 10 minutes
   refreshIntervalId = setInterval(async () => {
-    console.log('[Auth] Background token refresh triggered.');
-    const newToken = await tryAutoRefreshToken();
-    if (!newToken && onRefreshFailure) {
-      console.warn('[Auth] Background refresh failed ÔÇö user may need to re-authenticate.');
+    if (!isTokenLikelyValid()) {
+      console.log('[Auth] Token likely expired, attempting server recovery...');
+      const recovered = await tryRecoverTokenFromServer(user.uid);
+      if (recovered) {
+        if (onRefreshSuccess) onRefreshSuccess(user, recovered);
+      } else {
+        console.warn('[Auth] Token expired and server recovery failed — user needs to reconnect Google.');
+        // Signal token expiration but do NOT log the user out of Firebase
+        if (onRefreshFailure) onRefreshFailure();
+      }
     }
-  }, 45 * 60 * 1000);
+  }, 10 * 60 * 1000);
 };
 
 export const initAuth = (
@@ -127,15 +127,13 @@ export const initAuth = (
       if (result) {
         const credential = GoogleAuthProvider.credentialFromResult(result);
         if (credential?.accessToken) {
-          cachedAccessToken = credential.accessToken;
-          localStorage.setItem('google_access_token', cachedAccessToken);
-          sessionStorage.setItem('google_access_token', cachedAccessToken);
+          persistToken(credential.accessToken);
           if (result.user) {
-            saveTokenToServer(result.user.uid, cachedAccessToken);
+            saveTokenToServer(result.user.uid, credential.accessToken);
             startRefreshInterval(result.user);
           }
           if (onAuthSuccess && result.user) {
-            onAuthSuccess(result.user, cachedAccessToken);
+            onAuthSuccess(result.user, credential.accessToken);
           }
         }
       }
@@ -144,52 +142,55 @@ export const initAuth = (
 
       // ONLY subscribe to onAuthStateChanged AFTER checking the redirect result
       onAuthStateChanged(auth, async (user: User | null) => {
-        const currentToken = localStorage.getItem('google_access_token') || sessionStorage.getItem('google_access_token');
-        
         if (user) {
-          if (currentToken) {
-            cachedAccessToken = currentToken;
-            saveTokenToServer(user.uid, currentToken);
-            startRefreshInterval(user);
-            if (onAuthSuccess) onAuthSuccess(user, currentToken);
-          } else {
-            // Try server store first
-            try {
-              const serverToken = await getTokenFromServer(user.uid);
-              if (serverToken) {
-                cachedAccessToken = serverToken;
-                localStorage.setItem('google_access_token', serverToken);
-                sessionStorage.setItem('google_access_token', serverToken);
-                startRefreshInterval(user);
-                if (onAuthSuccess) onAuthSuccess(user, serverToken);
-                return;
-              }
-            } catch (err) {
-              console.error('Error fetching token on auth state changed:', err);
-            }
+          // User is signed into Firebase — check if we have a valid Google OAuth token
+          const storedToken = localStorage.getItem('google_access_token') || sessionStorage.getItem('google_access_token');
 
-            // No token found ÔÇö attempt silent refresh before giving up
-            console.log('[Auth] No token found after login ÔÇö attempting silent refresh...');
-            const silentToken = await tryAutoRefreshToken();
-            if (!silentToken) {
-              cachedAccessToken = null;
-              localStorage.removeItem('google_access_token');
-              sessionStorage.removeItem('google_access_token');
-              if (onAuthFailure) onAuthFailure();
-            } else {
+          if (storedToken && isTokenLikelyValid()) {
+            // Token exists and is likely still valid
+            cachedAccessToken = storedToken;
+            saveTokenToServer(user.uid, storedToken);
+            startRefreshInterval(user);
+            if (onAuthSuccess) onAuthSuccess(user, storedToken);
+          } else if (storedToken) {
+            // Token exists but may be expired — try server recovery
+            console.log('[Auth] Stored token may be expired, trying server recovery...');
+            const recovered = await tryRecoverTokenFromServer(user.uid);
+            if (recovered) {
               startRefreshInterval(user);
+              if (onAuthSuccess) onAuthSuccess(user, recovered);
+            } else {
+              // Token expired, but user is still logged in to Firebase
+              // Signal that Google API access needs re-auth, but don't fully log out
+              console.log('[Auth] Token expired, user stays logged in but needs Google reconnect.');
+              cachedAccessToken = storedToken; // Keep old token as fallback for non-Sheets features
+              startRefreshInterval(user);
+              if (onAuthSuccess) onAuthSuccess(user, storedToken);
+            }
+          } else {
+            // No token at all — try server store
+            const serverToken = await tryRecoverTokenFromServer(user.uid);
+            if (serverToken) {
+              startRefreshInterval(user);
+              if (onAuthSuccess) onAuthSuccess(user, serverToken);
+            } else {
+              // No token anywhere — user needs to sign in with Google
+              console.log('[Auth] No Google OAuth token found — user needs to connect Google.');
+              if (onAuthFailure) onAuthFailure();
             }
           }
         } else {
+          // No Firebase user at all
           const hasToken = localStorage.getItem('google_access_token') || sessionStorage.getItem('google_access_token');
           // If we have a token but no user yet, Firebase may still be restoring
-          // the session from persistence ÔÇö don't clear anything, just wait.
+          // the session from persistence — don't clear anything, just wait.
           if (hasToken && !auth.currentUser) {
             return;
           }
           cachedAccessToken = null;
           localStorage.removeItem('google_access_token');
           sessionStorage.removeItem('google_access_token');
+          localStorage.removeItem('google_token_obtained_at');
           if (refreshIntervalId) {
             clearInterval(refreshIntervalId);
             refreshIntervalId = null;
@@ -207,6 +208,15 @@ export const initAuth = (
           cachedAccessToken = currentToken;
           startRefreshInterval(user);
           if (onAuthSuccess) onAuthSuccess(user, currentToken);
+        } else if (user) {
+          // User exists but no token — try server
+          const serverToken = await tryRecoverTokenFromServer(user.uid);
+          if (serverToken) {
+            startRefreshInterval(user);
+            if (onAuthSuccess) onAuthSuccess(user, serverToken);
+          } else {
+            if (onAuthFailure) onAuthFailure();
+          }
         } else {
           if (onAuthFailure) onAuthFailure();
         }
@@ -223,7 +233,10 @@ export const googleSignIn = async (method: 'popup' | 'redirect' = 'popup'): Prom
   try {
     isSigningIn = true;
     
-    if (method === 'redirect') {
+    // On mobile, always prefer redirect to avoid popup blockers
+    const effectiveMethod = (method === 'popup' && isMobileDevice()) ? 'redirect' : method;
+
+    if (effectiveMethod === 'redirect') {
       await signInWithRedirect(auth, provider);
       return null;
     }
@@ -234,15 +247,19 @@ export const googleSignIn = async (method: 'popup' | 'redirect' = 'popup'): Prom
       throw new Error('Failed to get access token from Firebase Auth');
     }
 
-    cachedAccessToken = credential.accessToken;
-    localStorage.setItem('google_access_token', cachedAccessToken);
-    sessionStorage.setItem('google_access_token', cachedAccessToken);
+    persistToken(credential.accessToken);
     if (result.user) {
-      await saveTokenToServer(result.user.uid, cachedAccessToken);
+      await saveTokenToServer(result.user.uid, credential.accessToken);
       startRefreshInterval(result.user);
     }
-    return { user: result.user, accessToken: cachedAccessToken };
+    return { user: result.user, accessToken: credential.accessToken };
   } catch (error: any) {
+    // If popup was blocked on mobile, auto-fallback to redirect
+    if (error?.code === 'auth/popup-blocked' || error?.code === 'auth/popup-closed-by-user') {
+      console.log('[Auth] Popup blocked/closed, falling back to redirect...');
+      await signInWithRedirect(auth, provider);
+      return null;
+    }
     console.error('Sign in error:', error);
     throw error;
   } finally {
@@ -258,6 +275,7 @@ export const clearCachedToken = () => {
   cachedAccessToken = null;
   localStorage.removeItem('google_access_token');
   sessionStorage.removeItem('google_access_token');
+  localStorage.removeItem('google_token_obtained_at');
 };
 
 export const logout = async () => {
@@ -265,6 +283,7 @@ export const logout = async () => {
   cachedAccessToken = null;
   localStorage.removeItem('google_access_token');
   sessionStorage.removeItem('google_access_token');
+  localStorage.removeItem('google_token_obtained_at');
   if (refreshIntervalId) {
     clearInterval(refreshIntervalId);
     refreshIntervalId = null;

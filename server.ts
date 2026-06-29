@@ -94,7 +94,7 @@ Mantenha uma linguagem muito profissional, direta e sofisticada. Não use tabela
         try {
           attempts++;
           response = await ai.models.generateContent({
-            model: 'gemini-3.5-flash',
+            model: 'gemini-2.5-flash',
             contents: prompt
           });
           break;
@@ -534,7 +534,7 @@ Mantenha uma linguagem muito profissional, direta e sofisticada. Não use tabela
         try {
           attempts++;
           response = await ai.models.generateContent({
-            model: 'gemini-3.5-flash',
+            model: 'gemini-2.5-flash',
             contents: prompt,
             config: {
               systemInstruction: "Você é um analista financeiro sênior especializado em mercado de capitais e assessoria de investimentos. Sua diretriz mais sagrada e inviolável é gerar um ranking de exatamente 10 ativos (Top 10) baseados nos dados fornecidos na planilha do usuário. Você está terminantemente proibido de listar todos os ativos, todos os 187 ativos lidos ou qualquer ativo além dos 10 melhores selecionados. O sumário inicial e o ranking detalhado subsequente devem constar exatamente 10 ativos (nem mais, nem menos). Escreva integralmente em português."
