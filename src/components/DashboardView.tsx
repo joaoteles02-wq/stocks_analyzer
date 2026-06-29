@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { getHistoricalPrice, fetchFinancialMarketInfo, fetchDividendYield, getCurrentPrice } from '../lib/yahoo';
 import { pushWalletConfig } from '../lib/sync';
+import { GlassGauge } from './GlassGauge';
 import { 
   ALL_BEST_30_ASSETS, 
   Asset 
@@ -18,7 +19,7 @@ import {
   ChevronRight,
   Info,
   BarChart2,
-  Percent,
+  
   Coins,
   Search
 } from 'lucide-react';
@@ -822,7 +823,7 @@ export function DashboardView() {
   // ViewBox coordinates
   const svgWidth = 600;
   const svgHeight = 280;
-  const paddingLeft = 65;
+  const paddingLeft = 25;
   const paddingRight = 20;
   const paddingTop = 25;
   const paddingBottom = 40;
@@ -897,6 +898,20 @@ export function DashboardView() {
     const scale = (valClipped - minVal) / denominator;
     const yVal = svgHeight - paddingBottom - scale * chartHeight;
     return isNaN(yVal) || !isFinite(yVal) ? svgHeight - paddingBottom : yVal;
+  };
+
+  // Smooth bezier curve path generator
+  const getSmoothPath = (points: { x: number; y: number }[]): string => {
+    if (points.length === 0) return '';
+    if (points.length === 1) return `M ${points[0].x},${points[0].y}`;
+    let path = `M ${points[0].x},${points[0].y}`;
+    for (let i = 1; i < points.length; i++) {
+      const prev = points[i - 1];
+      const curr = points[i];
+      const cpx = (prev.x + curr.x) / 2;
+      path += ` C ${cpx},${prev.y} ${cpx},${curr.y} ${curr.x},${curr.y}`;
+    }
+    return path;
   };
 
   // Color mapping helper for up to 10 distinct high-contrast stocks
@@ -1034,7 +1049,7 @@ export function DashboardView() {
         </div>
 
         {/* Metrics Row */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           
           {/* Data Início Card */}
           <div className="bg-white/10 border border-white/10 rounded-2xl p-5 flex flex-col items-center justify-center shadow-lg">
@@ -1064,7 +1079,7 @@ export function DashboardView() {
             </div>
           </div>
 
-          {/* Metric 1 */}
+          {/* Patrimônio Consolidado (standalone) */}
           <div className="bg-white/10 border border-white/10 rounded-2xl p-5 flex items-center justify-between shadow-lg">
             <div>
               <span className="text-xs text-slate-400 font-bold block uppercase tracking-wider mb-1">Patrimônio Consolidado</span>
@@ -1078,78 +1093,52 @@ export function DashboardView() {
             </div>
           </div>
 
-          {/* Metric 2 */}
-          <div className="bg-white/10 border border-white/10 rounded-2xl p-5 flex items-center justify-between shadow-lg">
-            <div>
-              <span className="text-xs text-slate-400 font-bold block uppercase tracking-wider mb-1">Rentabilidade do Período</span>
-              <div className="flex items-baseline gap-2">
-                <span className={`text-2xl font-black ${isPositiveGrowth ? 'text-emerald-400' : 'text-rose-400'}`}>
-                  {isPositiveGrowth ? '+' : ''}{appreciationPercent.toFixed(2)}%
-                </span>
-                <span className={`text-[11px] font-bold font-mono ${ratingColor}`}>
-                  {ratingText}
-                </span>
-              </div>
-              <span className="text-[10px] text-slate-400 block mt-1">Confrontado desde {referenceDateBR}</span>
-            </div>
-            <div className={`p-3 rounded-xl border ${
-              isPositiveGrowth 
-                ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' 
-                : 'bg-rose-500/10 border-rose-500/20 text-rose-400'
-            }`}>
-              {isPositiveGrowth ? <TrendingUp className="w-6 h-6" /> : <TrendingDown className="w-6 h-6" />}
-            </div>
-          </div>
-
-          {/* Metric 3 */}
-          <div className="bg-white/10 border border-white/10 rounded-2xl p-5 flex items-center justify-between shadow-lg">
-            <div>
-              <span className="text-xs text-slate-400 font-bold block uppercase tracking-wider mb-1">Balanço do Período (R$)</span>
-              <span className={`text-2xl font-black ${isPositiveGrowth ? 'text-emerald-400' : 'text-rose-400'}`}>
-                R$ {(currentTotalValuation - initialTotalValuation).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </span>
-              <span className="text-[10px] text-slate-400 block mt-1">Lucro/Prejuízo flutuante sobre aporte</span>
-            </div>
-            <div className="bg-amber-500/10 p-3 rounded-xl border border-amber-500/20 text-amber-400">
-              <Calendar className="w-6 h-6" />
-            </div>
-          </div>
-
         </div>
 
-        {/* Metrics Row 2 - Yield & Renda Passiva Ponderados */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 -mt-2">
-          <div className="hidden lg:block lg:col-span-2"></div>
+        {/* Metrics Row 2 - Gauges combinados */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 -mt-2">
           
-          {/* Yield Médio Ponderado Card */}
-          <div className="bg-white/10 border border-white/10 rounded-2xl p-5 flex items-center justify-between shadow-lg">
-            <div>
-              <span className="text-xs text-slate-400 font-bold block uppercase tracking-wider mb-1">Yield Médio Ponderado</span>
-              <span className="text-2xl font-black text-emerald-400">
-                {(weightedAnnualYield * 100).toFixed(2)}% a.a.
-              </span>
-              <span className="text-[10px] text-slate-400 block mt-1">Retorno ponderado em dividendos</span>
+          {/* Combined: Rentabilidade Gauge + Balanço do Período */}
+          <div className="bg-white/10 border border-white/10 rounded-2xl p-3 shadow-lg flex items-center gap-3 overflow-hidden">
+            <div className="shrink-0">
+              <GlassGauge
+                value={Math.round(appreciationPercent)}
+                displayValue={`${isPositiveGrowth ? '+' : ''}${appreciationPercent.toFixed(2)}%`}
+                title="Rentabilidade no Período"
+                color={isPositiveGrowth ? '#10b981' : '#f43f5e'}
+                size="sm"
+              />
             </div>
-            <div className="bg-emerald-500/10 p-3 rounded-xl border border-emerald-500/20 text-emerald-400">
-              <Percent className="w-6 h-6" />
+            <div className="min-w-0 flex-1 overflow-hidden">
+              <span className="text-xs text-slate-400 font-bold block uppercase tracking-wider mb-0.5">Balanço do Período (R$)</span>
+              <span className={`text-lg font-black truncate block ${isPositiveGrowth ? 'text-emerald-400' : 'text-rose-400'}`}>
+                R$ {(currentTotalValuation - initialTotalValuation).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+              <span className="text-[8px] text-slate-400 block mt-0.5 leading-tight truncate">{ratingText} · Lucro/Prejuízo flutuante</span>
             </div>
           </div>
 
-          {/* Renda Passiva do Período Card */}
-          <div className="bg-white/10 border border-white/10 rounded-2xl p-5 flex items-center justify-between shadow-lg">
-            <div>
-              <span className="text-xs text-slate-400 font-bold block uppercase tracking-wider mb-1">Renda Passiva do Período</span>
-              <span className="text-2xl font-black text-white">
+          {/* Combined: Yield Gauge + Renda Passiva */}
+          <div className="bg-white/10 border border-white/10 rounded-2xl p-3 shadow-lg flex items-center gap-3 overflow-hidden">
+            <div className="shrink-0">
+              <GlassGauge
+                value={Math.round(weightedAnnualYield * 100)}
+                displayValue={`${(weightedAnnualYield * 100).toFixed(2)}%`}
+                title="Média Yield Ponderado"
+                color="#00d2ff"
+                size="sm"
+              />
+            </div>
+            <div className="min-w-0 flex-1 overflow-hidden">
+              <span className="text-xs text-slate-400 font-bold block uppercase tracking-wider mb-0.5">Renda Passiva do Período</span>
+              <span className="text-lg font-black text-white truncate block">
                 R$ {periodDividendsSimulated.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
-              <span className="text-[10px] text-indigo-300 block mt-1">
-                ~R$ {(yearlyDividendsSimulated / 12).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / mês &middot; {monthsInPeriod} meses
+              <span className="text-[8px] text-indigo-300 block mt-0.5 leading-tight truncate">
+                ~R$ {(yearlyDividendsSimulated / 12).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / mês · Yield {(weightedAnnualYield * 100).toFixed(1)}% a.a.
               </span>
             </div>
-            <div className="bg-amber-500/10 p-3 rounded-xl border border-amber-500/20 text-amber-400">
-              <TrendingUp className="w-6 h-6" />
-            </div>
-          </div>
+        </div>
         </div>
       </div>
 
@@ -1213,38 +1202,6 @@ export function DashboardView() {
             height="100%" 
             className="overflow-visible"
           >
-            {/* Horizontal Grid lines */}
-            {[0, 0.25, 0.5, 0.75, 1].map((ratio, index) => {
-              const gridY = getY(minVal + ratio * (maxVal - minVal));
-              const gridPriceLabel = minVal + ratio * (maxVal - minVal);
-              return (
-                <g key={`grid-${index}`}>
-                  <line 
-                    x1={paddingLeft} 
-                    y1={gridY} 
-                    x2={svgWidth - paddingRight} 
-                    y2={gridY} 
-                    stroke="rgba(255, 255, 255, 0.06)" 
-                    strokeDasharray="4 4" 
-                  />
-                  {/* Axis labels Y (Prices) */}
-                  <text 
-                    x={paddingLeft - 8} 
-                    y={gridY + 4} 
-                    fill="rgba(148, 163, 184, 0.8)" 
-                    fontSize="12" 
-                    textAnchor="end"
-                    fontWeight="500"
-                    fontFamily="monospace"
-                  >
-                    {chartMode === 'portfolio' 
-                      ? `R$ ${Math.round(gridPriceLabel).toLocaleString()}`
-                      : `${gridPriceLabel.toFixed(1)}`}
-                  </text>
-                </g>
-              );
-            })}
-
             {/* Vertical grid lines & Axis labels X (Dates) */}
             {dataPoints.map((point, index) => {
               const ptX = getX(index);
@@ -1260,9 +1217,9 @@ export function DashboardView() {
                   />
                   <text 
                     x={ptX} 
-                    y={svgHeight - paddingBottom + 16} 
-                    fill="rgba(148, 163, 184, 0.8)" 
-                    fontSize="12" 
+                    y={svgHeight - paddingBottom + 18} 
+                    fill="rgba(148, 163, 184, 0.9)" 
+                    fontSize="14" 
                     textAnchor="middle"
                     fontWeight="bold"
                   >
@@ -1283,16 +1240,17 @@ export function DashboardView() {
                   const lineColor = getColorForIndex(assetIdx);
                   
                   // Draw line path
-                  const pointsPath = dataPoints.map((pt, ptIdx) => {
+                  const points = dataPoints.map((pt, ptIdx) => {
                     const price = getAssetPriceAtPoint(pt, asset.ticker, asset.price);
-                    return `${getX(ptIdx)},${getY(price)}`;
-                  }).join(' L ');
+                    return { x: getX(ptIdx), y: getY(price) };
+                  });
+                  const pointsPath = getSmoothPath(points);
                   
                   return (
                     <g key={`asset-line-${asset.ticker}`} className="transition-all duration-300">
                       {/* Glowing highlight underlayer */}
                       <path 
-                        d={`M ${pointsPath}`} 
+                        d={pointsPath} 
                         fill="none" 
                         stroke={lineColor} 
                         strokeWidth="6" 
@@ -1303,29 +1261,13 @@ export function DashboardView() {
                       
                       {/* Real Line */}
                       <path 
-                        d={`M ${pointsPath}`} 
+                        d={pointsPath} 
                         fill="none" 
                         stroke={lineColor} 
                         strokeWidth="2.5" 
                         strokeLinecap="round"
                         strokeLinejoin="round"
                       />
-
-                      {/* Circular point markers */}
-                      {dataPoints.map((pt, ptIdx) => {
-                        const price = getAssetPriceAtPoint(pt, asset.ticker, asset.price);
-                        return (
-                          <circle 
-                            key={`dot-${asset.ticker}-${ptIdx}`}
-                            cx={getX(ptIdx)} 
-                            cy={getY(price)} 
-                            r={hoveredIdx === ptIdx ? '5.5' : '3.5'} 
-                            fill="#1e293b" 
-                            stroke={lineColor} 
-                            strokeWidth={hoveredIdx === ptIdx ? '3' : '2'}
-                          />
-                        );
-                      })}
                     </g>
                   );
                 })}
@@ -1334,46 +1276,34 @@ export function DashboardView() {
                 {showCdiBenchmark && selectedTickers.length > 0 && (() => {
                   const refTicker = selectedTickers[0];
                   const startingPrice = getAssetPriceAtPoint(dataPoints[0], refTicker, 0);
-                  const pointsPath = dataPoints.map((pt, ptIdx) => {
+                  const cdiPoints = dataPoints.map((_, ptIdx) => {
                     const cdiPrice = startingPrice * (1 + CDI_ACUMULADO_2026[ptIdx] / 100);
-                    return `${getX(ptIdx)},${getY(cdiPrice)}`;
-                  }).join(' L ');
+                    return { x: getX(ptIdx), y: getY(cdiPrice) };
+                  });
+                  const cdiPath = getSmoothPath(cdiPoints);
                   
                   return (
                     <g key="individual-cdi-line" className="transition-all duration-300">
-                      {/* Shadow/Glow */}
+                      <defs>
+                        <linearGradient id="cdi-gradient-individual" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.25" />
+                          <stop offset="100%" stopColor="#f59e0b" stopOpacity="0" />
+                        </linearGradient>
+                      </defs>
+                      {/* Shaded area under CDI */}
                       <path 
-                        d={`M ${pointsPath}`} 
-                        fill="none" 
-                        stroke="#f59e0b" 
-                        strokeWidth="5" 
-                        strokeDasharray="4 4" 
-                        opacity="0.12"
+                        d={`M ${cdiPoints[0].x},${svgHeight - paddingBottom} ${cdiPath.slice(1)} L ${cdiPoints[cdiPoints.length - 1].x},${svgHeight - paddingBottom} Z`}
+                        fill="url(#cdi-gradient-individual)"
                       />
-                      {/* Dashed Line */}
+                      {/* CDI Line */}
                       <path 
-                        d={`M ${pointsPath}`} 
+                        d={cdiPath} 
                         fill="none" 
                         stroke="#f59e0b" 
-                        strokeWidth="2" 
-                        strokeDasharray="5 5" 
+                        strokeWidth="2.5" 
                         strokeLinecap="round"
+                        strokeLinejoin="round"
                       />
-                      {/* Circles */}
-                      {dataPoints.map((_, ptIdx) => {
-                        const cdiPrice = startingPrice * (1 + CDI_ACUMULADO_2026[ptIdx] / 100);
-                        return (
-                          <circle 
-                            key={`dot-cdi-${ptIdx}`}
-                            cx={getX(ptIdx)} 
-                            cy={getY(cdiPrice)} 
-                            r={hoveredIdx === ptIdx ? '5' : '3'} 
-                            fill="#1e293b" 
-                            stroke="#f59e0b" 
-                            strokeWidth="2"
-                          />
-                        );
-                      })}
                     </g>
                   );
                 })()}
@@ -1382,23 +1312,25 @@ export function DashboardView() {
               // Plot aggreggate portfolio value
               (() => {
                 const initialVal = getPortfolioValueAtPoint(dataPoints[0]);
-                const portfolioPointsPath = dataPoints.map((pt, ptIdx) => {
+                const portfolioPoints = dataPoints.map((pt, ptIdx) => {
                   const val = getPortfolioValueAtPoint(pt);
-                  return `${getX(ptIdx)},${getY(val)}`;
-                }).join(' L ');
+                  return { x: getX(ptIdx), y: getY(val) };
+                });
+                const portfolioPath = getSmoothPath(portfolioPoints);
 
-                const cdiPointsPath = dataPoints.map((_, ptIdx) => {
+                const cdiPointsPortfolio = dataPoints.map((_, ptIdx) => {
                   const cdiVal = initialVal * (1 + CDI_ACUMULADO_2026[ptIdx] / 100);
-                  return `${getX(ptIdx)},${getY(cdiVal)}`;
-                }).join(' L ');
+                  return { x: getX(ptIdx), y: getY(cdiVal) };
+                });
+                const cdiPathPortfolio = getSmoothPath(cdiPointsPortfolio);
 
                 return (
                   <g>
                     {/* Gradient area filling beneath aggregate value */}
                     <path
-                      d={`M ${getX(0)},${svgHeight - paddingBottom} L ${portfolioPointsPath} L ${getX(dataPoints.length - 1)},${svgHeight - paddingBottom} Z`}
+                      d={`M ${getX(0)},${svgHeight - paddingBottom} ${portfolioPath.slice(1)} L ${getX(dataPoints.length - 1)},${svgHeight - paddingBottom} Z`}
                       fill="url(#portfolio-gradient)"
-                      opacity="0.1"
+                      opacity="0.12"
                     />
 
                     <defs>
@@ -1406,50 +1338,35 @@ export function DashboardView() {
                         <stop offset="0%" stopColor="#818cf8" />
                         <stop offset="100%" stopColor="#818cf8" stopOpacity="0" />
                       </linearGradient>
+                      <linearGradient id="cdi-gradient-portfolio" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.25" />
+                        <stop offset="100%" stopColor="#f59e0b" stopOpacity="0" />
+                      </linearGradient>
                     </defs>
 
                     {/* CDI Benchmark Line (Amber) */}
                     {showCdiBenchmark && (
                       <g key="portfolio-cdi-line">
-                        {/* Glow underlayer */}
+                        {/* Shaded area under CDI */}
                         <path 
-                          d={`M ${cdiPointsPath}`} 
-                          fill="none" 
-                          stroke="#f59e0b" 
-                          strokeWidth="6" 
-                          opacity="0.08"
+                          d={`M ${cdiPointsPortfolio[0].x},${svgHeight - paddingBottom} ${cdiPathPortfolio.slice(1)} L ${cdiPointsPortfolio[cdiPointsPortfolio.length - 1].x},${svgHeight - paddingBottom} Z`}
+                          fill="url(#cdi-gradient-portfolio)"
                         />
-                        {/* Dashed Line */}
+                        {/* CDI Line */}
                         <path 
-                          d={`M ${cdiPointsPath}`} 
+                          d={cdiPathPortfolio} 
                           fill="none" 
                           stroke="#f59e0b" 
                           strokeWidth="2.5" 
-                          strokeDasharray="6 4" 
                           strokeLinecap="round"
-                          opacity="0.9"
+                          strokeLinejoin="round"
                         />
-                        {/* Points for CDI */}
-                        {dataPoints.map((_, ptIdx) => {
-                          const cdiVal = initialVal * (1 + CDI_ACUMULADO_2026[ptIdx] / 100);
-                          return (
-                            <circle 
-                              key={`aggregate-cdi-dot-${ptIdx}`}
-                              cx={getX(ptIdx)} 
-                              cy={getY(cdiVal)} 
-                              r={hoveredIdx === ptIdx ? '5.5' : '3.5'} 
-                              fill="#1e293b" 
-                              stroke="#f59e0b" 
-                              strokeWidth="2"
-                            />
-                          );
-                        })}
                       </g>
                     )}
 
                     {/* Glowing highlight underlayer for portfolio */}
                     <path 
-                      d={`M ${portfolioPointsPath}`} 
+                      d={portfolioPath} 
                       fill="none" 
                       stroke="#818cf8" 
                       strokeWidth="8" 
@@ -1458,29 +1375,13 @@ export function DashboardView() {
 
                     {/* Aggregate Line */}
                     <path 
-                      d={`M ${portfolioPointsPath}`} 
+                      d={portfolioPath} 
                       fill="none" 
                       stroke="#6366f1" 
                       strokeWidth="3.5" 
                       strokeLinecap="round"
                       strokeLinejoin="round"
                     />
-
-                    {/* Points */}
-                    {dataPoints.map((pt, ptIdx) => {
-                      const val = getPortfolioValueAtPoint(pt);
-                      return (
-                        <circle 
-                          key={`aggregate-dot-${ptIdx}`}
-                          cx={getX(ptIdx)} 
-                          cy={getY(val)} 
-                          r={hoveredIdx === ptIdx ? '6' : '4'} 
-                          fill="#1e293b" 
-                          stroke="#6366f1" 
-                          strokeWidth={hoveredIdx === ptIdx ? '3.5' : '2.5'}
-                        />
-                      );
-                    })}
                   </g>
                 );
               })()
@@ -1902,9 +1803,9 @@ export function DashboardView() {
           <table className="w-full text-left text-sm text-slate-300">
             <thead>
               <tr className="border-b border-white/5 text-xs text-slate-400 font-bold uppercase tracking-wider">
-                <th className="pb-3 pl-2">Ativo</th>
-                <th className="pb-3 text-center">Tipo</th>
-                <th className="pb-3 text-center">Peso</th>
+                <th className="pb-3 pl-2 w-[1%] whitespace-nowrap">Ativo</th>
+                <th className="pb-3 text-center w-[1%] whitespace-nowrap">Tipo</th>
+                <th className="pb-3 text-center w-[1%] whitespace-nowrap">Peso</th>
                 <th className="pb-3 text-right">
                   <span 
                     className="cursor-help hover:text-indigo-400 transition-colors border-b border-dashed border-slate-500/50 pb-0.5"
@@ -1946,7 +1847,7 @@ export function DashboardView() {
                         <span className="text-[10px] text-slate-400 block leading-tight">{asset.name}</span>
                       )}
                     </td>
-                    <td className="py-3.5 text-center">
+                    <td className="py-3.5 text-center w-[1%] whitespace-nowrap">
                       <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border ${
                         asset.type === 'stocks' 
                           ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20' 
@@ -1957,7 +1858,7 @@ export function DashboardView() {
                         {asset.type === 'stocks' ? 'Ação BR' : asset.type === 'fii' ? 'FII' : 'S&P 500'}
                       </span>
                     </td>
-                    <td className="py-3.5 text-center font-bold text-slate-300 font-mono">{weight.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}%</td>
+                    <td className="py-3.5 text-center font-bold text-slate-300 font-mono w-[1%] whitespace-nowrap">{weight.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}%</td>
                     <td className="py-3.5 text-right font-mono font-bold text-white text-xs">
                       <div 
                         className="text-white cursor-help hover:text-indigo-400 transition-colors"
@@ -2000,15 +1901,19 @@ export function DashboardView() {
             </tbody>
             <tfoot>
               <tr className="border-t border-white/10 bg-white/[0.03]">
-                <td colSpan={2} className="py-3.5 pl-2 text-sm text-slate-300 font-bold uppercase tracking-wider">Média Ponderada</td>
-                <td className="py-3.5 text-center text-white font-bold font-mono text-sm">{weightedVariationData.totalWeight.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}%</td>
+                <td colSpan={2} className="py-2 pl-2 text-sm text-slate-300 font-bold uppercase tracking-wider align-middle w-[1%] whitespace-nowrap">Média Ponderada</td>
+                <td className="py-2 text-center text-white font-bold font-mono text-sm align-middle w-[1%] whitespace-nowrap">{weightedVariationData.totalWeight.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}%</td>
                 <td></td>
-                <td className="py-3.5 text-right pr-2">
-                  <span className={`font-bold font-mono text-sm inline-flex items-center gap-0.5 ${
-                    weightedAvgVariation >= 0 ? 'text-emerald-400' : 'text-rose-400'
-                  }`}>
-                    {weightedAvgVariation >= 0 ? '+' : ''}{weightedAvgVariation.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
-                  </span>
+                <td className="py-1 text-right pr-2 align-middle">
+                  <div className="inline-flex justify-end w-[90px]">
+                    <GlassGauge
+                      value={Math.round(weightedAvgVariation)}
+                      displayValue={`${weightedAvgVariation >= 0 ? '+' : ''}${weightedAvgVariation.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`}
+                      color={weightedAvgVariation >= 0 ? '#10b981' : '#f43f5e'}
+                      size="sm"
+                      noTitle
+                    />
+                  </div>
                 </td>
               </tr>
             </tfoot>

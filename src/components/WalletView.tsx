@@ -944,73 +944,61 @@ export function WalletView() {
       </div>
 
       {/* Quick Option to Rebuild / Overwrite Portfolio with Top 10 recommendations */}
-       {(hasStocksAnalysis || hasFiiAnalysis || hasSp500Analysis) ? (
-        <div className="bg-amber-500/10 border border-amber-500/30 rounded-3xl p-6 shadow-xl flex flex-col md:flex-row items-center justify-between gap-6 backdrop-blur-sm relative overflow-hidden animate-in fade-in duration-300">
-          <div className="absolute top-0 right-0 w-[200px] h-[150px] bg-amber-500/5 blur-[50px] rounded-full -z-10"></div>
-          
-          <div className="space-y-1.5 text-center md:text-left">
-            <h3 className="text-lg font-bold text-white">
-              Estratégia Selecionada
-            </h3>
-          </div>
+      <div className="bg-amber-500/10 border border-amber-500/30 rounded-3xl p-4 sm:p-6 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4 sm:gap-6 backdrop-blur-sm relative animate-in fade-in duration-300">
+        <div className="absolute top-0 right-0 w-[200px] h-[150px] bg-amber-500/5 blur-[50px] rounded-full -z-10"></div>
+        
+        <div className="space-y-1.5 text-center sm:text-left">
+          <h3 className="text-base sm:text-lg font-bold text-white">
+            Estratégia Selecionada
+          </h3>
+        </div>
 
-          {/* Strategy quick-select buttons */}
-          <div className="flex gap-2 flex-wrap justify-end w-full md:w-auto shrink-0 animate-pulse-slow">
-            <button
-              type="button"
-              onClick={() => {
-                setConfirmModal({
-                  title: "Estratégia Equilíbrio Global",
-                  message: "Deseja aplicar a estratégia Moderada (Equilíbrio Global)? Sua carteira será reestruturada com: 40% FIIs, 30% Ações BR, 30% S&P 500 (4 FIIs + 3 Ações + 3 S&P 500).",
-                  onConfirm: () => applyStrategyReload('equilibrada')
-                });
-              }}
-              className="px-5 py-3 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 rounded-xl text-sm font-extrabold text-amber-300 hover:text-amber-200 transition cursor-pointer"
-              title="Equilíbrio Global — 40% FIIs, 30% Ações BR, 30% S&P 500"
-            >
-              Moderada
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setConfirmModal({
-                  title: "Estratégia Renda & Dividendos",
-                  message: "Deseja aplicar a estratégia Renda Passiva (Renda & Dividendos)? Sua carteira será reestruturada com: 60% FIIs, 30% Ações BR, 10% S&P 500 (5 FIIs + 3 Ações + 2 S&P 500).",
-                  onConfirm: () => applyStrategyReload('renda')
-                });
-              }}
-              className="px-5 py-3 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 rounded-xl text-sm font-extrabold text-amber-300 hover:text-amber-200 transition cursor-pointer"
-              title="Renda & Dividendos — 60% FIIs, 30% Ações BR, 10% S&P 500"
-            >
-              Renda Passiva
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setConfirmModal({
-                  title: "Estratégia Crescimento Global",
-                  message: "Deseja aplicar a estratégia Alto Upside (Crescimento Global)? Sua carteira será reestruturada com: 60% S&P 500, 30% Ações BR, 10% FIIs (5 S&P 500 + 3 Ações + 2 FIIs).",
-                  onConfirm: () => applyStrategyReload('crescimento')
-                });
-              }}
-              className="px-5 py-3 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 rounded-xl text-sm font-extrabold text-amber-300 hover:text-amber-200 transition cursor-pointer"
-              title="Crescimento Global — 60% S&P 500, 30% Ações BR, 10% FIIs"
-            >
-              Alto Upside
-            </button>
-          </div>
+        {/* Strategy quick-select buttons */}
+        <div className="flex gap-2 flex-wrap justify-center sm:justify-end w-full sm:w-auto shrink-0">
+          <button
+            type="button"
+            onClick={() => {
+              setConfirmModal({
+                title: "Estratégia Equilíbrio Global",
+                message: "Deseja aplicar a estratégia Moderada (Equilíbrio Global)? Sua carteira será reestruturada com: 40% FIIs, 30% Ações BR, 30% S&P 500 (4 FIIs + 3 Ações + 3 S&P 500).",
+                onConfirm: () => applyStrategyReload('equilibrada')
+              });
+            }}
+            className="px-4 sm:px-5 py-2.5 sm:py-3 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 rounded-xl text-xs sm:text-sm font-extrabold text-amber-300 hover:text-amber-200 transition cursor-pointer"
+            title="Equilíbrio Global — 40% FIIs, 30% Ações BR, 30% S&P 500"
+          >
+            Moderada
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setConfirmModal({
+                title: "Estratégia Renda & Dividendos",
+                message: "Deseja aplicar a estratégia Renda Passiva (Renda & Dividendos)? Sua carteira será reestruturada com: 60% FIIs, 30% Ações BR, 10% S&P 500 (5 FIIs + 3 Ações + 2 S&P 500).",
+                onConfirm: () => applyStrategyReload('renda')
+              });
+            }}
+            className="px-4 sm:px-5 py-2.5 sm:py-3 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 rounded-xl text-xs sm:text-sm font-extrabold text-amber-300 hover:text-amber-200 transition cursor-pointer"
+            title="Renda & Dividendos — 60% FIIs, 30% Ações BR, 10% S&P 500"
+          >
+            Renda Passiva
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setConfirmModal({
+                title: "Estratégia Crescimento Global",
+                message: "Deseja aplicar a estratégia Alto Upside (Crescimento Global)? Sua carteira será reestruturada com: 60% S&P 500, 30% Ações BR, 10% FIIs (5 S&P 500 + 3 Ações + 2 FIIs).",
+                onConfirm: () => applyStrategyReload('crescimento')
+              });
+            }}
+            className="px-4 sm:px-5 py-2.5 sm:py-3 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 rounded-xl text-xs sm:text-sm font-extrabold text-amber-300 hover:text-amber-200 transition cursor-pointer"
+            title="Crescimento Global — 60% S&P 500, 30% Ações BR, 10% FIIs"
+          >
+            Alto Upside
+          </button>
         </div>
-      ) : (
-        <div className="bg-white/5 border border-white/10 rounded-3xl p-5 shadow-inner flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left animate-in fade-in duration-300">
-          <div className="flex items-center gap-3 justify-center sm:justify-start">
-            <Sparkles className="w-5 h-5 text-indigo-400 shrink-0 animate-pulse" />
-            <div className="text-xs">
-              <p className="font-bold text-slate-200">Dica de Praticidade</p>
-              <p className="text-slate-400 leading-relaxed">Você pode preencher esta carteira inteira clicando em um único botão! Para isso, vá até a aba <strong className="text-white font-semibold">"Análise Geral"</strong> e faça o upload e análise de sua planilha financeira de ações, FIIs ou ativos americanos.</p>
-            </div>
-          </div>
-        </div>
-      )}
+      </div>
 
       {/* Grid: Left Column (Otimização & Slots) & Right Column (Métricas e Visualização) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -1071,12 +1059,12 @@ export function WalletView() {
                   <div className="flex items-start justify-between gap-3">
                     
                     {/* Left: Ticker details */}
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs font-bold text-slate-500 w-5 text-center bg-white/5 rounded-full h-5 flex items-center justify-center">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="text-xs font-bold text-slate-500 w-5 text-center bg-white/5 rounded-full h-5 flex items-center justify-center shrink-0">
                         {idx + 1}
                       </span>
-                      <div>
-                        <div className="flex items-center gap-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-mono font-bold text-white tracking-wider text-base">
                             {slot.asset.ticker}
                           </span>
@@ -1090,24 +1078,15 @@ export function WalletView() {
                             {slot.asset.type === 'stocks' ? 'Ações BR' : slot.asset.type === 'fii' ? 'FII' : 'S&P 500'}
                           </span>
                         </div>
-                        <p className="text-slate-400 text-xs font-medium max-w-[210px] truncate">{slot.asset.name}</p>
+                        <p className="text-slate-400 text-xs font-medium truncate">{slot.asset.name}</p>
+                        <p className="text-[10px] text-slate-500/80 leading-tight mt-0.5">
+                          {slot.asset.sector.split(' / ')[0]}
+                        </p>
                       </div>
                     </div>
 
-                    {/* Middle info and selector trigger */}
-                    <div className="flex items-center gap-3">
-                      <div className="text-right">
-                        <p className="text-xs text-slate-300 font-bold">
-                          {slot.asset.currency === 'USD' 
-                            ? `US$ ${slot.asset.price.toFixed(2)}` 
-                            : `R$ ${slot.asset.price.toFixed(2)}`}
-                        </p>
-                        <p className="text-[10px] text-slate-400">
-                          Setor: {slot.asset.sector.split(' / ')[0]}
-                        </p>
-                      </div>
-
-                      {/* Replace Asset / Trigger replacement dropdown modal */}
+                    {/* Replace Asset / Trigger replacement dropdown modal */}
+                    <div className="flex items-center gap-3 shrink-0">
                       <button
                         onClick={() => setActiveReplaceIndex(activeReplaceIndex === idx ? null : idx)}
                         className="p-1 px-2.5 bg-white/5 border border-white/10 rounded-lg text-xs font-semibold hover:bg-indigo-500/20 hover:text-indigo-200 hover:border-indigo-500/30 text-slate-300 transition"
