@@ -145,7 +145,7 @@ export function DashboardView() {
 
       const headerRow = localRows[0].map((c: any) => String(c).trim().toLowerCase());
       console.log('[Dashboard Yield] Header row:', headerRow);
-      let stockYieldIdx = headerRow.findIndex((h: string) => h.includes('div. yield') || h.includes('div yield') || h.includes('div.yield') || h === 'dividend yield');
+      let stockYieldIdx = headerRow.findIndex((h: string) => h.includes('div. yields') || h.includes('div yields') || h.includes('div. yield') || h.includes('div yield') || h.includes('div.yield') || h === 'dividend yield');
       if (stockYieldIdx === -1 && headerRow.length > 8) stockYieldIdx = 8; // Fallback para Coluna I (índice 8)
 
       let fiiYieldIdx = headerRow.findIndex((h: string) => h.includes('div (ano)') || h.includes('div(ano)') || h.includes('div. (ano)') || h.includes('div ano') || h.includes('dy (ano)') || h.includes('dy ano') || h === 'dy');
@@ -1641,17 +1641,7 @@ export function DashboardView() {
                             strokeDasharray="4 4" 
                             strokeWidth="1"
                           />
-                          <text 
-                            x={paddingLeft - 8} 
-                            y={yLine + 3} 
-                            textAnchor="end" 
-                            fill="#94a3b8" 
-                            fontSize="11" 
-                            fontWeight="bold"
-                            className="font-mono"
-                          >
-                            {value.toFixed(1)}%
-                          </text>
+
                         </g>
                       );
                     })}

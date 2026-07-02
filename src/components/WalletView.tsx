@@ -334,7 +334,7 @@ export function WalletView() {
 
           // Coluna de Dividend Yield específica por tipo de ativo
           if (assetBase.type === 'stocks') {
-            yieldColIndex = headerRow.findIndex(h => h.includes('div. yield') || h.includes('div yield') || h.includes('div.yield') || h === 'dividend yield');
+            yieldColIndex = headerRow.findIndex(h => h.includes('div. yields') || h.includes('div yields') || h.includes('div. yield') || h.includes('div yield') || h.includes('div.yield') || h === 'dividend yield');
             if (yieldColIndex === -1 && headerRow.length > 8) yieldColIndex = 8; // Fallback coluna I (índice 8)
           } else if (assetBase.type === 'fii') {
             yieldColIndex = headerRow.findIndex(h => h.includes('div (ano)') || h.includes('div(ano)') || h.includes('div. (ano)') || h.includes('div ano') || h.includes('dy (ano)') || h.includes('dy ano') || h === 'dy');
