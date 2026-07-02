@@ -224,19 +224,11 @@ export const initAuth = (
     });
 };
 
-const isMobileDevice = (): boolean => {
-  if (typeof window === 'undefined') return false;
-  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-};
-
 export const googleSignIn = async (method: 'popup' | 'redirect' = 'popup'): Promise<{ user: User; accessToken: string } | null> => {
   try {
     isSigningIn = true;
-    
-    // On mobile, always prefer redirect to avoid popup blockers
-    const effectiveMethod = (method === 'popup' && isMobileDevice()) ? 'redirect' : method;
 
-    if (effectiveMethod === 'redirect') {
+    if (method === 'redirect') {
       await signInWithRedirect(auth, provider);
       return null;
     }
@@ -254,12 +246,6 @@ export const googleSignIn = async (method: 'popup' | 'redirect' = 'popup'): Prom
     }
     return { user: result.user, accessToken: credential.accessToken };
   } catch (error: any) {
-    // If popup was blocked on mobile, auto-fallback to redirect
-    if (error?.code === 'auth/popup-blocked' || error?.code === 'auth/popup-closed-by-user') {
-      console.log('[Auth] Popup blocked/closed, falling back to redirect...');
-      await signInWithRedirect(auth, provider);
-      return null;
-    }
     console.error('Sign in error:', error);
     throw error;
   } finally {
