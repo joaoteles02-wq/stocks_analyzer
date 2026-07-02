@@ -1,5 +1,6 @@
 # Stocks Analyzer - App Logic
-http://localhost:3000
+npm run dev
+http://loquero, agoacalhost:3000
 ## Visão Geral
 App que analisa planilhas do Google Sheets (3 abas: AÇÕES, FII, S&P 500) usando IA Gemini 3.5 Flash para gerar rankings Top 10, montar carteira e simular performance.
 
@@ -148,7 +149,6 @@ Formula =GOOGLEFINANCE(Ticker)
 - Publicado no Google AI Studio: `https://ai.studio/apps/da9468b6-4298-48e2-90d1-3f8216d2b6c0`
 - Atualização manual via Share/Export no AI Studio
 
-
 ## Coluna "Preço Atual"
 
 **Documentação Técnica: Cálculo de "Preço Atual"**
@@ -178,3 +178,326 @@ b3PrecoUn = API_Resultado.regularMarketPrice (ou 0, caso a API falhe).
 
 
 
+## Codigo da Data Inicial do Dashboard
+
+
+<!DOCTYPE html>
+<html>
+
+<head>
+    <style>
+    body {
+        min-height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background: linear-gradient( to right, #000428, #004e92);
+    }
+    
+    .calendar {
+        position: relative;
+        width: 260px;
+    }
+    
+    .calendar .calendar-body {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
+        font-size: 30px;
+        transform: translate(-50%, -50%);
+        width: 400px;
+        height: 400px;
+        background: rgba(255, 255, 255, 0.1);
+        border: 2px solid rgba(255, 255, 255, 0.1);
+        box-shadow: 30px 30px 40px rgba(0, 0, 0, 0.2);
+        border-radius: 80px;
+        backdrop-filter: blur(10px);
+    }
+    
+    .circle {
+        width: 150px;
+        height: 150px;
+        border-radius: 50%;
+        background: linear-gradient(to right, #833ab4, #fd1d1d, #fcb045);
+        position: relative;
+        left: 170px;
+        top: 50px;
+    }
+    
+    .month {
+        color: #fff;
+        background: green;
+        width: 100%;
+        font-size: 1.7em;
+        text-align: center;
+        padding: 5px 0;
+    }
+    
+    .day {
+        color: #fff;
+        font-size: 1.4em;
+        margin-top: 20px;
+    }
+    
+    .date {
+        color: #fff;
+        font-size: 6em;
+        margin-bottom: 20px;
+    }
+    
+    .year {
+        color: #fff;
+        font-size: 1.2em;
+        margin-bottom: 20px;
+    }
+    </style>
+</head>
+
+<body>
+    <div class="calendar">
+        <div class="circle"></div>
+        <div class="calendar-body">
+             <span class="month">August</span>
+             <span class="day">Thursday</span> 
+             <span class="date">17</span> 
+             <span class="year">2021</span> 
+        </div>
+    </div>
+</body>
+
+</html>
+
+
+
+
+## Codigo da grafico Pizza do Dashboard
+
+
+<div className="flex items-center justify-center p-8 bg-gradient-to-br from-indigo-900 via-slate-900 to-blue-900 min-h-screen">
+  <div className="relative w-full max-w-md p-6 rounded-2xl border border-white/20 bg-white/10 backdrop-blur-xl shadow-2xl shadow-black/40 text-white">
+    <h3 className="text-lg font-semibold tracking-wide mb-6 text-white/90 text-center">Distribuição de Recursos</h3>
+    <div className="flex flex-col items-center gap-6 sm:flex-row sm:justify-around">
+      <div className="relative w-40 h-40">
+        <svg viewBox="0 0 32 32" className="w-full h-full transform -rotate-90 rounded-full drop-shadow-[0_4px_12px_rgba(0,0,0,0.3)]">
+          <defs>
+            <linearGradient id="grad-0" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#ff007f" stop-opacity="0.85" /><stop offset="100%" stop-color="#7f00ff" stop-opacity="0.85" /></linearGradient>
+            <linearGradient id="grad-1" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#00f2fe" stop-opacity="0.85" /><stop offset="100%" stop-color="#4facfe" stop-opacity="0.85" /></linearGradient>
+            <linearGradient id="grad-2" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#00ff87" stop-opacity="0.85" /><stop offset="100%" stop-color="#60efff" stop-opacity="0.85" /></linearGradient>
+          </defs>
+          <circle cx="16" cy="16" r="15.915494" fill="transparent" stroke="url(#grad-0)" stroke-width="4" stroke-dasharray="40 60" stroke-dashoffset="0" />
+          <circle cx="16" cy="16" r="15.915494" fill="transparent" stroke="url(#grad-1)" stroke-width="4" stroke-dasharray="35 65" stroke-dashoffset="-40" />
+          <circle cx="16" cy="16" r="15.915494" fill="transparent" stroke="url(#grad-2)" stroke-width="4" stroke-dasharray="25 75" stroke-dashoffset="-75" />
+        </svg>
+        <div className="absolute inset-6 rounded-full border border-white/10 bg-black/20 backdrop-blur-md flex items-center justify-center">
+          <span className="text-[10px] text-white/60 font-medium">Total 100%</span>
+        </div>
+      </div>
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center gap-3"><span className="w-3 h-3 rounded-full" style="background: linear-gradient(135deg, #ff007f, #7f00ff)"></span><div className="flex flex-col"><span className="text-sm font-medium text-white/80">Design</span><span className="text-xs text-white/50">40%</span></div></div>
+        <div className="flex items-center gap-3"><span className="w-3 h-3 rounded-full" style="background: linear-gradient(135deg, #00f2fe, #4facfe)"></span><div className="flex flex-col"><span className="text-sm font-medium text-white/80">Dev</span><span className="text-xs text-white/50">35%</span></div></div>
+        <div className="flex items-center gap-3"><span className="w-3 h-3 rounded-full" style="background: linear-gradient(135deg, #00ff87, #60efff)"></span><div className="flex flex-col"><span className="text-sm font-medium text-white/80">Marketing</span><span className="text-xs text-white/50">25%</span></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
+
+
+
+## GAUGES
+
+
+
+import React, { useEffect, useState } from 'react';
+import styled, { keyframes } from 'styled-components';
+
+// 1. Tipagem das Propriedades (TypeScript)
+interface GlassGaugeProps {
+  value: number; // Valor final do medidor (0 a 100)
+  title?: string;
+  subtitle?: string;
+}
+
+// 2. Animações CSS (Keyframes)
+const fillProgress = (offsetFinal: number) => keyframes`
+  from {
+    stroke-dashoffset: 314.16; /* Circunferência total (vazio) */
+  }
+  to {
+    stroke-dashoffset: ${offsetFinal}; /* Posição do valor final */
+  }
+`;
+
+const fadeIn = keyframes`
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+`;
+
+// 3. Componentes Estilizados (Interface e Glassmorphism)
+const GlassCard = styled.div`
+  position: relative;
+  width: 240px;
+  padding: 24px;
+  border-radius: 28px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: rgba(15, 32, 67, 0.45); 
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4), inset 0 1px 2px rgba(255, 255, 255, 0.2);
+  animation: ${fadeIn} 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+`;
+
+const GlowEffect = styled.div`
+  position: absolute;
+  bottom: -20%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 140px;
+  height: 140px;
+  background: radial-gradient(circle, rgba(0, 210, 255, 0.3) 0%, rgba(0, 0, 0, 0) 70%);
+  border-radius: 50%;
+  pointer-events: none;
+`;
+
+const Header = styled.div`
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+`;
+
+const Title = styled.span`
+  color: rgba(255, 255, 255, 0.95);
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+`;
+
+const Dots = styled.span`
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: bold;
+`;
+
+const GaugeContainer = styled.div`
+  position: relative;
+  width: 160px;
+  height: 160px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+`;
+
+const SvgGauge = styled.svg`
+  transform: rotate(-90deg);
+  width: 100%;
+  height: 100%;
+`;
+
+const CircleBackground = styled.circle`
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.08);
+  stroke-width: 8;
+`;
+
+// O segredo do preenchimento animado está aqui:
+const CircleProgress = styled.circle<{ $offsetFinal: number }>`
+  fill: none;
+  stroke: #00d2ff;
+  stroke-width: 8;
+  stroke-linecap: round;
+  filter: drop-shadow(0px 0px 8px rgba(0, 210, 255, 0.9));
+  stroke-dasharray: 314.16; /* 2 * PI * 50 */
+  
+  /* Aplica a animação de corrida inicial de 1.2 segundos */
+  animation: ${props => fillProgress(props.$offsetFinal)} 1.2s cubic-bezier(0.1, 0.8, 0.2, 1) forwards;
+`;
+
+const GaugeText = styled.div`
+  position: absolute;
+`;
+
+const Percentage = styled.span`
+  color: #ffffff;
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 28px;
+  font-weight: 700;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+`;
+
+const FooterText = styled.div`
+  margin-top: 16px;
+  color: rgba(255, 255, 255, 0.7);
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+`;
+
+// 4. Componente Principal
+export const GlassGauge: React.FC<GlassGaugeProps> = ({ 
+  value, 
+  title = "Sinal", 
+  subtitle = "Excelente" 
+}) => {
+  const clampedValue = Math.max(0, Math.min(100, value));
+  
+  // Lógica de cálculo do SVG
+  const radius = 50;
+  const circumference = 2 * Math.PI * radius; // 314.16
+  const strokeDashoffsetFinal = circumference - (clampedValue / 100) * circumference;
+
+  // Estado para fazer os números internos subirem de 0 até o valor final na mesma velocidade da animação
+  const [displayValue, setDisplayValue] = useState(0);
+
+  useEffect(() => {
+    let start = 0;
+    const duration = 1200; // Mesma duração do CSS (1.2s)
+    const stepTime = Math.abs(Math.floor(duration / clampedValue));
+    
+    if (clampedValue === 0) return;
+
+    const timer = setInterval(() => {
+      start += 1;
+      setDisplayValue(start);
+      if (start >= clampedValue) {
+        clearInterval(timer);
+      }
+    }, stepTime);
+
+    return () => clearInterval(timer);
+  }, [clampedValue]);
+
+  return (
+    <GlassCard>
+      <GlowEffect />
+      <Header>
+        <Title>{title}</Title>
+        <Dots>•••</Dots>
+      </Header>
+
+      <GaugeContainer>
+        <SvgGauge viewBox="0 0 120 120">
+          <CircleBackground cx="60" cy="60" r={radius} />
+          <CircleProgress
+            cx="60"
+            cy="60"
+            r={radius}
+            $offsetFinal={strokeDashoffsetFinal}
+          />
+        </SvgGauge>
+        
+        <GaugeText>
+          <Percentage>{displayValue}%</Percentage>
+        </GaugeText>
+      </GaugeContainer>
+
+      <FooterText>{subtitle}</FooterText>
+    </GlassCard>
+  );
+};
