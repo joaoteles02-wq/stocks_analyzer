@@ -136,6 +136,7 @@ export default function App() {
 
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [currentView, setCurrentView] = useState<'analysis' | 'wallet' | 'dashboard' | 'settings'>(() => {
     const saved = localStorage.getItem('app_current_view');
     if (saved === 'wallet' || saved === 'dashboard' || saved === 'settings') return saved;
@@ -479,6 +480,7 @@ export default function App() {
 
     setAnalyzing(true);
     setError(null);
+    setInfoMessage(null);
 
     const isFiiMode = analysisType === 'fii';
     const isSp500Mode = analysisType === 'sp500';
@@ -550,11 +552,15 @@ export default function App() {
           const diffed = diffMarkdown(currentRes, newResult);
           setFiiHighlightedResult(diffed);
           localStorage.setItem('fii_highlighted_result', diffed);
+          setInfoMessage(null);
         } else {
           setFiiPreviousResult(null);
           localStorage.removeItem('fii_previous_result');
           setFiiHighlightedResult(null);
           localStorage.removeItem('fii_highlighted_result');
+          if (currentRes) {
+            setInfoMessage("Nenhuma alteração detectada nos dados. O ranking permanece igual ao da última análise.");
+          }
         }
         setFiiAnalysisResult(newResult);
         localStorage.setItem('fii_analysis_result', newResult);
@@ -566,11 +572,15 @@ export default function App() {
           const diffed = diffMarkdown(currentRes, newResult);
           setSp500HighlightedResult(diffed);
           localStorage.setItem('sp500_highlighted_result', diffed);
+          setInfoMessage(null);
         } else {
           setSp500PreviousResult(null);
           localStorage.removeItem('sp500_previous_result');
           setSp500HighlightedResult(null);
           localStorage.removeItem('sp500_highlighted_result');
+          if (currentRes) {
+            setInfoMessage("Nenhuma alteração detectada nos dados. O ranking permanece igual ao da última análise.");
+          }
         }
         setSp500AnalysisResult(newResult);
         localStorage.setItem('sp500_analysis_result', newResult);
@@ -582,11 +592,15 @@ export default function App() {
           const diffed = diffMarkdown(currentRes, newResult);
           setStocksHighlightedResult(diffed);
           localStorage.setItem('stocks_highlighted_result', diffed);
+          setInfoMessage(null);
         } else {
           setStocksPreviousResult(null);
           localStorage.removeItem('stocks_previous_result');
           setStocksHighlightedResult(null);
           localStorage.removeItem('stocks_highlighted_result');
+          if (currentRes) {
+            setInfoMessage("Nenhuma alteração detectada nos dados. O ranking permanece igual ao da última análise.");
+          }
         }
         setStocksAnalysisResult(newResult);
         localStorage.setItem('stocks_analysis_result', newResult);
@@ -710,6 +724,14 @@ export default function App() {
             <div className="absolute -top-4 left-1/2 -translate-x-1/2 w-11/12 max-w-2xl z-50">
               <div className="p-4 bg-red-950/80 text-red-200 rounded-xl text-sm font-medium border border-red-500/50 backdrop-blur-md shadow-2xl text-center">
                 {error}
+              </div>
+            </div>
+          )}
+
+          {infoMessage && (
+            <div className="absolute top-16 left-1/2 -translate-x-1/2 w-11/12 max-w-2xl z-50">
+              <div className="p-4 bg-emerald-950/80 text-emerald-200 rounded-xl text-sm font-medium border border-emerald-500/50 backdrop-blur-md shadow-2xl text-center">
+                {infoMessage}
               </div>
             </div>
           )}
@@ -1130,67 +1152,12 @@ export default function App() {
                 </div>
               </div>
 
-              {((dataSource === 'google' && !selectedFileId) || (dataSource === 'local' && (!localUploadedSheetData || localUploadedSheetData.length === 0))) ? (
-                <div className="text-center py-16 space-y-4">
-                  <div className="mx-auto w-20 h-20 bg-white/5 rounded-full flex items-center justify-center border border-white/10 mb-6 shadow-inner">
-                    <FileSpreadsheet className="w-10 h-10 text-indigo-400/50" />
-                  </div>
-                  <h2 className="text-2xl font-bold text-white">Nenhuma planilha configurada</h2>
-                  <p className="text-slate-400 max-w-sm mx-auto">
-                    {dataSource === 'google' 
-                      ? "Para usar o assistente, vá nas Configurações e selecione a planilha de dados do seu Google Drive."
-                      : "Para usar o assistente, vá nas Configurações e faça upload ou cole os dados da sua planilha local."}
-                  </p>
-                  <button 
-                    onClick={() => setCurrentView('settings')}
-                    className="mt-6 px-8 py-3 bg-indigo-500/80 backdrop-blur-sm text-white rounded-xl font-medium hover:bg-indigo-600/80 border border-indigo-400/30 transition shadow-lg inline-flex items-center gap-2 cursor-pointer"
-                  >
-                    <Settings className="w-5 h-5"/> Abrir Configurações
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-8 animate-in fade-in duration-300">
-                  <div className="text-center mb-8">
-                    <h2 className="text-3xl font-bold text-white tracking-tight uppercase tracking-wider font-sans">
-                      {analysisType === 'stocks' 
-                        ? "Top 10 the best Stocks" 
-                        : analysisType === 'sp500'
-                          ? "Top 10 the best S&P 500"
-                          : "Top 10 the best FII's"}
-                    </h2>
-                    
-                    <div className="mt-3">
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-white/5 text-indigo-200 border border-white/10">
-                        {dataSource === 'google' ? 'Aba ativa' : 'Origem'}: <span className="text-white font-mono font-bold">{dataSource === 'google' ? (selectedSheetName || "Não configurada") : `${localSourceName} (${localUploadedSheetData?.length || 0} linhas lidas)`}</span>
-                      </span>
-                    </div>
-                  </div>
-
-                  <button 
-                    onClick={analyzeSelected}
-                    disabled={analyzing}
-                    className="w-full p-5 bg-gradient-to-r from-indigo-500/80 to-purple-600/80 hover:from-indigo-500 hover:to-purple-500 border border-white/20 backdrop-blur-md text-white rounded-2xl font-bold text-lg transition flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed shadow-xl hover:shadow-indigo-500/25"
-                  >
-                    {analyzing ? <Loader2 className="w-6 h-6 animate-spin" /> : <Search className="w-6 h-6" />}
-                    {analyzing 
-                      ? 'Analisando via IA (Isso pode levar alguns segundos)...' 
-                      : (analysisType === 'stocks' 
-                          ? stocksAnalysisResult 
-                          : analysisType === 'sp500' 
-                            ? sp500AnalysisResult 
-                            : fiiAnalysisResult) 
-                        ? 'Analisar Novamente' 
-                        : 'Ler Planilha e Gerar Ranking'}
-                  </button>
-                </div>
-              )}
-              
               {(analysisType === 'stocks' 
                 ? stocksAnalysisResult 
                 : analysisType === 'sp500' 
                   ? sp500AnalysisResult 
                   : fiiAnalysisResult) && (
-                <div className="pt-10 border-t border-white/10 mt-10 relative">
+                <div className="relative">
                   <h3 className="text-2xl font-bold mb-8 text-white flex items-center gap-3">
                     <span className="w-1.5 h-8 bg-gradient-to-b from-indigo-400 to-purple-500 rounded-full inline-block"></span>
                     Relatório Especializado - {analysisType === 'stocks' 
@@ -1255,6 +1222,61 @@ export default function App() {
                       </Markdown>
                     </div>
                   </div>
+                </div>
+              )}
+
+              {((dataSource === 'google' && !selectedFileId) || (dataSource === 'local' && (!localUploadedSheetData || localUploadedSheetData.length === 0))) ? (
+                <div className="text-center py-16 space-y-4">
+                  <div className="mx-auto w-20 h-20 bg-white/5 rounded-full flex items-center justify-center border border-white/10 mb-6 shadow-inner">
+                    <FileSpreadsheet className="w-10 h-10 text-indigo-400/50" />
+                  </div>
+                  <h2 className="text-2xl font-bold text-white">Nenhuma planilha configurada</h2>
+                  <p className="text-slate-400 max-w-sm mx-auto">
+                    {dataSource === 'google' 
+                      ? "Para usar o assistente, vá nas Configurações e selecione a planilha de dados do seu Google Drive."
+                      : "Para usar o assistente, vá nas Configurações e faça upload ou cole os dados da sua planilha local."}
+                  </p>
+                  <button 
+                    onClick={() => setCurrentView('settings')}
+                    className="mt-6 px-8 py-3 bg-indigo-500/80 backdrop-blur-sm text-white rounded-xl font-medium hover:bg-indigo-600/80 border border-indigo-400/30 transition shadow-lg inline-flex items-center gap-2 cursor-pointer"
+                  >
+                    <Settings className="w-5 h-5"/> Abrir Configurações
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-8 animate-in fade-in duration-300">
+                  <div className="text-center mb-8">
+                    <h2 className="text-3xl font-bold text-white tracking-tight uppercase tracking-wider font-sans">
+                      {analysisType === 'stocks' 
+                        ? "Top 10 the best Stocks" 
+                        : analysisType === 'sp500'
+                          ? "Top 10 the best S&P 500"
+                          : "Top 10 the best FII's"}
+                    </h2>
+                    
+                    <div className="mt-3">
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-white/5 text-indigo-200 border border-white/10">
+                        {dataSource === 'google' ? 'Aba ativa' : 'Origem'}: <span className="text-white font-mono font-bold">{dataSource === 'google' ? (selectedSheetName || "Não configurada") : `${localSourceName} (${localUploadedSheetData?.length || 0} linhas lidas)`}</span>
+                      </span>
+                    </div>
+                  </div>
+
+                  <button 
+                    onClick={analyzeSelected}
+                    disabled={analyzing}
+                    className="w-full p-5 bg-gradient-to-r from-indigo-500/80 to-purple-600/80 hover:from-indigo-500 hover:to-purple-500 border border-white/20 backdrop-blur-md text-white rounded-2xl font-bold text-lg transition flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed shadow-xl hover:shadow-indigo-500/25"
+                  >
+                    {analyzing ? <Loader2 className="w-6 h-6 animate-spin" /> : <Search className="w-6 h-6" />}
+                    {analyzing 
+                      ? 'Analisando via IA (Isso pode levar alguns segundos)...' 
+                      : (analysisType === 'stocks' 
+                          ? stocksAnalysisResult 
+                          : analysisType === 'sp500' 
+                            ? sp500AnalysisResult 
+                            : fiiAnalysisResult) 
+                        ? 'Analisar Novamente' 
+                        : 'Ler Planilha e Gerar Ranking'}
+                  </button>
                 </div>
               )}
             </div>
