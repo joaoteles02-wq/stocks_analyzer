@@ -137,6 +137,7 @@ export default function App() {
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
+  const [analysisVersion, setAnalysisVersion] = useState(0);
   const [currentView, setCurrentView] = useState<'analysis' | 'wallet' | 'dashboard' | 'settings'>(() => {
     const saved = localStorage.getItem('app_current_view');
     if (saved === 'wallet' || saved === 'dashboard' || saved === 'settings') return saved;
@@ -565,6 +566,8 @@ export default function App() {
         setFiiAnalysisResult(newResult);
         localStorage.setItem('fii_analysis_result', newResult);
         localStorage.setItem('latest_analysis_type', 'fii');
+        localStorage.setItem('pending_wallet_apply', 'fii');
+        setAnalysisVersion(v => v + 1);
       } else if (isSp500Mode) {
         if (currentRes && currentRes !== newResult) {
           setSp500PreviousResult(currentRes);
@@ -585,6 +588,8 @@ export default function App() {
         setSp500AnalysisResult(newResult);
         localStorage.setItem('sp500_analysis_result', newResult);
         localStorage.setItem('latest_analysis_type', 'sp500');
+        localStorage.setItem('pending_wallet_apply', 'sp500');
+        setAnalysisVersion(v => v + 1);
       } else {
         if (currentRes && currentRes !== newResult) {
           setStocksPreviousResult(currentRes);
@@ -605,6 +610,8 @@ export default function App() {
         setStocksAnalysisResult(newResult);
         localStorage.setItem('stocks_analysis_result', newResult);
         localStorage.setItem('latest_analysis_type', 'stocks');
+        localStorage.setItem('pending_wallet_apply', 'stocks');
+        setAnalysisVersion(v => v + 1);
       }
     } catch (err: any) {
       if (err.message.includes("insufficient authentication scopes") || err.message.includes("Insufficient Permission")) {
@@ -1105,7 +1112,7 @@ export default function App() {
               )}
             </div>
           ) : currentView === 'wallet' ? (
-            <WalletView />
+            <WalletView key={analysisVersion} />
           ) : currentView === 'dashboard' ? (
             <ErrorBoundary key="dashboard-error-boundary">
               <DashboardView />

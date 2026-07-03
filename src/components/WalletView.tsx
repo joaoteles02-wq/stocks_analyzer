@@ -164,6 +164,22 @@ export function WalletView() {
     return 'equilibrada';
   });
 
+  // Auto-apply wallet when a new analysis is detected from App
+  useEffect(() => {
+    const pendingType = localStorage.getItem('pending_wallet_apply');
+    if (pendingType) {
+      localStorage.removeItem('pending_wallet_apply');
+      const type = pendingType as 'stocks' | 'fii' | 'sp500';
+      const assets = getRankedAssetsFromCategory(type);
+      if (assets && assets.length > 0) {
+        const newSlots = assets.map(asset => ({ asset, weight: 10 }));
+        setWallet(newSlots);
+        setSuccessMsg(`Carteira atualizada automaticamente com o novo ranking de ${type === 'stocks' ? 'Ações BR' : type === 'fii' ? 'FIIs' : 'S&P 500'}!`);
+        setTimeout(() => setSuccessMsg(null), 8500);
+      }
+    }
+  }, []);
+
   // Parses the 10 ranked assets for a given type, using reports if available, falling back to static/definitions to get exactly 10
   const getRankedAssetsFromCategory = (type: 'stocks' | 'fii' | 'sp500'): Asset[] => {
     const rawMarkdown = localStorage.getItem(`${type}_analysis_result`);
