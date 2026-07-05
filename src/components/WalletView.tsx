@@ -81,12 +81,369 @@ const DEFAULT_WALLET_SLOTS: { assetTicker: string; weight: number }[] = [
   { assetTicker: 'BTLG11', weight: 5 },
 ];
 
+// Parses the 10 ranked assets for a given type, using reports if available, falling back to static/definitions to get exactly 10
+const getRankedAssetsFromCategory = (type: 'stocks' | 'fii' | 'sp500'): Asset[] => {
+  const rawMarkdown = typeof window !== 'undefined' ? localStorage.getItem(`${type}_analysis_result`) : null;
+  const parsedTickers: string[] = [];
+
+  // Helper to filter out common financial acronyms we don't want to parse as US tickers
+  const ignoreList = new Set([
+    'TOP', 'ROE', 'EBITDA', 'PVP', 'PV', 'P/VP', 'FII', 'FIIS', 'ACOES', 'S&P', 'EV', 'DY', 'CDI', 'IPCA', 
+    'BRL', 'USD', 'MEI', 'PIX', 'DRE', 'IRPF', 'CEO', 'EUA', 'USA', 'II', 'III', 'IV', 'V', 
+    'VI', 'VII', 'VIII', 'IX', 'X', 'DIVIDEND', 'YIELD', 'RENT', 'TAXA', 'DIVIDENDOS', 
+    'VALOR', 'PRECO', 'GRAHAM', 'GRAHAN', 'PL', 'LPA', 'VPA', 'SETOR', 'DICAS', 'DICA'
+  ]);
+
+  const extractTickerFromLine = (line: string): string | null => {
+    // 1. Clean markdown elements
+    const cleanLine = line.replace(/[\*\_\#\-\+\•\=\:\(\)]/g, ' ').trim();
+    
+    // 2. Check for B3 stock patterns (4 letters + 1 or 2 digits)
+    if (type === 'stocks' || type === 'fii') {
+      const b3Match = cleanLine.match(/\b([A-Z]{4}\d{1,2})\b/);
+      if (b3Match) {
+        return b3Match[1].toUpperCase();
+      }
+    }
+
+    // 3. For S&P500 or general, look for words inside original parentheses, e.g. "Apple Inc. (AAPL)"
+    const parenMatch = line.match(/\(([A-Z]{1,5})\)/);
+    if (parenMatch) {
+      const t = parenMatch[1].toUpperCase();
+      if (!ignoreList.has(t)) {
+        return t;
+      }
+    }
+
+    // 4. Split and verify each word
+    const words = cleanLine.split(/[\s\-ºª\,]+/);
+    for (const word of words) {
+      const w = word.trim().toUpperCase();
+      if (!w || /^\d+$/.test(w) || ignoreList.has(w)) continue;
+
+      if (type === 'sp500') {
+        // General US Tickers are 1-5 letters
+        if (w.length >= 1 && w.length <= 5 && /^[A-Z]+$/.test(w)) {
+          return w;
+        }
+      } else {
+        // Brazilian Tickers are typically 3-6 chars (mostly letters and optionally numbers)
+        if (w.length >= 3 && w.length <= 6 && /^[A-Z0-9]+$/.test(w)) {
+          return w;
+        }
+      }
+    }
+    return null;
+  };
+
+  if (rawMarkdown) {
+    const lines = rawMarkdown.split('\n');
+
+    // Phase 1: Extract tickers from numbered ranking lines (1., 2., 1º, 2º, etc.)
+    // These are the actual ranking in correct order per the AI prompt rules.
+    for (const line of lines) {
+      if (/^\s*[\-\*\+\#\s]*\d+[\.\)\º\ª\s\-]/i.test(line)) {
+        const t = extractTickerFromLine(line);
+        if (t && !parsedTickers.includes(t)) {
+          parsedTickers.push(t);
+        }
+      }
+    }
+
+    // Phase 2: Fallback — bullet points, but only if numbered lines didn't yield enough
+    if (parsedTickers.length < 10) {
+      for (const line of lines) {
+        if (/^\s*[\-\*\+]\s+/.test(line) && !/^\s*[\-\*\+\#\s]*\d+[\.\)\º\ª\s\-]/i.test(line)) {
+          const t = extractTickerFromLine(line);
+          if (t && !parsedTickers.includes(t)) {
+            parsedTickers.push(t);
+          }
+        }
+      }
+    }
+
+    // Phase 3: Fallback — global B3 pattern scan (when still not enough for stocks/fii)
+    if (parsedTickers.length < 5 && (type === 'stocks' || type === 'fii')) {
+      const b3Matches = rawMarkdown.match(/\b([A-Z]{4}\d{1,2})\b/g);
+      if (b3Matches) {
+        for (const m of b3Matches) {
+          const cleanM = m.toUpperCase();
+          if (!ignoreList.has(cleanM) && !parsedTickers.includes(cleanM)) {
+            parsedTickers.push(cleanM);
+          }
+        }
+      }
+    }
+
+    // Phase 4: Fallback — for S&P 500, scan for known tickers
+    if (parsedTickers.length < 5 && type === 'sp500') {
+      const knownSp500Tickers = ALL_BEST_30_ASSETS.filter(a => a.type === 'sp500').map(a => a.ticker);
+      for (const kt of knownSp500Tickers) {
+        if (rawMarkdown.toUpperCase().includes(kt) && !parsedTickers.includes(kt)) {
+          parsedTickers.push(kt);
+        }
+      }
+    }
+  }
+
+  let localRows: any[][] = [];
+  try {
+    const savedLocal = typeof window !== 'undefined' ? localStorage.getItem('local_uploaded_sheet_data') : null;
+    if (savedLocal) {
+      localRows = JSON.parse(savedLocal);
+    }
+  } catch (e) {}
+
+  // Carrega o índice customizado de coluna configurado pelo usuário para alinhamento uniforme
+  const overrideInitialPriceColStr = typeof window !== 'undefined' ? localStorage.getItem('sheet_initial_price_col_idx') : null;
+  const overrideCurrentPriceColStr = typeof window !== 'undefined' ? localStorage.getItem('sheet_current_price_col_idx') : null;
+  const overrideInitialPriceColIdx = overrideInitialPriceColStr ? parseInt(overrideInitialPriceColStr, 10) : -1;
+  const overrideCurrentPriceColIdx = overrideCurrentPriceColStr ? parseInt(overrideCurrentPriceColStr, 10) : -1;
+
+  const parsePortNumber = (valStr: string): number => {
+    if (!valStr) return NaN;
+    let clean = valStr.replace('R$', '').replace('$', '').trim();
+    if (clean.includes('.') && clean.includes(',')) {
+      clean = clean.replace(/\./g, '').replace(',', '.');
+    } else if (clean.includes(',')) {
+      clean = clean.replace(',', '.');
+    }
+    return Number(clean);
+  };
+
+  const resultList: Asset[] = [];
+
+  // Map found tickers to Asset objects
+  for (const ticker of parsedTickers) {
+    // 1. Initial baseline from ALL_BEST_30_ASSETS if exists
+    const existing = ALL_BEST_30_ASSETS.find(a => a.ticker.toUpperCase() === ticker);
+    let assetBase: Asset = existing ? { ...existing } : {
+      ticker,
+      name: `${type === 'stocks' ? 'Ação' : type === 'fii' ? 'Fundo Imobiliário' : 'Ação S&P 500'} ${ticker}`,
+      type,
+      price: type === 'sp500' ? 100.00 : 15.00,
+      currency: type === 'sp500' ? 'USD' as const : 'BRL' as const,
+      yield: type === 'sp500' ? 0.015 : type === 'fii' ? 0.10 : 0.06,
+      sector: 'Selecionado por IA',
+      description: 'Ativo adicionado automaticamente a partir da análise da planilha.'
+    };
+
+    // 2. Lookup and override from local sheet rows if available
+    if (Array.isArray(localRows) && localRows.length > 0) {
+      const matchedRow = localRows.find(row => 
+        Array.isArray(row) && row.some(cell => {
+          const s = String(cell).trim().toUpperCase();
+          return s === ticker || s === `${ticker}.SA` || s.replace('.SA', '') === ticker;
+        })
+      );
+
+      if (matchedRow) {
+        // Identify headers
+        const headerRow = localRows[0].map(cell => String(cell).trim().toLowerCase());
+        console.log('[Yield Debug] Header row:', headerRow);
+        
+        let currentPriceColIndex = -1;
+        let initialPriceColIndex = -1;
+        let yieldColIndex = -1;
+        
+        for (let i = 0; i < headerRow.length; i++) {
+          const h = headerRow[i];
+          const isCurrent = h.includes('atual') || h.includes('hoje') || h.includes('agora') || h.includes('realtime') || h.includes('venda') || h.includes('cotação') || h.includes('cotacao') || h.includes('mercado');
+          const isInitial = h.includes('02/01/2026') || h.includes('inicial') || h.includes('custo') || h.includes('compra') || h.includes('medio') || h.includes('médio') || h.includes('pago') || h.includes('aquisição') || h.includes('aquisicao') || h.includes('yoc') || h.includes('cost');
+          
+          if (isCurrent && !isInitial) {
+            currentPriceColIndex = i;
+          } else if (isInitial && !isCurrent) {
+            initialPriceColIndex = i;
+          }
+        }
+
+        // Coluna de Dividend Yield específica por tipo de ativo
+        if (assetBase.type === 'stocks') {
+          yieldColIndex = headerRow.findIndex(h => h.includes('div. yields') || h.includes('div yields') || h.includes('div. yield') || h.includes('div yield') || h.includes('div.yield') || h === 'dividend yield');
+          if (yieldColIndex === -1 && headerRow.length > 8) yieldColIndex = 8; // Fallback coluna I (índice 8)
+        } else if (assetBase.type === 'fii') {
+          yieldColIndex = headerRow.findIndex(h => h.includes('div (ano)') || h.includes('div(ano)') || h.includes('div. (ano)') || h.includes('div ano') || h.includes('dy (ano)') || h.includes('dy ano') || h === 'dy');
+          if (yieldColIndex === -1 && headerRow.length > 7) yieldColIndex = 7; // Fallback coluna H (índice 7)
+        }
+        console.log(`[Yield Debug] Ticker: ${ticker}, Type: ${assetBase.type}, yieldColIndex: ${yieldColIndex}, matchedRow[${yieldColIndex}]:`, yieldColIndex !== -1 ? matchedRow[yieldColIndex] : 'N/A');
+        
+        // Get name
+        let matchedName = assetBase.name;
+        for (const cell of matchedRow) {
+          if (typeof cell === 'string' && cell.trim() && cell.toUpperCase() !== ticker && cell.toUpperCase() !== `${ticker}.SA` && isNaN(Number(cell.replace(',', '.')))) {
+            matchedName = cell.trim();
+            break;
+          }
+        }
+        assetBase.name = matchedName;
+
+        // Get Current Price (Preço Atual)
+        let matchedPrice = assetBase.price;
+        if (overrideCurrentPriceColIdx !== -1 && matchedRow[overrideCurrentPriceColIdx] !== undefined) {
+          const num = parsePortNumber(String(matchedRow[overrideCurrentPriceColIdx]));
+          if (!isNaN(num) && num > 0.1) {
+            matchedPrice = num;
+          }
+        } else if (currentPriceColIndex !== -1 && matchedRow[currentPriceColIndex] !== undefined) {
+          const num = parsePortNumber(String(matchedRow[currentPriceColIndex]));
+          if (!isNaN(num) && num > 0.1) {
+            matchedPrice = num;
+          }
+        } else {
+          // Find numbers in the row
+          const numbersInRow: number[] = [];
+          for (let i = 0; i < matchedRow.length; i++) {
+            const val = parsePortNumber(String(matchedRow[i]));
+            if (!isNaN(val) && val > 0.1 && val < 50000) {
+              numbersInRow.push(val);
+            }
+          }
+          if (numbersInRow.length > 0) {
+            if (numbersInRow.length >= 2) {
+              // If we don't have explicit headers, we assume Current Price is the last valid number
+              // because Current Price usually comes AFTER Preço de Custo/Initial in sheets.
+              matchedPrice = numbersInRow[numbersInRow.length - 1];
+            } else {
+              matchedPrice = numbersInRow[0];
+            }
+          }
+        }
+        assetBase.price = matchedPrice;
+
+        // Get Yield
+        let matchedYield = assetBase.yield;
+        const targetYieldCol = yieldColIndex !== -1 ? yieldColIndex : (assetBase.type === 'stocks' ? 8 : assetBase.type === 'fii' ? 7 : -1);
+        if (targetYieldCol !== -1 && matchedRow[targetYieldCol] !== undefined && matchedRow[targetYieldCol] !== null && String(matchedRow[targetYieldCol]).trim() !== '') {
+          const cleanVal = String(matchedRow[targetYieldCol]).replace('%', '').replace(',', '.').trim();
+          const num = Number(cleanVal);
+          console.log(`[Yield Debug] ${ticker}: column found at ${targetYieldCol}, raw="${matchedRow[targetYieldCol]}", clean="${cleanVal}", num=${num}`);
+          if (!isNaN(num) && num > 0) {
+            matchedYield = num > 1 ? num / 100 : num;
+          }
+        }
+        console.log(`[Yield Debug] ${ticker}: final yield=${matchedYield} (was ${assetBase.yield})`);
+        assetBase.yield = matchedYield;
+
+        // Get Sector
+        let matchedSector = assetBase.sector;
+        if (matchedRow[2] && typeof matchedRow[2] === 'string' && matchedRow[2].length > 3) {
+          matchedSector = matchedRow[2];
+        }
+        assetBase.sector = matchedSector;
+        assetBase.description = 'Ativo atualizado com dados reais extraídos de sua planilha.';
+      }
+    }
+
+    resultList.push(assetBase);
+  }
+
+  // Ensure we have exactly 10 by filling from the static list of that type
+  const staticList = ALL_BEST_30_ASSETS.filter(a => a.type === type);
+  for (const staticAsset of staticList) {
+    if (resultList.length >= 10) break;
+    if (!resultList.some(a => a.ticker === staticAsset.ticker)) {
+      resultList.push(staticAsset);
+    }
+  }
+
+  return resultList.slice(0, 10);
+};
+
+const getStrategyPreview = (strategyType: 'renda' | 'equilibrada' | 'crescimento'): { asset: Asset; weight: number }[] => {
+  const stocksRanked = getRankedAssetsFromCategory('stocks');
+  const fiiRanked = getRankedAssetsFromCategory('fii');
+  const sp500Ranked = getRankedAssetsFromCategory('sp500');
+
+  const selectedSlots: { asset: Asset; weight: number }[] = [];
+
+  if (strategyType === 'renda') {
+    // 5 FIIs (60%), 3 Ações BR (30%), 2 S&P 500 (10%)
+    const selectedFiis = fiiRanked.slice(0, 5);
+    const selectedStocks = stocksRanked.slice(0, 3);
+    const selectedSp500 = sp500Ranked.slice(0, 2);
+
+    const fiiWeights = [15, 15, 10, 10, 10];
+    const stockWeights = [10, 10, 10];
+    const sp500Weights = [5, 5];
+
+    selectedFiis.forEach((asset, idx) => {
+      selectedSlots.push({ asset, weight: fiiWeights[idx] || 10 });
+    });
+    selectedStocks.forEach((asset, idx) => {
+      selectedSlots.push({ asset, weight: stockWeights[idx] || 10 });
+    });
+    selectedSp500.forEach((asset, idx) => {
+      selectedSlots.push({ asset, weight: sp500Weights[idx] || 5 });
+    });
+  } else if (strategyType === 'crescimento') {
+    // 5 S&P 500 (60%), 3 Ações BR (30%), 2 FIIs (10%)
+    const selectedSp500 = sp500Ranked.slice(0, 5);
+    const selectedStocks = stocksRanked.slice(0, 3);
+    const selectedFiis = fiiRanked.slice(0, 2);
+
+    const sp500Weights = [15, 15, 10, 10, 10];
+    const stockWeights = [10, 10, 10];
+    const fiiWeights = [5, 5];
+
+    selectedSp500.forEach((asset, idx) => {
+      selectedSlots.push({ asset, weight: sp500Weights[idx] || 10 });
+    });
+    selectedStocks.forEach((asset, idx) => {
+      selectedSlots.push({ asset, weight: stockWeights[idx] || 10 });
+    });
+    selectedFiis.forEach((asset, idx) => {
+      selectedSlots.push({ asset, weight: fiiWeights[idx] || 5 });
+    });
+  } else {
+    // balanced: 4 FIIs (40%), 3 Ações BR (30%), 3 S&P 500 (30%)
+    const selectedFiis = fiiRanked.slice(0, 4);
+    const selectedStocks = stocksRanked.slice(0, 3);
+    const selectedSp500 = sp500Ranked.slice(0, 3);
+
+    const fiiWeights = [10, 10, 10, 10];
+    const stockWeights = [10, 10, 10];
+    const sp500Weights = [10, 10, 10];
+
+    selectedFiis.forEach((asset, idx) => {
+      selectedSlots.push({ asset, weight: fiiWeights[idx] || 10 });
+    });
+    selectedStocks.forEach((asset, idx) => {
+      selectedSlots.push({ asset, weight: stockWeights[idx] || 10 });
+    });
+    selectedSp500.forEach((asset, idx) => {
+      selectedSlots.push({ asset, weight: sp500Weights[idx] || 10 });
+    });
+  }
+
+  return selectedSlots;
+};
+
 export function WalletView() {
   const USD_BRL_RATE = 5.15; // Simulated dollar exchange rate for realistic calculations
 
   const [wallet, setWallet] = useState<{ asset: Asset; weight: number }[]>(() => {
+    // 1. Check if there's a pending ranking application
+    const pendingType = typeof window !== 'undefined' ? localStorage.getItem('pending_wallet_apply') : null;
+    const savedStrat = typeof window !== 'undefined' ? (localStorage.getItem('active_strategy') as any || 'equilibrada') : 'equilibrada';
+    
+    if (pendingType) {
+      localStorage.removeItem('pending_wallet_apply');
+      const slots = getStrategyPreview(savedStrat);
+      if (slots && slots.length > 0) {
+        // Grava no localStorage imediatamente para garantir consistência
+        localStorage.setItem('saved_interactive_wallet_full', JSON.stringify(slots));
+        const compactFormat = slots.map(w => ({ ticker: w.asset.ticker, weight: w.weight }));
+        localStorage.setItem('saved_interactive_wallet', JSON.stringify(compactFormat));
+        
+        // Seta flag temporária para exibir a mensagem de sucesso no mount
+        localStorage.setItem('wallet_just_applied_analysis', 'true');
+        return slots;
+      }
+    }
+
     // Attempt full local storage load first
-    const savedFull = localStorage.getItem('saved_interactive_wallet_full');
+    const savedFull = typeof window !== 'undefined' ? localStorage.getItem('saved_interactive_wallet_full') : null;
     if (savedFull) {
       try {
         const parsed = JSON.parse(savedFull);
@@ -99,7 +456,7 @@ export function WalletView() {
     }
 
     // Attempt backup/compact local storage load
-    const saved = localStorage.getItem('saved_interactive_wallet');
+    const saved = typeof window !== 'undefined' ? localStorage.getItem('saved_interactive_wallet') : null;
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -126,11 +483,11 @@ export function WalletView() {
   });
 
   const [investmentBudget, setInvestmentBudget] = useState<number>(() => {
-    const saved = localStorage.getItem('saved_wallet_budget');
+    const saved = typeof window !== 'undefined' ? localStorage.getItem('saved_wallet_budget') : null;
     if (saved) {
       const parsed = Number(saved);
       if (parsed === 25000) {
-        localStorage.setItem('saved_wallet_budget', '125000');
+        if (typeof window !== 'undefined') localStorage.setItem('saved_wallet_budget', '125000');
         return 125000;
       }
       return parsed;
@@ -140,7 +497,7 @@ export function WalletView() {
 
   const [activeReplaceIndex, setActiveReplaceIndex] = useState<number | null>(null);
   const [aiReport, setAiReport] = useState<string | null>(() => {
-    return localStorage.getItem('saved_wallet_ai_report') || null;
+    return typeof window !== 'undefined' ? localStorage.getItem('saved_wallet_ai_report') : null;
   });
   const [loadingAi, setLoadingAi] = useState(false);
   const [walletError, setWalletError] = useState<string | null>(null);
@@ -164,350 +521,19 @@ export function WalletView() {
     return 'equilibrada';
   });
 
-  // Auto-apply wallet when a new analysis is detected from App
+  // Show success message if new analysis was applied on initialization
   useEffect(() => {
-    const pendingType = localStorage.getItem('pending_wallet_apply');
-    if (pendingType) {
-      localStorage.removeItem('pending_wallet_apply');
-      const type = pendingType as 'stocks' | 'fii' | 'sp500';
-      const assets = getRankedAssetsFromCategory(type);
-      if (assets && assets.length > 0) {
-        const newSlots = assets.map(asset => ({ asset, weight: 10 }));
-        setWallet(newSlots);
-        setSuccessMsg(`Carteira atualizada automaticamente com o novo ranking de ${type === 'stocks' ? 'Ações BR' : type === 'fii' ? 'FIIs' : 'S&P 500'}!`);
-        setTimeout(() => setSuccessMsg(null), 8500);
-      }
+    const wasApplied = typeof window !== 'undefined' ? localStorage.getItem('wallet_just_applied_analysis') : null;
+    if (wasApplied) {
+      if (typeof window !== 'undefined') localStorage.removeItem('wallet_just_applied_analysis');
+      const currentStrategy = activeStrategy || 'equilibrada';
+      const strategyName = currentStrategy === 'renda' ? 'Renda & Dividendos'
+        : currentStrategy === 'crescimento' ? 'Crescimento Global'
+        : 'Equilíbrio Global';
+      setSuccessMsg(`Carteira atualizada automaticamente com o novo ranking! Estratégia [${strategyName}] reaplicada com os melhores ativos de cada categoria.`);
+      setTimeout(() => setSuccessMsg(null), 8500);
     }
-  }, []);
-
-  // Parses the 10 ranked assets for a given type, using reports if available, falling back to static/definitions to get exactly 10
-  const getRankedAssetsFromCategory = (type: 'stocks' | 'fii' | 'sp500'): Asset[] => {
-    const rawMarkdown = localStorage.getItem(`${type}_analysis_result`);
-    const parsedTickers: string[] = [];
-
-    // Helper to filter out common financial acronyms we don't want to parse as US tickers
-    const ignoreList = new Set([
-      'TOP', 'ROE', 'EBITDA', 'PVP', 'PV', 'P/VP', 'FII', 'FIIS', 'ACOES', 'S&P', 'EV', 'DY', 'CDI', 'IPCA', 
-      'BRL', 'USD', 'MEI', 'PIX', 'DRE', 'IRPF', 'CEO', 'EUA', 'USA', 'II', 'III', 'IV', 'V', 
-      'VI', 'VII', 'VIII', 'IX', 'X', 'DIVIDEND', 'YIELD', 'RENT', 'TAXA', 'DIVIDENDOS', 
-      'VALOR', 'PRECO', 'GRAHAM', 'GRAHAN', 'PL', 'LPA', 'VPA', 'SETOR', 'DICAS', 'DICA'
-    ]);
-
-    const extractTickerFromLine = (line: string): string | null => {
-      // 1. Clean markdown elements
-      const cleanLine = line.replace(/[\*\_\#\-\+\•\=\:\(\)]/g, ' ').trim();
-      
-      // 2. Check for B3 stock patterns (4 letters + 1 or 2 digits)
-      if (type === 'stocks' || type === 'fii') {
-        const b3Match = cleanLine.match(/\b([A-Z]{4}\d{1,2})\b/);
-        if (b3Match) {
-          return b3Match[1].toUpperCase();
-        }
-      }
-
-      // 3. For S&P500 or general, look for words inside original parentheses, e.g. "Apple Inc. (AAPL)"
-      const parenMatch = line.match(/\(([A-Z]{1,5})\)/);
-      if (parenMatch) {
-        const t = parenMatch[1].toUpperCase();
-        if (!ignoreList.has(t)) {
-          return t;
-        }
-      }
-
-      // 4. Split and verify each word
-      const words = cleanLine.split(/[\s\-ºª\,]+/);
-      for (const word of words) {
-        const w = word.trim().toUpperCase();
-        if (!w || /^\d+$/.test(w) || ignoreList.has(w)) continue;
-
-        if (type === 'sp500') {
-          // General US Tickers are 1-5 letters
-          if (w.length >= 1 && w.length <= 5 && /^[A-Z]+$/.test(w)) {
-            return w;
-          }
-        } else {
-          // Brazilian Tickers are typically 3-6 chars (mostly letters and optionally numbers)
-          if (w.length >= 3 && w.length <= 6 && /^[A-Z0-9]+$/.test(w)) {
-            return w;
-          }
-        }
-      }
-      return null;
-    };
-
-    if (rawMarkdown) {
-      const lines = rawMarkdown.split('\n');
-      for (const line of lines) {
-        // Checks if line is a potential ranking line or section heading
-        const isRankingLine = 
-          /^\s*[\-\*\+\#\s]*\d+[\.\)\º\ª\s\-]/i.test(line) || 
-          /lugar|posição|ranking/i.test(line) ||
-          /^\s*[\-\*\+]\s+/.test(line); // list bullet points
-
-        if (isRankingLine) {
-          const t = extractTickerFromLine(line);
-          if (t && !parsedTickers.includes(t)) {
-            parsedTickers.push(t);
-          }
-        }
-      }
-
-      // Fallback 1: If we have not found enough tickers, look for B3 patterns anywhere in the markdown
-      if (parsedTickers.length < 5 && (type === 'stocks' || type === 'fii')) {
-        const b3Matches = rawMarkdown.match(/\b([A-Z]{4}\d{1,2})\b/g);
-        if (b3Matches) {
-          for (const m of b3Matches) {
-            const cleanM = m.toUpperCase();
-            if (!ignoreList.has(cleanM) && !parsedTickers.includes(cleanM)) {
-              parsedTickers.push(cleanM);
-            }
-          }
-        }
-      }
-
-      // Fallback 2: For S&P 500, scan text to see if any of our known best S&P tickers is featured
-      if (parsedTickers.length < 5 && type === 'sp500') {
-        const knownSp500Tickers = ALL_BEST_30_ASSETS.filter(a => a.type === 'sp500').map(a => a.ticker);
-        for (const kt of knownSp500Tickers) {
-          if (rawMarkdown.toUpperCase().includes(kt) && !parsedTickers.includes(kt)) {
-            parsedTickers.push(kt);
-          }
-        }
-      }
-    }
-
-    let localRows: any[][] = [];
-    try {
-      const savedLocal = localStorage.getItem('local_uploaded_sheet_data');
-      if (savedLocal) {
-        localRows = JSON.parse(savedLocal);
-      }
-    } catch (e) {}
-
-    // Carrega o índice customizado de coluna configurado pelo usuário para alinhamento uniforme
-    const overrideInitialPriceColStr = localStorage.getItem('sheet_initial_price_col_idx');
-    const overrideCurrentPriceColStr = localStorage.getItem('sheet_current_price_col_idx');
-    const overrideInitialPriceColIdx = overrideInitialPriceColStr ? parseInt(overrideInitialPriceColStr, 10) : -1;
-    const overrideCurrentPriceColIdx = overrideCurrentPriceColStr ? parseInt(overrideCurrentPriceColStr, 10) : -1;
-
-    const parsePortNumber = (valStr: string): number => {
-      if (!valStr) return NaN;
-      let clean = valStr.replace('R$', '').replace('$', '').trim();
-      if (clean.includes('.') && clean.includes(',')) {
-        clean = clean.replace(/\./g, '').replace(',', '.');
-      } else if (clean.includes(',')) {
-        clean = clean.replace(',', '.');
-      }
-      return Number(clean);
-    };
-
-    const resultList: Asset[] = [];
-
-    // Map found tickers to Asset objects
-    for (const ticker of parsedTickers) {
-      // 1. Initial baseline from ALL_BEST_30_ASSETS if exists
-      const existing = ALL_BEST_30_ASSETS.find(a => a.ticker.toUpperCase() === ticker);
-      let assetBase: Asset = existing ? { ...existing } : {
-        ticker,
-        name: `${type === 'stocks' ? 'Ação' : type === 'fii' ? 'Fundo Imobiliário' : 'Ação S&P 500'} ${ticker}`,
-        type,
-        price: type === 'sp500' ? 100.00 : 15.00,
-        currency: type === 'sp500' ? 'USD' as const : 'BRL' as const,
-        yield: type === 'sp500' ? 0.015 : type === 'fii' ? 0.10 : 0.06,
-        sector: 'Selecionado por IA',
-        description: 'Ativo adicionado automaticamente a partir da análise da planilha.'
-      };
-
-      // 2. Lookup and override from local sheet rows if available
-      if (Array.isArray(localRows) && localRows.length > 0) {
-        const matchedRow = localRows.find(row => 
-          Array.isArray(row) && row.some(cell => {
-            const s = String(cell).trim().toUpperCase();
-            return s === ticker || s === `${ticker}.SA` || s.replace('.SA', '') === ticker;
-          })
-        );
-
-        if (matchedRow) {
-          // Identify headers
-          const headerRow = localRows[0].map(cell => String(cell).trim().toLowerCase());
-          console.log('[Yield Debug] Header row:', headerRow);
-          
-          let currentPriceColIndex = -1;
-          let initialPriceColIndex = -1;
-          let yieldColIndex = -1;
-          
-          for (let i = 0; i < headerRow.length; i++) {
-            const h = headerRow[i];
-            const isCurrent = h.includes('atual') || h.includes('hoje') || h.includes('agora') || h.includes('realtime') || h.includes('venda') || h.includes('cotação') || h.includes('cotacao') || h.includes('mercado');
-            const isInitial = h.includes('02/01/2026') || h.includes('inicial') || h.includes('custo') || h.includes('compra') || h.includes('medio') || h.includes('médio') || h.includes('pago') || h.includes('aquisição') || h.includes('aquisicao') || h.includes('yoc') || h.includes('cost');
-            
-            if (isCurrent && !isInitial) {
-              currentPriceColIndex = i;
-            } else if (isInitial && !isCurrent) {
-              initialPriceColIndex = i;
-            }
-          }
-
-          // Coluna de Dividend Yield específica por tipo de ativo
-          if (assetBase.type === 'stocks') {
-            yieldColIndex = headerRow.findIndex(h => h.includes('div. yields') || h.includes('div yields') || h.includes('div. yield') || h.includes('div yield') || h.includes('div.yield') || h === 'dividend yield');
-            if (yieldColIndex === -1 && headerRow.length > 8) yieldColIndex = 8; // Fallback coluna I (índice 8)
-          } else if (assetBase.type === 'fii') {
-            yieldColIndex = headerRow.findIndex(h => h.includes('div (ano)') || h.includes('div(ano)') || h.includes('div. (ano)') || h.includes('div ano') || h.includes('dy (ano)') || h.includes('dy ano') || h === 'dy');
-            if (yieldColIndex === -1 && headerRow.length > 7) yieldColIndex = 7; // Fallback coluna H (índice 7)
-          }
-          console.log(`[Yield Debug] Ticker: ${ticker}, Type: ${assetBase.type}, yieldColIndex: ${yieldColIndex}, matchedRow[${yieldColIndex}]:`, yieldColIndex !== -1 ? matchedRow[yieldColIndex] : 'N/A');
-          
-          // Get name
-          let matchedName = assetBase.name;
-          for (const cell of matchedRow) {
-            if (typeof cell === 'string' && cell.trim() && cell.toUpperCase() !== ticker && cell.toUpperCase() !== `${ticker}.SA` && isNaN(Number(cell.replace(',', '.')))) {
-              matchedName = cell.trim();
-              break;
-            }
-          }
-          assetBase.name = matchedName;
-
-          // Get Current Price (Preço Atual)
-          let matchedPrice = assetBase.price;
-          if (overrideCurrentPriceColIdx !== -1 && matchedRow[overrideCurrentPriceColIdx] !== undefined) {
-            const num = parsePortNumber(String(matchedRow[overrideCurrentPriceColIdx]));
-            if (!isNaN(num) && num > 0.1) {
-              matchedPrice = num;
-            }
-          } else if (currentPriceColIndex !== -1 && matchedRow[currentPriceColIndex] !== undefined) {
-            const num = parsePortNumber(String(matchedRow[currentPriceColIndex]));
-            if (!isNaN(num) && num > 0.1) {
-              matchedPrice = num;
-            }
-          } else {
-            // Find numbers in the row
-            const numbersInRow: number[] = [];
-            for (let i = 0; i < matchedRow.length; i++) {
-              const val = parsePortNumber(String(matchedRow[i]));
-              if (!isNaN(val) && val > 0.1 && val < 50000) {
-                numbersInRow.push(val);
-              }
-            }
-            if (numbersInRow.length > 0) {
-              if (numbersInRow.length >= 2) {
-                // If we don't have explicit headers, we assume Current Price is the last valid number
-                // because Current Price usually comes AFTER Preço de Custo/Initial in sheets.
-                matchedPrice = numbersInRow[numbersInRow.length - 1];
-              } else {
-                matchedPrice = numbersInRow[0];
-              }
-            }
-          }
-          assetBase.price = matchedPrice;
-
-          // Get Yield
-          let matchedYield = assetBase.yield;
-          const targetYieldCol = yieldColIndex !== -1 ? yieldColIndex : (assetBase.type === 'stocks' ? 8 : assetBase.type === 'fii' ? 7 : -1);
-          if (targetYieldCol !== -1 && matchedRow[targetYieldCol] !== undefined && matchedRow[targetYieldCol] !== null && String(matchedRow[targetYieldCol]).trim() !== '') {
-            const cleanVal = String(matchedRow[targetYieldCol]).replace('%', '').replace(',', '.').trim();
-            const num = Number(cleanVal);
-            console.log(`[Yield Debug] ${ticker}: column found at ${targetYieldCol}, raw="${matchedRow[targetYieldCol]}", clean="${cleanVal}", num=${num}`);
-            if (!isNaN(num) && num > 0) {
-              matchedYield = num > 1 ? num / 100 : num;
-            }
-          }
-          console.log(`[Yield Debug] ${ticker}: final yield=${matchedYield} (was ${assetBase.yield})`);
-          assetBase.yield = matchedYield;
-
-          // Get Sector
-          let matchedSector = assetBase.sector;
-          if (matchedRow[2] && typeof matchedRow[2] === 'string' && matchedRow[2].length > 3) {
-            matchedSector = matchedRow[2];
-          }
-          assetBase.sector = matchedSector;
-          assetBase.description = 'Ativo atualizado com dados reais extraídos de sua planilha.';
-        }
-      }
-
-      resultList.push(assetBase);
-    }
-
-    // Ensure we have exactly 10 by filling from the static list of that type
-    const staticList = ALL_BEST_30_ASSETS.filter(a => a.type === type);
-    for (const staticAsset of staticList) {
-      if (resultList.length >= 10) break;
-      if (!resultList.some(a => a.ticker === staticAsset.ticker)) {
-        resultList.push(staticAsset);
-      }
-    }
-
-    return resultList.slice(0, 10);
-  };
-
-  const getStrategyPreview = (strategyType: 'renda' | 'equilibrada' | 'crescimento'): { asset: Asset; weight: number }[] => {
-    const stocksRanked = getRankedAssetsFromCategory('stocks');
-    const fiiRanked = getRankedAssetsFromCategory('fii');
-    const sp500Ranked = getRankedAssetsFromCategory('sp500');
-
-    const selectedSlots: { asset: Asset; weight: number }[] = [];
-
-    if (strategyType === 'renda') {
-      // 5 FIIs (60%), 3 Ações BR (30%), 2 S&P 500 (10%)
-      const selectedFiis = fiiRanked.slice(0, 5);
-      const selectedStocks = stocksRanked.slice(0, 3);
-      const selectedSp500 = sp500Ranked.slice(0, 2);
-
-      const fiiWeights = [15, 15, 10, 10, 10];
-      const stockWeights = [10, 10, 10];
-      const sp500Weights = [5, 5];
-
-      selectedFiis.forEach((asset, idx) => {
-        selectedSlots.push({ asset, weight: fiiWeights[idx] || 10 });
-      });
-      selectedStocks.forEach((asset, idx) => {
-        selectedSlots.push({ asset, weight: stockWeights[idx] || 10 });
-      });
-      selectedSp500.forEach((asset, idx) => {
-        selectedSlots.push({ asset, weight: sp500Weights[idx] || 5 });
-      });
-    } else if (strategyType === 'crescimento') {
-      // 5 S&P 500 (60%), 3 Ações BR (30%), 2 FIIs (10%)
-      const selectedSp500 = sp500Ranked.slice(0, 5);
-      const selectedStocks = stocksRanked.slice(0, 3);
-      const selectedFiis = fiiRanked.slice(0, 2);
-
-      const sp500Weights = [15, 15, 10, 10, 10];
-      const stockWeights = [10, 10, 10];
-      const fiiWeights = [5, 5];
-
-      selectedSp500.forEach((asset, idx) => {
-        selectedSlots.push({ asset, weight: sp500Weights[idx] || 10 });
-      });
-      selectedStocks.forEach((asset, idx) => {
-        selectedSlots.push({ asset, weight: stockWeights[idx] || 10 });
-      });
-      selectedFiis.forEach((asset, idx) => {
-        selectedSlots.push({ asset, weight: fiiWeights[idx] || 5 });
-      });
-    } else {
-      // balanced: 4 FIIs (40%), 3 Ações BR (30%), 3 S&P 500 (30%)
-      const selectedFiis = fiiRanked.slice(0, 4);
-      const selectedStocks = stocksRanked.slice(0, 3);
-      const selectedSp500 = sp500Ranked.slice(0, 3);
-
-      const fiiWeights = [10, 10, 10, 10];
-      const stockWeights = [10, 10, 10];
-      const sp500Weights = [10, 10, 10];
-
-      selectedFiis.forEach((asset, idx) => {
-        selectedSlots.push({ asset, weight: fiiWeights[idx] || 10 });
-      });
-      selectedStocks.forEach((asset, idx) => {
-        selectedSlots.push({ asset, weight: stockWeights[idx] || 10 });
-      });
-      selectedSp500.forEach((asset, idx) => {
-        selectedSlots.push({ asset, weight: sp500Weights[idx] || 10 });
-      });
-    }
-
-    return selectedSlots;
-  };
+  }, [activeStrategy]);
 
   const applyStrategyReload = (strategyType: 'renda' | 'equilibrada' | 'crescimento') => {
     const slots = getStrategyPreview(strategyType);
