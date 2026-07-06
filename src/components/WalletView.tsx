@@ -423,24 +423,7 @@ export function WalletView() {
   const USD_BRL_RATE = 5.15; // Simulated dollar exchange rate for realistic calculations
 
   const [wallet, setWallet] = useState<{ asset: Asset; weight: number }[]>(() => {
-    // 1. Check if there's a pending ranking application
-    const pendingType = typeof window !== 'undefined' ? localStorage.getItem('pending_wallet_apply') : null;
-    const savedStrat = typeof window !== 'undefined' ? (localStorage.getItem('active_strategy') as any || 'equilibrada') : 'equilibrada';
-    
-    if (pendingType) {
-      localStorage.removeItem('pending_wallet_apply');
-      const slots = getStrategyPreview(savedStrat);
-      if (slots && slots.length > 0) {
-        // Grava no localStorage imediatamente para garantir consistência
-        localStorage.setItem('saved_interactive_wallet_full', JSON.stringify(slots));
-        const compactFormat = slots.map(w => ({ ticker: w.asset.ticker, weight: w.weight }));
-        localStorage.setItem('saved_interactive_wallet', JSON.stringify(compactFormat));
-        
-        // Seta flag temporária para exibir a mensagem de sucesso no mount
-        localStorage.setItem('wallet_just_applied_analysis', 'true');
-        return slots;
-      }
-    }
+
 
     // Attempt full local storage load first
     const savedFull = typeof window !== 'undefined' ? localStorage.getItem('saved_interactive_wallet_full') : null;
@@ -521,6 +504,32 @@ export function WalletView() {
     return 'equilibrada';
   });
 
+  useEffect(() => {
+    const analysisTs = typeof window !== 'undefined' ? Number(localStorage.getItem('analysis_timestamp') || '0') : 0;
+    const walletAppliedTs = typeof window !== 'undefined' ? Number(localStorage.getItem('wallet_applied_timestamp') || '0') : 0;
+    const pendingType = typeof window !== 'undefined' ? localStorage.getItem('pending_wallet_apply') : null;
+
+    const shouldApplyNewAnalysis = pendingType || (analysisTs > 0 && analysisTs > walletAppliedTs);
+
+    if (shouldApplyNewAnalysis) {
+      if (pendingType) localStorage.removeItem('pending_wallet_apply');
+      const savedStrat = typeof window !== 'undefined' ? (localStorage.getItem('active_strategy') as any || 'equilibrada') : 'equilibrada';
+      const slots = getStrategyPreview(savedStrat);
+      if (slots && slots.length > 0) {
+        setWallet(slots);
+        localStorage.setItem('saved_interactive_wallet_full', JSON.stringify(slots));
+        const compactFormat = slots.map(w => ({ ticker: w.asset.ticker, weight: w.weight }));
+        localStorage.setItem('saved_interactive_wallet', JSON.stringify(compactFormat));
+        localStorage.setItem('wallet_applied_timestamp', String(Date.now()));
+        localStorage.setItem('wallet_just_applied_analysis', 'true');
+        
+        const strategyName = savedStrat === 'renda' ? 'Renda & Dividendos' : savedStrat === 'crescimento' ? 'Crescimento Global' : 'Equilíbrio Global';
+        setSuccessMsg(`Carteira atualizada automaticamente com o novo ranking! Estratégia [${strategyName}] reaplicada com os melhores ativos de cada categoria.`);
+        setTimeout(() => setSuccessMsg(null), 8500);
+      }
+    }
+  }, []);
+
   // Show success message if new analysis was applied on initialization
   useEffect(() => {
     const wasApplied = typeof window !== 'undefined' ? localStorage.getItem('wallet_just_applied_analysis') : null;
@@ -550,6 +559,7 @@ export function WalletView() {
     setActiveStrategy(strategyType);
     if (typeof window !== 'undefined') {
       localStorage.setItem('active_strategy', strategyType);
+      localStorage.setItem('wallet_applied_timestamp', String(Date.now()));
       pushWalletConfig();
     }
 

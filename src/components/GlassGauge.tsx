@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import styled, { keyframes } from 'styled-components';
 
 interface GlassGaugeProps {
   value: number;
@@ -10,92 +11,187 @@ interface GlassGaugeProps {
   noTitle?: boolean;
 }
 
-export const GlassGauge: React.FC<GlassGaugeProps> = ({
-  value,
-  displayValue,
-  title = 'Sinal',
+const fillProgress = (offsetFinal: number) => keyframes`
+  from {
+    stroke-dashoffset: 314.16; /* Circunferencia total (vazio) */
+  }
+  to {
+    stroke-dashoffset: ${offsetFinal}; /* Posicao do valor final */
+  }
+`;
+
+const fadeIn = keyframes`
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+`;
+
+const GlassCard = styled.div<{ $isSmall: boolean; $noTitle?: boolean }>`
+  position: relative;
+  width: ${props => props.$isSmall ? '100%' : '240px'};
+  padding: ${props => props.$isSmall ? '8px' : '24px'};
+  border-radius: ${props => props.$isSmall ? '16px' : '28px'};
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: rgba(15, 32, 67, 0.45); 
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4), inset 0 1px 2px rgba(255, 255, 255, 0.2);
+  animation: ${fadeIn} 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+`;
+
+const GlowEffect = styled.div<{ $color: string }>`
+  position: absolute;
+  bottom: -20%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 140px;
+  height: 140px;
+  background: radial-gradient(circle, ${props => props.$color}4d 0%, rgba(0, 0, 0, 0) 70%);
+  border-radius: 50%;
+  pointer-events: none;
+`;
+
+const Header = styled.div<{ $isSmall: boolean }>`
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: ${props => props.$isSmall ? '4px' : '20px'};
+`;
+
+const Title = styled.span<{ $isSmall: boolean }>`
+  color: rgba(255, 255, 255, 0.95);
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: ${props => props.$isSmall ? '12px' : '16px'};
+  font-weight: 600;
+  text-align: center;
+`;
+
+const Dots = styled.span`
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: bold;
+`;
+
+const GaugeContainer = styled.div<{ $isSmall: boolean }>`
+  position: relative;
+  width: ${props => props.$isSmall ? '84px' : '160px'};
+  height: ${props => props.$isSmall ? '84px' : '160px'};
+  display: flex;
+  justify-content: center;
+  align-items: center;
+`;
+
+const SvgGauge = styled.svg`
+  transform: rotate(-90deg);
+  width: 100%;
+  height: 100%;
+`;
+
+const CircleBackground = styled.circle<{ $isSmall: boolean }>`
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.08);
+  stroke-width: ${props => props.$isSmall ? '6' : '8'};
+`;
+
+const CircleProgress = styled.circle<{ $offsetFinal: number; $color: string; $isSmall: boolean }>`
+  fill: none;
+  stroke: ${props => props.$color};
+  stroke-width: ${props => props.$isSmall ? '6' : '8'};
+  stroke-linecap: round;
+  filter: drop-shadow(0px 0px 8px ${props => props.$color}e6);
+  stroke-dasharray: 314.16;
+  animation: ${props => fillProgress(props.$offsetFinal)} 1.2s cubic-bezier(0.1, 0.8, 0.2, 1) forwards;
+`;
+
+const GaugeText = styled.div`
+  position: absolute;
+`;
+
+const Percentage = styled.span<{ $isSmall: boolean }>`
+  color: #ffffff;
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: ${props => props.$isSmall ? '14px' : '28px'};
+  font-weight: 700;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+`;
+
+const FooterText = styled.div<{ $isSmall: boolean }>`
+  margin-top: ${props => props.$isSmall ? '4px' : '16px'};
+  color: rgba(255, 255, 255, 0.7);
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: ${props => props.$isSmall ? '9px' : '14px'};
+  text-align: center;
+`;
+
+export const GlassGauge: React.FC<GlassGaugeProps> = ({ 
+  value, 
+  title = "Sinal", 
   subtitle,
-  color = '#00d2ff',
-  size = 'md',
+  color = "#00d2ff",
+  size = "md",
   noTitle,
+  displayValue: explicitDisplayValue
 }) => {
   const clampedValue = Math.max(0, Math.min(100, value));
   const isSmall = size === 'sm';
-  const padding = isSmall ? 'p-2' : 'p-5';
-  const gaugeSize = isSmall ? 'w-[100px] h-[100px]' : 'w-[140px] h-[140px]';
-  const svgView = isSmall ? '84 84' : '120 120';
-  const svgCenter = isSmall ? 42 : 60;
-  const circleRadius = isSmall ? 33 : 46;
-  const strokeW = isSmall ? 6 : 7;
-  const valFontSize = isSmall ? 'text-sm' : 'text-[26px]';
-  const subtitleSize = isSmall ? 'text-[9px]' : 'text-xs';
+  
+  const radius = 50;
+  const circumference = 2 * Math.PI * radius; 
+  const strokeDashoffsetFinal = circumference - (clampedValue / 100) * circumference;
 
-  const circleCirc = 2 * Math.PI * circleRadius;
-  const circleOffset = circleCirc - (clampedValue / 100) * circleCirc;
+  const [displayValueState, setDisplayValueState] = useState(0);
+
+  useEffect(() => {
+    let start = 0;
+    const duration = 1200; 
+    const stepTime = Math.abs(Math.floor(duration / (clampedValue || 1)));
+    
+    if (clampedValue === 0) return;
+
+    const timer = setInterval(() => {
+      start += 1;
+      setDisplayValueState(start);
+      if (start >= clampedValue) {
+        clearInterval(timer);
+      }
+    }, stepTime);
+
+    return () => clearInterval(timer);
+  }, [clampedValue]);
 
   return (
-    <div className={`relative w-full ${padding} rounded-2xl flex flex-col items-center bg-white/10 border border-white/10 shadow-lg overflow-hidden ${noTitle ? '' : ''}`}>
-      <div
-        className="absolute bottom-[-20%] left-1/2 -translate-x-1/2 w-[100px] h-[100px] rounded-full pointer-events-none z-0"
-        style={{
-          background: `radial-gradient(circle, ${color}30 0%, rgba(0,0,0,0) 70%)`,
-        }}
-      />
-
+    <GlassCard $isSmall={isSmall} $noTitle={noTitle}>
+      <GlowEffect $color={color} />
+      
       {!noTitle && (
-        <div className={`relative z-[1] w-full text-center ${isSmall ? 'mb-1' : 'mb-2'}`}>
-          <span className="text-white/80 text-xs font-semibold leading-snug whitespace-normal">
-            {title}
-          </span>
-        </div>
+        <Header $isSmall={isSmall}>
+          <Title $isSmall={isSmall}>{title}</Title>
+          {!isSmall && <Dots>•••</Dots>}
+        </Header>
       )}
 
-      <div className={`relative z-[1] ${gaugeSize} flex justify-center items-center`}>
-        <svg
-          viewBox={svgView}
-          className="w-full h-full"
-          style={{ transform: 'rotate(-90deg)' }}
-        >
-          <circle
-            cx={svgCenter}
-            cy={svgCenter}
-            r={circleRadius}
-            fill="none"
-            stroke="rgba(255,255,255,0.08)"
-            strokeWidth={strokeW}
+      <GaugeContainer $isSmall={isSmall}>
+        <SvgGauge viewBox="0 0 120 120">
+          <CircleBackground cx="60" cy="60" r={radius} $isSmall={isSmall} />
+          <CircleProgress
+            cx="60"
+            cy="60"
+            r={radius}
+            $offsetFinal={strokeDashoffsetFinal}
+            $color={color}
+            $isSmall={isSmall}
           />
-          <circle
-            cx={svgCenter}
-            cy={svgCenter}
-            r={circleRadius}
-            fill="none"
-            stroke={color}
-            strokeWidth={strokeW}
-            strokeLinecap="round"
-            strokeDasharray={circleCirc}
-            strokeDashoffset={circleOffset}
-            style={{
-              transition: 'stroke-dashoffset 0.5s ease-in-out',
-              filter: `drop-shadow(0px 0px 6px ${color})`,
-            }}
-          />
-        </svg>
+        </SvgGauge>
+        
+        <GaugeText>
+          <Percentage $isSmall={isSmall}>{explicitDisplayValue ?? `${displayValueState}%`}</Percentage>
+        </GaugeText>
+      </GaugeContainer>
 
-        <div className="absolute inset-0 flex items-center justify-center">
-          <span
-            className={`text-white ${valFontSize} font-bold leading-none`}
-            style={{ textShadow: '0 2px 10px rgba(0,0,0,0.3)' }}
-          >
-            {displayValue ?? `${clampedValue}%`}
-          </span>
-        </div>
-      </div>
-
-      {subtitle && (
-        <div className={`relative z-[1] mt-1 text-white/50 ${subtitleSize} font-normal text-center leading-tight`}>
-          {subtitle}
-        </div>
-      )}
-    </div>
+      {subtitle && <FooterText $isSmall={isSmall}>{subtitle}</FooterText>}
+    </GlassCard>
   );
 };

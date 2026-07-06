@@ -567,6 +567,7 @@ export default function App() {
         localStorage.setItem('fii_analysis_result', newResult);
         localStorage.setItem('latest_analysis_type', 'fii');
         localStorage.setItem('pending_wallet_apply', 'fii');
+        localStorage.setItem('analysis_timestamp', String(Date.now()));
         setAnalysisVersion(v => v + 1);
       } else if (isSp500Mode) {
         if (currentRes && currentRes !== newResult) {
@@ -589,6 +590,7 @@ export default function App() {
         localStorage.setItem('sp500_analysis_result', newResult);
         localStorage.setItem('latest_analysis_type', 'sp500');
         localStorage.setItem('pending_wallet_apply', 'sp500');
+        localStorage.setItem('analysis_timestamp', String(Date.now()));
         setAnalysisVersion(v => v + 1);
       } else {
         if (currentRes && currentRes !== newResult) {
@@ -611,6 +613,7 @@ export default function App() {
         localStorage.setItem('stocks_analysis_result', newResult);
         localStorage.setItem('latest_analysis_type', 'stocks');
         localStorage.setItem('pending_wallet_apply', 'stocks');
+        localStorage.setItem('analysis_timestamp', String(Date.now()));
         setAnalysisVersion(v => v + 1);
       }
     } catch (err: any) {
