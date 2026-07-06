@@ -217,9 +217,9 @@ const getRankedAssetsFromCategory = (type: 'stocks' | 'fii' | 'sp500'): Asset[] 
   for (const ticker of parsedTickers) {
     // 1. Initial baseline from ALL_BEST_30_ASSETS if exists
     const existing = ALL_BEST_30_ASSETS.find(a => a.ticker.toUpperCase() === ticker);
-    let assetBase: Asset = existing ? { ...existing } : {
+    let assetBase: Asset = existing ? { ...existing, name: `${existing.name} (IA)` } : {
       ticker,
-      name: `${type === 'stocks' ? 'Ação' : type === 'fii' ? 'Fundo Imobiliário' : 'Ação S&P 500'} ${ticker}`,
+      name: `${type === 'stocks' ? 'Ação' : type === 'fii' ? 'Fundo Imobiliário' : 'Ação S&P 500'} ${ticker} (IA)`,
       type,
       price: type === 'sp500' ? 100.00 : 15.00,
       currency: type === 'sp500' ? 'USD' as const : 'BRL' as const,
