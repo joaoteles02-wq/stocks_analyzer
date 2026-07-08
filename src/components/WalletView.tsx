@@ -430,7 +430,7 @@ export function WalletView() {
     if (savedFull) {
       try {
         const parsed = JSON.parse(savedFull);
-        if (Array.isArray(parsed) && parsed.length === 10) {
+        if (Array.isArray(parsed) && parsed.length >= 1) {
           return parsed;
         }
       } catch (e) {
@@ -443,7 +443,7 @@ export function WalletView() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length === 10) {
+        if (Array.isArray(parsed) && parsed.length >= 1) {
           // Map back to current Asset database object securely
           return parsed.map((item: any) => {
             const staticAsset = ALL_BEST_30_ASSETS.find(a => a.ticker === item.ticker);
@@ -552,8 +552,27 @@ export function WalletView() {
       }
     };
 
+    // Evento personalizado disparado pelo Firebase listener (sync entre dispositivos)
+    const handleFirebaseSync = () => {
+      const savedFull = localStorage.getItem('saved_interactive_wallet_full');
+      if (savedFull) {
+        try {
+          const parsed = JSON.parse(savedFull);
+          if (Array.isArray(parsed) && parsed.length >= 1) {
+            setWallet(parsed);
+            setSuccessMsg('Carteira sincronizada em tempo real com outro dispositivo! 🔄');
+            setTimeout(() => setSuccessMsg(null), 5000);
+          }
+        } catch (e) { /* ignore */ }
+      }
+    };
+
     window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
+    window.addEventListener('walletConfigSynced', handleFirebaseSync);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('walletConfigSynced', handleFirebaseSync);
+    };
   }, []);
 
   // Show success message if new analysis was applied on initialization

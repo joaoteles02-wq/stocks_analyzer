@@ -3,6 +3,7 @@
   "appId": "1:959122281384:web:d58008bf658d930031839d",
   "apiKey": "AIzaSyA4UCpab6rLZjvH0Dq0pvxRlk57WTwlnwI",
   "authDomain": "stocks-analyzer-d4d70.firebaseapp.com",
+  "databaseURL": "https://stocks-analyzer-d4d70-default-rtdb.firebaseio.com",
   "storageBucket": "stocks-analyzer-d4d70.firebasestorage.app",
   "messagingSenderId": "959122281384",
   "measurementId": "G-EJBJ40XFR1"

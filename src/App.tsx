@@ -7,7 +7,7 @@ import { searchStocksFilterSheet } from './lib/drive';
 import { getSpreadsheetData, getSpreadsheetSheets } from './lib/sheets';
 import { WalletView, getStrategyPreview } from './components/WalletView';
 import { DashboardView } from './components/DashboardView';
-import { pullWalletConfig } from './lib/sync';
+import { pullWalletConfig, subscribeToWalletConfig, pushWalletConfig } from './lib/sync';
 
 export default function App() {
   const [needsAuth, setNeedsAuth] = useState(true);
@@ -41,12 +41,24 @@ export default function App() {
   const [pasteSuccess, setPasteSuccess] = useState(false);
 
   useEffect(() => {
+    // Pull on app mount (first load / celular abrindo o app)
     pullWalletConfig().then((synced) => {
       if (synced) {
         localStorage.setItem('data_source', dataSource);
         window.location.reload();
       }
     });
+
+    // Subscribe to real-time Firebase updates from other devices
+    const unsubscribe = subscribeToWalletConfig((changed) => {
+      if (changed) {
+        // Re-render WalletView by reloading only if not in analysis flow
+        const analyzing = localStorage.getItem('analyzing_in_progress');
+        if (!analyzing) window.location.reload();
+      }
+    });
+
+    return () => unsubscribe();
   }, []);
 
   useEffect(() => {
@@ -489,6 +501,7 @@ export default function App() {
     setAnalyzing(true);
     setError(null);
     setInfoMessage(null);
+    localStorage.setItem('analyzing_in_progress', 'true');
 
     const isFiiMode = analysisType === 'fii';
     const isSp500Mode = analysisType === 'sp500';
@@ -636,6 +649,8 @@ export default function App() {
           localStorage.setItem('wallet_applied_timestamp', String(Date.now()));
           localStorage.setItem('wallet_just_applied_analysis', 'true');
           localStorage.removeItem('pending_wallet_apply');
+          // Push nova carteira para o Firebase para sincronizar com o celular
+          pushWalletConfig();
         }
       } catch (e) {
         console.warn('Could not pre-compute wallet composition, WalletView will apply on mount:', e);
@@ -661,6 +676,7 @@ export default function App() {
       }
     } finally {
       setAnalyzing(false);
+      localStorage.removeItem('analyzing_in_progress');
     }
   };
 
