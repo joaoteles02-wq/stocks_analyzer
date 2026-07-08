@@ -1139,7 +1139,7 @@ export default function App() {
               )}
             </div>
           ) : currentView === 'wallet' ? (
-            <WalletView key={analysisVersion} />
+            <WalletView key={`wallet-${analysisVersion}-${currentView}`} />
           ) : currentView === 'dashboard' ? (
             <ErrorBoundary key="dashboard-error-boundary">
               <DashboardView />
@@ -1186,6 +1186,7 @@ export default function App() {
                 </div>
               </div>
 
+              {/* Resultado da análise — exibido sempre que existir, independente de planilha configurada */}
               {(analysisType === 'stocks' 
                 ? stocksAnalysisResult 
                 : analysisType === 'sp500' 
@@ -1259,6 +1260,7 @@ export default function App() {
                 </div>
               )}
 
+              {/* Botão de análise e seleção de planilha */}
               {((dataSource === 'google' && !selectedFileId) || (dataSource === 'local' && (!localUploadedSheetData || localUploadedSheetData.length === 0))) ? (
                 <div className="text-center py-16 space-y-4">
                   <div className="mx-auto w-20 h-20 bg-white/5 rounded-full flex items-center justify-center border border-white/10 mb-6 shadow-inner">

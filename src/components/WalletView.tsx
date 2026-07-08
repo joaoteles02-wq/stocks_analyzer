@@ -528,6 +528,32 @@ export function WalletView() {
         setTimeout(() => setSuccessMsg(null), 8500);
       }
     }
+
+    // Listener para sincronização em tempo real quando analysis_timestamp muda
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === 'analysis_timestamp' || event.key === 'pending_wallet_apply') {
+        const newAnalysisTs = Number(localStorage.getItem('analysis_timestamp') || '0');
+        const currentWalletTs = Number(localStorage.getItem('wallet_applied_timestamp') || '0');
+        if (newAnalysisTs > currentWalletTs) {
+          const savedStrat = (localStorage.getItem('active_strategy') as any) || 'equilibrada';
+          const slots = getStrategyPreview(savedStrat);
+          if (slots && slots.length > 0) {
+            setWallet(slots);
+            localStorage.setItem('saved_interactive_wallet_full', JSON.stringify(slots));
+            const compactFormat = slots.map(w => ({ ticker: w.asset.ticker, weight: w.weight }));
+            localStorage.setItem('saved_interactive_wallet', JSON.stringify(compactFormat));
+            localStorage.setItem('wallet_applied_timestamp', String(Date.now()));
+            localStorage.removeItem('pending_wallet_apply');
+            const stratName = savedStrat === 'renda' ? 'Renda & Dividendos' : savedStrat === 'crescimento' ? 'Crescimento Global' : 'Equilíbrio Global';
+            setSuccessMsg(`Carteira sincronizada com nova análise! Estratégia [${stratName}] aplicada.`);
+            setTimeout(() => setSuccessMsg(null), 6000);
+          }
+        }
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
   // Show success message if new analysis was applied on initialization
