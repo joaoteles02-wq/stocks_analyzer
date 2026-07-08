@@ -350,7 +350,7 @@ const getRankedAssetsFromCategory = (type: 'stocks' | 'fii' | 'sp500'): Asset[] 
   return resultList.slice(0, 10);
 };
 
-const getStrategyPreview = (strategyType: 'renda' | 'equilibrada' | 'crescimento'): { asset: Asset; weight: number }[] => {
+export const getStrategyPreview = (strategyType: 'renda' | 'equilibrada' | 'crescimento'): { asset: Asset; weight: number }[] => {
   const stocksRanked = getRankedAssetsFromCategory('stocks');
   const fiiRanked = getRankedAssetsFromCategory('fii');
   const sp500Ranked = getRankedAssetsFromCategory('sp500');

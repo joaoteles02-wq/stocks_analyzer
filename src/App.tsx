@@ -5,7 +5,7 @@ import { LogIn, FileSpreadsheet, Search, Loader2, Settings, ArrowLeft, Briefcase
 import { googleSignIn, initAuth, logout, clearCachedToken } from './lib/auth';
 import { searchStocksFilterSheet } from './lib/drive';
 import { getSpreadsheetData, getSpreadsheetSheets } from './lib/sheets';
-import { WalletView } from './components/WalletView';
+import { WalletView, getStrategyPreview } from './components/WalletView';
 import { DashboardView } from './components/DashboardView';
 import { pullWalletConfig } from './lib/sync';
 
@@ -431,7 +431,14 @@ export default function App() {
     localStorage.removeItem('fii_analysis_result');
     localStorage.removeItem('fii_previous_result');
     localStorage.removeItem('fii_highlighted_result');
+    localStorage.removeItem('sp500_analysis_result');
+    localStorage.removeItem('sp500_previous_result');
+    localStorage.removeItem('sp500_highlighted_result');
     localStorage.removeItem('saved_sheet_name');
+    localStorage.removeItem('pending_wallet_apply');
+    localStorage.removeItem('analysis_timestamp');
+    localStorage.removeItem('wallet_applied_timestamp');
+    localStorage.removeItem('wallet_just_applied_analysis');
   };
 
   const findSpreadsheets = async () => {
@@ -615,6 +622,23 @@ export default function App() {
         localStorage.setItem('pending_wallet_apply', 'stocks');
         localStorage.setItem('analysis_timestamp', String(Date.now()));
         setAnalysisVersion(v => v + 1);
+      }
+
+      // Pre-compute wallet composition immediately for reliable sync with Wallet page
+      try {
+        const savedStrat = localStorage.getItem('active_strategy') || 'equilibrada';
+        const strategyType = savedStrat as 'renda' | 'equilibrada' | 'crescimento';
+        const newSlots = getStrategyPreview(strategyType);
+        if (newSlots && newSlots.length > 0) {
+          localStorage.setItem('saved_interactive_wallet_full', JSON.stringify(newSlots));
+          const compactSlots = newSlots.map((w: any) => ({ ticker: w.asset.ticker, weight: w.weight }));
+          localStorage.setItem('saved_interactive_wallet', JSON.stringify(compactSlots));
+          localStorage.setItem('wallet_applied_timestamp', String(Date.now()));
+          localStorage.setItem('wallet_just_applied_analysis', 'true');
+          localStorage.removeItem('pending_wallet_apply');
+        }
+      } catch (e) {
+        console.warn('Could not pre-compute wallet composition, WalletView will apply on mount:', e);
       }
     } catch (err: any) {
       if (err.message.includes("insufficient authentication scopes") || err.message.includes("Insufficient Permission")) {
