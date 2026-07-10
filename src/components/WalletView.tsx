@@ -91,23 +91,25 @@ const getRankedAssetsFromCategory = (type: 'stocks' | 'fii' | 'sp500'): Asset[] 
     'TOP', 'ROE', 'EBITDA', 'PVP', 'PV', 'P/VP', 'FII', 'FIIS', 'ACOES', 'S&P', 'EV', 'DY', 'CDI', 'IPCA', 
     'BRL', 'USD', 'MEI', 'PIX', 'DRE', 'IRPF', 'CEO', 'EUA', 'USA', 'II', 'III', 'IV', 'V', 
     'VI', 'VII', 'VIII', 'IX', 'X', 'DIVIDEND', 'YIELD', 'RENT', 'TAXA', 'DIVIDENDOS', 
-    'VALOR', 'PRECO', 'GRAHAM', 'GRAHAN', 'PL', 'LPA', 'VPA', 'SETOR', 'DICAS', 'DICA'
+    'VALOR', 'PRECO', 'GRAHAM', 'GRAHAN', 'PL', 'LPA', 'VPA', 'SETOR', 'DICAS', 'DICA',
+    'CORP', 'INC', 'VALE', 'BANCO', 'FUNDO', 'FUND', 'SA', 'LTDA', 'LOG', 'MALLS', 
+    'LOGISTICA', 'LOGÍSTICA', 'SHOPPING', 'SHOPS', 'PROPRIEDADES', 'INDEX', 'INDICE', 'ÍNDICE',
+    'ATIVO', 'ATIVOS', 'ACAO', 'ACOES', 'TIPO', 'PESO', 'CARTEIRA', 'RENDA', 'CRESCIMENTO',
+    'EQUILIBRIO', 'EQUILÍBRIO', 'MODERADA', 'ALOCACAO', 'ALOCAÇÃO'
   ]);
 
   const extractTickerFromLine = (line: string): string | null => {
-    // 1. Clean markdown elements
-    const cleanLine = line.replace(/[\*\_\#\-\+\•\=\:\(\)]/g, ' ').trim();
-    
-    // 2. Check for B3 stock patterns (4 letters + 1 or 2 digits)
-    if (type === 'stocks' || type === 'fii') {
-      const b3Match = cleanLine.match(/\b([A-Z]{4}\d{1,2})\b/);
-      if (b3Match) {
-        return b3Match[1].toUpperCase();
-      }
+    // 1. Direct match with known tickers from our library (highly reliable, case-insensitive)
+    const knownAsset = ALL_BEST_30_ASSETS.find(a => {
+      const regex = new RegExp(`\\b${a.ticker}\\b`, 'i');
+      return regex.test(line);
+    });
+    if (knownAsset) {
+      return knownAsset.ticker;
     }
 
-    // 3. For S&P500 or general, look for words inside original parentheses, e.g. "Apple Inc. (AAPL)"
-    const parenMatch = line.match(/\(([A-Z]{1,5})\)/);
+    // 2. Look for words inside parentheses, e.g. "Apple Inc. (AAPL)" or "Vale S.A. (VALE3)" or "Berkshire (BRK.B)"
+    const parenMatch = line.match(/\(([A-Za-z0-9\.]{1,6})\)/);
     if (parenMatch) {
       const t = parenMatch[1].toUpperCase();
       if (!ignoreList.has(t)) {
@@ -115,10 +117,20 @@ const getRankedAssetsFromCategory = (type: 'stocks' | 'fii' | 'sp500'): Asset[] 
       }
     }
 
-    // 4. Split and verify each word
+    // 3. Clean line and search for B3 stock patterns (4 letters + 1 or 2 digits) - case-insensitive
+    const cleanLine = line.replace(/[\*\_\#\-\+\•\=\:\(\)]/g, ' ').trim();
+    if (type === 'stocks' || type === 'fii') {
+      const b3Match = cleanLine.match(/\b([A-Za-z]{4}\d{1,2})\b/);
+      if (b3Match) {
+        return b3Match[1].toUpperCase();
+      }
+    }
+
+    // 4. Split and verify each word (fallback)
     const words = cleanLine.split(/[\s\-ºª\,]+/);
     for (const word of words) {
       const w = word.trim().toUpperCase();
+      // Skip numeric values, empty strings, and ignore list
       if (!w || /^\d+$/.test(w) || ignoreList.has(w)) continue;
 
       if (type === 'sp500') {
@@ -129,7 +141,10 @@ const getRankedAssetsFromCategory = (type: 'stocks' | 'fii' | 'sp500'): Asset[] 
       } else {
         // Brazilian Tickers are typically 3-6 chars (mostly letters and optionally numbers)
         if (w.length >= 3 && w.length <= 6 && /^[A-Z0-9]+$/.test(w)) {
-          return w;
+          const hasNumber = /\d/.test(w);
+          if (hasNumber || w.length === 4) {
+            return w;
+          }
         }
       }
     }
