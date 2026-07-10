@@ -52,9 +52,10 @@ export default function App() {
     // Subscribe to real-time Firebase updates from other devices
     const unsubscribe = subscribeToWalletConfig((changed) => {
       if (changed) {
-        // Re-render WalletView by reloading only if not in analysis flow
+        // Re-render WalletView by reloading only if not in analysis flow and not looking at the analysis report
         const analyzing = localStorage.getItem('analyzing_in_progress');
-        if (!analyzing) window.location.reload();
+        const view = localStorage.getItem('app_current_view') || 'analysis';
+        if (!analyzing && view !== 'analysis') window.location.reload();
       }
     });
 
@@ -161,7 +162,15 @@ export default function App() {
   }, [currentView]);
 
   // Separated states for Stocks, FII and S&P 500
-  const [analysisType, setAnalysisType] = useState<'stocks' | 'fii' | 'sp500'>('stocks');
+  const [analysisType, setAnalysisType] = useState<'stocks' | 'fii' | 'sp500'>(() => {
+    const saved = localStorage.getItem('app_analysis_type');
+    if (saved === 'fii' || saved === 'sp500') return saved;
+    return 'stocks';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('app_analysis_type', analysisType);
+  }, [analysisType]);
 
   const [stocksAnalysisResult, setStocksAnalysisResult] = useState<string | null>(() => {
     return localStorage.getItem('stocks_analysis_result') || null;
