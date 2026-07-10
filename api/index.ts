@@ -7,7 +7,7 @@ import path from 'path';
 async function callGemini(prompt: string, systemInstruction?: string): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error('Gemini API Key is not configured.');
-  const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
   const body: any = {
     contents: [{ parts: [{ text: prompt }] }],
     generationConfig: { temperature: 0.7, maxOutputTokens: 8192 },
