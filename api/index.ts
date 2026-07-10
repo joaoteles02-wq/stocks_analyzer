@@ -13,7 +13,7 @@ async function callGemini(prompt: string, systemInstruction?: string): Promise<s
     generationConfig: { temperature: 0.7, maxOutputTokens: 8192 },
   };
   if (systemInstruction) {
-    body.systemInstruction = { parts: [{ text: systemInstruction }] };
+    body.system_instruction = { parts: [{ text: systemInstruction }] };
   }
   const res = await fetch(url, {
     method: 'POST',
