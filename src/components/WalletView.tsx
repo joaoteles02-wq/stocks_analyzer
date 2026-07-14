@@ -365,6 +365,89 @@ const getRankedAssetsFromCategory = (type: 'stocks' | 'fii' | 'sp500'): Asset[] 
   return resultList.slice(0, 10);
 };
 
+export const getBestPortfolioFor10 = (): { asset: Asset; weight: number }[] => {
+  const stocksRanked = getRankedAssetsFromCategory('stocks');
+  const fiiRanked = getRankedAssetsFromCategory('fii');
+  const sp500Ranked = getRankedAssetsFromCategory('sp500');
+
+  // Category multipliers for patrimony maximisation
+  // SP500 highest (growth), Stocks mid, FIIs lower (income but less growth)
+  const CATEGORY_MULT: Record<string, number> = { sp500: 1.5, stocks: 1.3, fii: 1.0 };
+
+  type ScoredAsset = { asset: Asset; score: number };
+  const scored: ScoredAsset[] = [];
+
+  const scoreList = (ranked: Asset[]) => {
+    ranked.forEach((asset, idx) => {
+      const rankScore = 10 - idx; // rank #1 = 10pts, rank #10 = 1pt
+      const mult = CATEGORY_MULT[asset.type] ?? 1.0;
+      const yieldPct = asset.yield > 1 ? asset.yield : asset.yield * 100;
+      const yieldBonus = Math.min(yieldPct * 20, 4); // max 4 bonus pts
+      scored.push({ asset, score: rankScore * mult + yieldBonus });
+    });
+  };
+
+  scoreList(stocksRanked);
+  scoreList(fiiRanked);
+  scoreList(sp500Ranked);
+
+  // Sort all 30 by score descending
+  scored.sort((a, b) => b.score - a.score);
+
+  // Diversification constraints
+  const MIN_PER = 2;
+  const MAX_PER = 5;
+  const TOTAL = 10;
+
+  const selected: ScoredAsset[] = [];
+  const count: Record<string, number> = { stocks: 0, fii: 0, sp500: 0 };
+
+  // Pass 1: greedy pick in score order, respecting MAX_PER
+  for (const item of scored) {
+    if (selected.length >= TOTAL) break;
+    if ((count[item.asset.type] ?? 0) < MAX_PER) {
+      selected.push(item);
+      count[item.asset.type]++;
+    }
+  }
+
+  // Pass 2: ensure MIN_PER per category
+  const allRanked: Record<string, Asset[]> = { stocks: stocksRanked, fii: fiiRanked, sp500: sp500Ranked };
+  for (const cat of ['stocks', 'fii', 'sp500'] as const) {
+    while ((count[cat] ?? 0) < MIN_PER) {
+      const candidate = allRanked[cat].find(a => !selected.some(s => s.asset.ticker === a.ticker));
+      if (!candidate) break;
+
+      if (selected.length >= TOTAL) {
+        // Evict the lowest-scored non-minimum asset
+        const evictIdx = selected.reduceRight((worst, item, idx) => {
+          if (item.asset.type !== cat && (count[item.asset.type] ?? 0) > MIN_PER) {
+            return worst === -1 ? idx : (item.score < selected[worst].score ? idx : worst);
+          }
+          return worst;
+        }, -1);
+        if (evictIdx === -1) break;
+        count[selected[evictIdx].asset.type]--;
+        selected.splice(evictIdx, 1);
+      }
+
+      const rankIdx = allRanked[cat].indexOf(candidate);
+      const yieldPct = candidate.yield > 1 ? candidate.yield : candidate.yield * 100;
+      const score = (10 - rankIdx) * (CATEGORY_MULT[cat] ?? 1.0) + Math.min(yieldPct * 20, 4);
+      selected.push({ asset: candidate, score });
+      count[cat]++;
+    }
+  }
+
+  // Distribute weights proportionally to score (min 5% each, sum = 100)
+  const totalScore = selected.reduce((s, i) => s + i.score, 0);
+  const weights = selected.map(i => Math.max(5, Math.round((i.score / totalScore) * 100)));
+  const diff = 100 - weights.reduce((a, b) => a + b, 0);
+  if (diff !== 0 && weights.length > 0) weights[0] = Math.max(5, weights[0] + diff);
+
+  return selected.map((s, i) => ({ asset: s.asset, weight: weights[i] }));
+};
+
 export const getStrategyPreview = (strategyType: 'renda' | 'equilibrada' | 'crescimento'): { asset: Asset; weight: number }[] => {
   const stocksRanked = getRankedAssetsFromCategory('stocks');
   const fiiRanked = getRankedAssetsFromCategory('fii');
@@ -373,7 +456,6 @@ export const getStrategyPreview = (strategyType: 'renda' | 'equilibrada' | 'cres
   const selectedSlots: { asset: Asset; weight: number }[] = [];
 
   if (strategyType === 'renda') {
-    // 5 FIIs (60%), 3 Ações BR (30%), 2 S&P 500 (10%)
     const selectedFiis = fiiRanked.slice(0, 5);
     const selectedStocks = stocksRanked.slice(0, 3);
     const selectedSp500 = sp500Ranked.slice(0, 2);
@@ -392,7 +474,6 @@ export const getStrategyPreview = (strategyType: 'renda' | 'equilibrada' | 'cres
       selectedSlots.push({ asset, weight: sp500Weights[idx] || 5 });
     });
   } else if (strategyType === 'crescimento') {
-    // 5 S&P 500 (60%), 3 Ações BR (30%), 2 FIIs (10%)
     const selectedSp500 = sp500Ranked.slice(0, 5);
     const selectedStocks = stocksRanked.slice(0, 3);
     const selectedFiis = fiiRanked.slice(0, 2);
@@ -411,7 +492,6 @@ export const getStrategyPreview = (strategyType: 'renda' | 'equilibrada' | 'cres
       selectedSlots.push({ asset, weight: fiiWeights[idx] || 5 });
     });
   } else {
-    // balanced: 4 FIIs (40%), 3 Ações BR (30%), 3 S&P 500 (30%)
     const selectedFiis = fiiRanked.slice(0, 4);
     const selectedStocks = stocksRanked.slice(0, 3);
     const selectedSp500 = sp500Ranked.slice(0, 3);
@@ -528,8 +608,8 @@ export function WalletView() {
 
     if (shouldApplyNewAnalysis) {
       if (pendingType) localStorage.removeItem('pending_wallet_apply');
-      const savedStrat = typeof window !== 'undefined' ? (localStorage.getItem('active_strategy') as any || 'equilibrada') : 'equilibrada';
-      const slots = getStrategyPreview(savedStrat);
+      // Use getBestPortfolioFor10 to pick the 10 best from all 30 ranked assets
+      const slots = getBestPortfolioFor10();
       if (slots && slots.length > 0) {
         setWallet(slots);
         localStorage.setItem('saved_interactive_wallet_full', JSON.stringify(slots));
@@ -537,9 +617,8 @@ export function WalletView() {
         localStorage.setItem('saved_interactive_wallet', JSON.stringify(compactFormat));
         localStorage.setItem('wallet_applied_timestamp', String(Date.now()));
         localStorage.setItem('wallet_just_applied_analysis', 'true');
-        
-        const strategyName = savedStrat === 'renda' ? 'Renda & Dividendos' : savedStrat === 'crescimento' ? 'Crescimento Global' : 'Equilíbrio Global';
-        setSuccessMsg(`Carteira atualizada automaticamente com o novo ranking! Estratégia [${strategyName}] reaplicada com os melhores ativos de cada categoria.`);
+
+        setSuccessMsg(`✨ Carteira otimizada! Os 10 melhores ativos dos 30 rankeados pela IA foram selecionados para maximizar seu patrimônio.`);
         setTimeout(() => setSuccessMsg(null), 8500);
       }
     }
@@ -550,8 +629,8 @@ export function WalletView() {
         const newAnalysisTs = Number(localStorage.getItem('analysis_timestamp') || '0');
         const currentWalletTs = Number(localStorage.getItem('wallet_applied_timestamp') || '0');
         if (newAnalysisTs > currentWalletTs) {
-          const savedStrat = (localStorage.getItem('active_strategy') as any) || 'equilibrada';
-          const slots = getStrategyPreview(savedStrat);
+          // Use getBestPortfolioFor10 for max patrimony selection
+          const slots = getBestPortfolioFor10();
           if (slots && slots.length > 0) {
             setWallet(slots);
             localStorage.setItem('saved_interactive_wallet_full', JSON.stringify(slots));
@@ -559,8 +638,7 @@ export function WalletView() {
             localStorage.setItem('saved_interactive_wallet', JSON.stringify(compactFormat));
             localStorage.setItem('wallet_applied_timestamp', String(Date.now()));
             localStorage.removeItem('pending_wallet_apply');
-            const stratName = savedStrat === 'renda' ? 'Renda & Dividendos' : savedStrat === 'crescimento' ? 'Crescimento Global' : 'Equilíbrio Global';
-            setSuccessMsg(`Carteira sincronizada com nova análise! Estratégia [${stratName}] aplicada.`);
+            setSuccessMsg(`✨ Carteira sincronizada! Top 10 dos 30 ativos rankeados aplicados para maximizar patrimônio.`);
             setTimeout(() => setSuccessMsg(null), 6000);
           }
         }

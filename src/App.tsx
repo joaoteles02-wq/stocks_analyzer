@@ -5,7 +5,7 @@ import { LogIn, FileSpreadsheet, Search, Loader2, Settings, ArrowLeft, Briefcase
 import { googleSignIn, initAuth, logout, clearCachedToken } from './lib/auth';
 import { searchStocksFilterSheet } from './lib/drive';
 import { getSpreadsheetData, getSpreadsheetSheets } from './lib/sheets';
-import { WalletView, getStrategyPreview } from './components/WalletView';
+import { WalletView, getStrategyPreview, getBestPortfolioFor10 } from './components/WalletView';
 import { DashboardView } from './components/DashboardView';
 import { pullWalletConfig, subscribeToWalletConfig, pushWalletConfig } from './lib/sync';
 
@@ -52,10 +52,14 @@ export default function App() {
     // Subscribe to real-time Firebase updates from other devices
     const unsubscribe = subscribeToWalletConfig((changed) => {
       if (changed) {
-        // Re-render WalletView by reloading only if not in analysis flow and not looking at the analysis report
+        // Dispatch event so WalletView (if mounted) can react without a full page reload
+        window.dispatchEvent(new CustomEvent('walletConfigSynced'));
+        // Only reload if not actively analyzing — avoid losing user state
         const analyzing = localStorage.getItem('analyzing_in_progress');
-        const view = localStorage.getItem('app_current_view') || 'analysis';
-        if (!analyzing && view !== 'analysis') window.location.reload();
+        if (!analyzing) {
+          const view = localStorage.getItem('app_current_view') || 'analysis';
+          if (view !== 'analysis') window.location.reload();
+        }
       }
     });
 
@@ -646,11 +650,9 @@ export default function App() {
         setAnalysisVersion(v => v + 1);
       }
 
-      // Pre-compute wallet composition immediately for reliable sync with Wallet page
+      // Pre-compute wallet using best 10 from all 30 ranked for max patrimony
       try {
-        const savedStrat = localStorage.getItem('active_strategy') || 'equilibrada';
-        const strategyType = savedStrat as 'renda' | 'equilibrada' | 'crescimento';
-        const newSlots = getStrategyPreview(strategyType);
+        const newSlots = getBestPortfolioFor10();
         if (newSlots && newSlots.length > 0) {
           localStorage.setItem('saved_interactive_wallet_full', JSON.stringify(newSlots));
           const compactSlots = newSlots.map((w: any) => ({ ticker: w.asset.ticker, weight: w.weight }));
@@ -660,6 +662,8 @@ export default function App() {
           localStorage.removeItem('pending_wallet_apply');
           // Push nova carteira para o Firebase para sincronizar com o celular
           pushWalletConfig();
+          // Dispatch event so WalletView (if mounted) can react in real-time
+          window.dispatchEvent(new CustomEvent('walletConfigSynced'));
         }
       } catch (e) {
         console.warn('Could not pre-compute wallet composition, WalletView will apply on mount:', e);
@@ -1285,25 +1289,28 @@ export default function App() {
                 </div>
               )}
 
-              {/* Botão de análise e seleção de planilha */}
+              {/* Botão de análise — só aparece quando há planilha configurada */}
               {((dataSource === 'google' && !selectedFileId) || (dataSource === 'local' && (!localUploadedSheetData || localUploadedSheetData.length === 0))) ? (
-                <div className="text-center py-16 space-y-4">
-                  <div className="mx-auto w-20 h-20 bg-white/5 rounded-full flex items-center justify-center border border-white/10 mb-6 shadow-inner">
-                    <FileSpreadsheet className="w-10 h-10 text-indigo-400/50" />
+                // Só mostra aviso de "sem planilha" se NÃO há resultado salvo ainda
+                !(analysisType === 'stocks' ? stocksAnalysisResult : analysisType === 'sp500' ? sp500AnalysisResult : fiiAnalysisResult) && (
+                  <div className="text-center py-16 space-y-4">
+                    <div className="mx-auto w-20 h-20 bg-white/5 rounded-full flex items-center justify-center border border-white/10 mb-6 shadow-inner">
+                      <FileSpreadsheet className="w-10 h-10 text-indigo-400/50" />
+                    </div>
+                    <h2 className="text-2xl font-bold text-white">Nenhuma planilha configurada</h2>
+                    <p className="text-slate-400 max-w-sm mx-auto">
+                      {dataSource === 'google' 
+                        ? "Para usar o assistente, vá nas Configurações e selecione a planilha de dados do seu Google Drive."
+                        : "Para usar o assistente, vá nas Configurações e faça upload ou cole os dados da sua planilha local."}
+                    </p>
+                    <button 
+                      onClick={() => setCurrentView('settings')}
+                      className="mt-6 px-8 py-3 bg-indigo-500/80 backdrop-blur-sm text-white rounded-xl font-medium hover:bg-indigo-600/80 border border-indigo-400/30 transition shadow-lg inline-flex items-center gap-2 cursor-pointer"
+                    >
+                      <Settings className="w-5 h-5"/> Abrir Configurações
+                    </button>
                   </div>
-                  <h2 className="text-2xl font-bold text-white">Nenhuma planilha configurada</h2>
-                  <p className="text-slate-400 max-w-sm mx-auto">
-                    {dataSource === 'google' 
-                      ? "Para usar o assistente, vá nas Configurações e selecione a planilha de dados do seu Google Drive."
-                      : "Para usar o assistente, vá nas Configurações e faça upload ou cole os dados da sua planilha local."}
-                  </p>
-                  <button 
-                    onClick={() => setCurrentView('settings')}
-                    className="mt-6 px-8 py-3 bg-indigo-500/80 backdrop-blur-sm text-white rounded-xl font-medium hover:bg-indigo-600/80 border border-indigo-400/30 transition shadow-lg inline-flex items-center gap-2 cursor-pointer"
-                  >
-                    <Settings className="w-5 h-5"/> Abrir Configurações
-                  </button>
-                </div>
+                )
               ) : (
                 <div className="space-y-8 animate-in fade-in duration-300">
                   <div className="text-center mb-8">

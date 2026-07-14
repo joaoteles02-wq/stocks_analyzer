@@ -501,3 +501,20 @@ export const GlassGauge: React.FC<GlassGaugeProps> = ({
     </GlassCard>
   );
 };
+
+
+
+
+
+
+## LÓGICA DO APP
+
+
+
+A lógica é:
+
+Do total de 30 ativos analisados (Top 10 Ações + Top 10 FIIs + Top 10 S&P 500), selecionar os 10 melhores para maximizar o patrimônio consolidado.
+
+Preciso criar um algoritmo de scoring que classifica os 30 e pega os melhores 10 com diversificação mínima. Vou implementar isso agora:
+
+
