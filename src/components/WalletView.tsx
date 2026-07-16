@@ -151,6 +151,7 @@ const getRankedAssetsFromCategory = (type: 'stocks' | 'fii' | 'sp500'): Asset[] 
     return null;
   };
 
+  console.log(`[getRankedAssetsFromCategory] type=${type}, rawMarkdown length=${rawMarkdown ? rawMarkdown.length : 0}`);
   if (rawMarkdown) {
     const lines = rawMarkdown.split('\n');
 
@@ -164,6 +165,7 @@ const getRankedAssetsFromCategory = (type: 'stocks' | 'fii' | 'sp500'): Asset[] 
         }
       }
     }
+    console.log(`[getRankedAssetsFromCategory] parsed tickers:`, parsedTickers);
 
     // Phase 2: Fallback — bullet points, but only if numbered lines didn't yield enough
     if (parsedTickers.length < 10) {
@@ -362,10 +364,12 @@ const getRankedAssetsFromCategory = (type: 'stocks' | 'fii' | 'sp500'): Asset[] 
     }
   }
 
+  console.log(`[getRankedAssetsFromCategory] final resultList for ${type}:`, resultList.map(a => a.ticker));
   return resultList.slice(0, 10);
 };
 
 export const getBestPortfolioFor10 = (): { asset: Asset; weight: number }[] => {
+  console.log(`[getBestPortfolioFor10] Calculating optimized portfolio...`);
   const stocksRanked = getRankedAssetsFromCategory('stocks');
   const fiiRanked = getRankedAssetsFromCategory('fii');
   const sp500Ranked = getRankedAssetsFromCategory('sp500');
@@ -445,10 +449,15 @@ export const getBestPortfolioFor10 = (): { asset: Asset; weight: number }[] => {
   const diff = 100 - weights.reduce((a, b) => a + b, 0);
   if (diff !== 0 && weights.length > 0) weights[0] = Math.max(5, weights[0] + diff);
 
+  console.log(`[getBestPortfolioFor10] Final selected portfolio:`, selected.map(s => `${s.asset.ticker} (score: ${s.score.toFixed(2)})`));
+
   return selected.map((s, i) => ({ asset: s.asset, weight: weights[i] }));
 };
 
-export const getStrategyPreview = (strategyType: 'renda' | 'equilibrada' | 'crescimento'): { asset: Asset; weight: number }[] => {
+export const getStrategyPreview = (strategyType: 'renda' | 'equilibrada' | 'crescimento' | 'otimizada'): { asset: Asset; weight: number }[] => {
+  if (strategyType === 'otimizada') {
+    return getBestPortfolioFor10();
+  }
   const stocksRanked = getRankedAssetsFromCategory('stocks');
   const fiiRanked = getRankedAssetsFromCategory('fii');
   const sp500Ranked = getRankedAssetsFromCategory('sp500');
@@ -591,12 +600,12 @@ export function WalletView() {
   const hasSp500Analysis = typeof window !== 'undefined' && !!localStorage.getItem('sp500_analysis_result');
 
   const [isReloadModalOpen, setIsReloadModalOpen] = useState(false);
-  const [selectedStrategy, setSelectedStrategy] = useState<'renda' | 'equilibrada' | 'crescimento'>('equilibrada');
-  const [activeStrategy, setActiveStrategy] = useState<'renda' | 'equilibrada' | 'crescimento'>(() => {
+  const [selectedStrategy, setSelectedStrategy] = useState<'renda' | 'equilibrada' | 'crescimento' | 'otimizada'>('otimizada');
+  const [activeStrategy, setActiveStrategy] = useState<'renda' | 'equilibrada' | 'crescimento' | 'otimizada'>(() => {
     if (typeof window !== 'undefined') {
-      return (localStorage.getItem('active_strategy') as any) || 'equilibrada';
+      return (localStorage.getItem('active_strategy') as any) || 'otimizada';
     }
-    return 'equilibrada';
+    return 'otimizada';
   });
 
   useEffect(() => {
@@ -682,7 +691,7 @@ export function WalletView() {
     }
   }, [activeStrategy]);
 
-  const applyStrategyReload = (strategyType: 'renda' | 'equilibrada' | 'crescimento') => {
+  const applyStrategyReload = (strategyType: 'renda' | 'equilibrada' | 'crescimento' | 'otimizada') => {
     const slots = getStrategyPreview(strategyType);
     if (!slots || slots.length === 0) {
       setWalletError("Não foi possível gerar a carteira baseada nas recomendações.");
@@ -691,7 +700,8 @@ export function WalletView() {
     setWallet(slots);
     
     const strategyName = strategyType === 'renda' ? 'Renda & Dividendos' 
-      : strategyType === 'crescimento' ? 'Crescimento Tecnológico' 
+      : strategyType === 'crescimento' ? 'Crescimento Global' 
+      : strategyType === 'otimizada' ? 'Máximo Patrimônio (Otimizada)'
       : 'Equilíbrio Global';
 
     setActiveStrategy(strategyType);
@@ -920,8 +930,16 @@ export function WalletView() {
             </div>
 
             {/* Strategy Selectors */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
               {[
+                {
+                  id: 'otimizada' as const,
+                  title: 'Máximo Patrimônio',
+                  desc: 'IA Otimizada: seleciona os 10 melhores ativos de maior score entre os rankings.',
+                  color: 'border-amber-500 bg-amber-500/5 text-amber-300',
+                  badge: 'Otimizada',
+                  distribution: 'Mix 10 Melhores'
+                },
                 {
                   id: 'equilibrada' as const,
                   title: 'Equilíbrio Global',
@@ -942,7 +960,7 @@ export function WalletView() {
                   id: 'crescimento' as const,
                   title: 'Crescimento Global',
                   desc: '60% S&P 500, 30% Ações BR, 10% FIIs',
-                  color: 'border-amber-500 bg-amber-500/5 text-amber-300',
+                  color: 'border-indigo-500 bg-indigo-500/5 text-indigo-300',
                   badge: 'Alto Upside',
                   distribution: '5 S&P 500 + 3 Ações + 2 FIIs'
                 }
