@@ -2,33 +2,47 @@ import YahooFinanceImport from 'yahoo-finance2';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import { GoogleGenAI } from '@google/genai';
 
-// Helper to call Gemini REST API directly
+// Helper to call Gemini SDK directly
 async function callGemini(prompt: string, systemInstruction?: string): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error('Gemini API Key is not configured.');
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-  const body: any = {
-    contents: [{ parts: [{ text: prompt }] }],
-    generationConfig: { temperature: 0.7, maxOutputTokens: 8192 },
-  };
-  if (systemInstruction) {
-    body.system_instruction = { parts: [{ text: systemInstruction }] };
+  
+  const ai = new GoogleGenAI({ apiKey });
+  let response;
+  let attempts = 0;
+  const maxAttempts = 4;
+  let delay = 1000;
+
+  while (attempts < maxAttempts) {
+    try {
+      attempts++;
+      response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: systemInstruction ? `${systemInstruction}\n\n${prompt}` : prompt
+      });
+      break;
+    } catch (genError: any) {
+      console.warn(`Gemini API attempt ${attempts} failed:`, genError);
+      const errMsg = (genError.message || "").toLowerCase();
+      const isRateLimit = errMsg.includes("429") || errMsg.includes("quota") || errMsg.includes("resource_exhausted");
+      const isHighDemand = errMsg.includes("503") || errMsg.includes("high demand") || errMsg.includes("temporary") || errMsg.includes("unavailable");
+      
+      if ((isRateLimit || isHighDemand) && attempts < maxAttempts) {
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        delay *= 2;
+      } else {
+        throw genError;
+      }
+    }
   }
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`Gemini API error (${res.status}): ${errText}`);
-  }
-  const data = await res.json();
-  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+  const text = response?.text;
   if (!text) throw new Error('Empty response from Gemini API');
   return text;
 }
+
 
 const YahooFinance = (YahooFinanceImport as any).default ?? YahooFinanceImport;
 const yahooFinance = new YahooFinance();
@@ -376,21 +390,127 @@ Use Markdown, sem tabelas.`;
       if (!finalSheetData) {
         return res.status(400).json({ error: 'No sheet data provided.' });
       }
-      const maxRows = 200;
+      const maxRows = 200; // Limit to prevent hitting token quotas
       const limitedData = Array.isArray(finalSheetData) ? finalSheetData.slice(0, maxRows) : finalSheetData;
+
       const isFii = analysisType === 'fii';
       const isSp500 = analysisType === 'sp500';
-      const categoryLabel = isFii ? 'FIIs' : isSp500 ? 'Ações S&P 500' : 'Ações Brasileiras';
-      const prompt = `Você é um analista financeiro experiente especializado em ${categoryLabel}.
-Analise os dados da planilha abaixo e crie um ranking das 10 melhores opções (Top 10).
-Escreva em português, comece diretamente com o título e a lista numerada dos 10 ativos selecionados (um por linha: "1. TICKER - descrição").
-Depois insira análise detalhada: avaliação geral do mercado, ranking detalhado com justificativas e considerações finais sobre diversificação.
-NÃO use tabelas. Use Markdown com títulos e parágrafos.
+      let prompt = "";
 
-DADOS DA PLANILHA (primeiras ${maxRows} linhas):
-${JSON.stringify(limitedData, null, 2)}`;
-      const result = await callGemini(prompt, `Você é um analista financeiro sênior. Gere UM ranking de EXATAMENTE 10 ativos (Top 10) baseado nos dados fornecidos.`);
+      if (isFii) {
+        prompt = `Você é um analista financeiro experiente e gestor de carteiras especializado em Fundos de Investimentos Imobiliários (FIIs) no Brasil.
+      O usuário forneceu os dados de uma planilha contendo índices e indicadores de Fundos Imobiliários (FIIs) e notas explicativas.
+      Sua tarefa é analisar os dados globalmente de acordo com a planilha e criar um ranking completo com exatamente as 10 melhores opções (Top 10) focando em máxima geração de renda com segurança.
+      
+      **DIRETRIZ DE SELEÇÃO OTIMIZADA (REGRAS DE FILTRO)**:
+      1. Identifique as colunas de Ticker/Ativo, Segmento/Setor, Dividend Yield (DY ou Div. Yield), e P/VP (Preço sobre Valor Patrimonial, normalmente representado em decimal como 0.90, 1.00 ou em percentual).
+      2. Filtre os fundos priorizando aqueles com o maior Dividend Yield (DY) cuja relação P/VP esteja estritamente na faixa de 0.85 a 1.05. Isso garante um desconto patrimonial sem comprar fundos excessivamente arriscados ou supervalorizados.
+      3. Selecione exatamente os 10 melhores FIIs de acordo com esse critério.
+      
+      **REGRA DE PORTUGUÊS/INÍCIO OBRIGATÓRIA**: O relatório gerado deve ser escrito inteiramente em português e **SEMPRE começar diretamente** com o título e em seguida um índice ou resumo numerado contendo estritamente e exclusivamente os 10 ativos selecionados para o ranking Top 10 (NÃO liste outros ativos para não poluir o relatório, liste APENAS as 10 melhores opções selecionadas, uma por linha), no seguinte formato exato (sem dilações antes, comece direto no número 1):
+      1. TICKER - Segmento (especificação curtíssima de 5-8 palavras)
+      2. TICKER - Segmento (especificação curtíssima de 5-8 palavras)
+      ...
+      
+      Depois de listar a lista reduzida dos 10 ativos escolhidos no início, insira uma linha em branco e então prossiga obrigatoriamente com:
+      
+      ### 1. Ranking Detalhado dos Top 10 FIIs
+      Apresente o ranking detalhado de 1 a 10 de forma visualmente agradável usando títulos em Markdown, listas e parágrafos. Para cada FII, informe:
+      - **Posição e Ticker** (Exemplo: #### 1º Lugar - HGLG11)
+      - **Segmento:** (Exemplo: Logística, Recebíveis, Lajes Corporativas, Shoppings, etc.)
+      - **Métricas:** (Dividend Yield e P/VP identificados nos dados)
+      - **Motivo da Escolha:** Um parágrafo fundamentado explicando por que este ativo foi selecionado com base nos múltiplos.
+      
+      ### 2. Análise Consolidada do Top 10 (Portfólio Recomendado)
+      Faça uma análise de portfólio automatizada para o conjunto das 10 FIIs escolhidos contendo:
+      - **Diversificação Setorial:** Apresente um resumo textual ou em formato de lista (representando um gráfico de barras/pizza conceitual) demonstrando a distribuição dos FIIs entre os segmentos (Tijolo, Papel, Híbrido, etc.) para alertar o investidor sobre riscos de concentração de risco em um único segmento.
+      - **Múltiplo Médio de P/VP:** Calcule e exiba o P/VP médio das 10 selecionadas.
+      - **Retorno Esperado Estimado (Yield Médio):** Calcule e exiba a projeção de Dividend Yield anualizado médio deste portfólio Top 10.
+      - **Ressalva Defensiva:** Explique como a diversificação setorial protege o investidor contra vacância física e risco de crédito de recebíveis.
+      
+      DADOS DA PLANILHA (Limitado às primeiras ${maxRows} linhas para análise):
+      ${JSON.stringify(limitedData, null, 2)}
+      `;
+      } else if (isSp500) {
+        prompt = `Você é um analista financeiro de investimentos globais, especializado no mercado norte-americano e no índice S&P 500.
+      O usuário forneceu os dados de uma planilha contendo índices, métricas financeiras e notas explicativas de empresas listadas no S&P 500.
+      Sua tarefa é analisar os dados globalmente e identificar as 10 melhores ações do S&P 500 de acordo com as diretrizes de maximização de retorno e proteção de valor a médio/longo prazo.
+      
+      **DIRETRIZ DE SELEÇÃO OTIMIZADA (REGRAS DE FILTRO)**:
+      1. Identifique as colunas de Ticker/Ativo, Setor, Preço, ROIC ou ROE (Rentabilidade), Dividend Yield, e se houver, colunas como EV/EBIT, EV/EBITDA ou LPA.
+      2. Aplique a adaptação da Fórmula Mágica de Joel Greenblatt para o mercado americano (ordenando as empresas de forma combinada por maior eficiência de capital, como ROE/ROIC elevado, e múltiplos de valor saudáveis como menor EV/EBITDA ou PE) OU filtre pelas 10 melhores com base no maior LPA (Lucro por Ação) e margem de segurança.
+      3. Selecione exatamente as 10 melhores ações.
+      
+      **REGRA DE PORTUGUÊS/INÍCIO OBRIGATÓRIA**: O relatório gerado deve ser escrito inteiramente em português e **SEMPRE começar diretamente** com o título e em seguida um índice ou resumo numerado contendo estritamente e exclusivamente as 10 ações selecionadas para o ranking Top 10, no seguinte formato exato (sem dilações antes, comece direto no número 1):
+      1. TICKER - Setor (especificação curtíssima de 5-8 palavras)
+      2. TICKER - Setor (especificação curtíssima de 5-8 palavras)
+      ...
+      
+      Depois de listar a lista reduzida das 10 ações selecionadas no início, insira uma linha em branco e então prossiga obrigatoriamente com:
+      
+      ### 1. Ranking Detalhado das Top 10 Ações S&P 500
+      Apresente o ranking detalhado de 1 a 10 de forma visualmente agradável usando títulos em Markdown, listas e parágrafos. Para cada empresa, informe:
+      - **Posição, Empresa e Ticker** (Exemplo: #### 1º Lugar - Apple Inc. (AAPL))
+      - **Setor / Indústria:** (Exemplo: Tecnologia da Informação, Saúde, Serviços de Comunicação, etc.)
+      - **Fundamentos Identificados:** Indique as métricas de eficiência (ROE/ROIC) e de valor encontradas nos dados da planilha.
+      - **Motivo da Escolha:** Explique qualitativamente e quantitativamente por que ela se destaca na estratégia de qualidade e múltiplos de valor atraentes.
+      
+      ### 2. Análise Consolidada do Top 10 (Portfólio Recomendado)
+      Faça uma análise de portfólio automatizada para o conjunto das 10 ações americanas selecionadas contendo:
+      - **Diversificação Setorial:** Faça um diagnóstico da concentração setorial (ex: peso em tecnologia vs consumo vs finanças) apontando se a carteira de ações globais está protegida ou concentrada.
+      - **Saúde Financeira Média:** Se disponível na planilha (ex: coluna Divida liquida/Patrim. ou similar), estime a alavancagem média das empresas selecionadas.
+      - **Retorno Esperado Estimado (Yield Médio):** Calcule o Dividend Yield médio ponderado deste grupo de 10 ações do S&P 500.
+      
+      DADOS DA PLANILHA (Limitado às primeiras ${maxRows} linhas para análise):
+      ${JSON.stringify(limitedData, null, 2)}
+      `;
+      } else {
+        prompt = `Você é um analista financeiro experiente de ações Brasileiras.
+      O usuário forneceu os dados de uma planilha contendo índices de ações e notas explicativas. 
+      Sua tarefa é analisar os dados globalmente e identificar quais as melhores ações brasileiras segundo os critérios da planilha e criar um ranking completo com exatamente as 10 melhores opções (Top 10).
+      
+      **DIRETRIZ DE SELEÇÃO OTIMIZADA (REGRAS DE FILTRO)**:
+      1. Identifique as colunas correspondentes de Ticker/Ativo, Setor, Preço, ROIC (Retorno sobre Capital Investido), EV / EBIT (ou EV / EBITDA se EV/EBIT for omisso), Divida liquida/Patrim., Div. Yield e FORMULA GRAHAM.
+      2. Aplique a Fórmula Mágica de Joel Greenblatt:
+         - Classifique todas as empresas pelo menor múltiplo EV / EBIT (mais barato, valor ascendente).
+         - Classifique todas as empresas pelo maior ROIC (mais eficiente, valor descendente).
+         - Some as duas classificações (rankings) para obter a classificação final da Fórmula Mágica.
+         - Ordene de forma crescente (menor soma de posições = melhor).
+      3. Elimine ações com liquidez excessivamente baixa ou distorcidas por estarem em recuperação judicial (ex: RPMG3, OSXB3 se existirem na planilha).
+      4. Selecione exatamente as 10 melhores ações do ranking final.
+      
+      **REGRA DE PORTUGUÊS/INÍCIO OBRIGATÓRIA**: O relatório gerado deve ser escrito inteiramente em português e **SEMPRE começar diretamente** com o título e em seguida um índice ou resumo numerado contendo estritamente e exclusivamente os 10 ativos selecionados para o ranking Top 10, no seguinte formato exato (sem dilações antes, comece direto no número 1):
+      1. TICKER - Setor (especificação curtíssima de 5-8 palavras)
+      2. TICKER - Setor (especificação curtíssima de 5-8 palavras)
+      ...
+      
+      Depois de listar a lista reduzida de no máximo 10 ações escolhidas no início, insira uma linha em branco e então prossiga com:
+      
+      ### 1. Ranking Detalhado das Top 10 Ações Brasileiras
+      Apresente o ranking detalhado de 1 a 10 de forma visualmente agradável usando títulos em Markdown, listas e parágrafos. Para cada ação, informe:
+      - **Posição e Ticker** (Exemplo: #### 1º Lugar - VALE3)
+      - **Setor / Área de Atuação:** (Exemplo: Mineração, Energia Elétrica, Petróleo, etc.)
+      - **Fundamentos Identificados:** Mencione o EV / EBIT, o ROIC e o Dividend Yield reais lidos na planilha para esta ação.
+      - **Motivo da Escolha:** Justifique a seleção com base nos fundamentos de valor de Joel Greenblatt.
+      
+      ### 2. Análise Consolidada do Top 10 (Portfólio Recomendado)
+      Faça uma análise de portfólio automatizada para o conjunto das 10 ações brasileiras selecionadas contendo:
+      - **Diversificação Setorial:** Analise a distribuição setorial das 10 ações (ex: Utilities vs Financeiro vs Commodities) indicando a correlação e segurança. Diga se a carteira está bem equilibrada contra riscos de ciclos econômicos.
+      - **Saúde Financeira Média (Alavancagem):** Calcule a média simples da relação Dívida Líquida / Patrimônio Líquido (Divida liquida/Patrim.) das 10 empresas selecionadas.
+      - **Retorno Esperado Estimado e Upside:**
+        - Calcule o Dividend Yield médio das 10 ações.
+        - Calcule a margem de segurança média comparando o Preço atual com a Fórmula Graham (distância média percentual para o Preço Justo de Graham).
+      
+      DADOS DA PLANILHA (Limitado às primeiras ${maxRows} linhas para análise):
+      ${JSON.stringify(limitedData, null, 2)}
+      `;
+      }
+
+      const systemInstruction = "Você é um analista financeiro sênior especializado em mercado de capitais e assessoria de investimentos. Sua diretriz mais sagrada e inviolável é gerar um ranking de exatamente 10 ativos (Top 10) baseados nos dados fornecidos na planilha do usuário. Você está terminantemente proibido de listar todos os ativos, todos os 187 ativos lidos ou qualquer ativo além dos 10 melhores selecionados. O sumário inicial e o ranking detalhado subsequente devem constar exatamente 10 ativos (nem mais, nem menos). Escreva integralmente em português.";
+
+      const result = await callGemini(prompt, systemInstruction);
       return res.json({ result });
+
     }
 
     // ---------- /api/test_env ----------
