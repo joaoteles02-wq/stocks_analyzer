@@ -195,6 +195,78 @@ export default async function handler(req: any, res: any) {
       return res.json({ token });
     }
 
+    // ---------- /api/public-sheet ----------
+    if (pathname === '/api/public-sheet') {
+      const id = url.searchParams.get('id');
+      const sheet = url.searchParams.get('sheet');
+      if (!id || !sheet) {
+        return res.status(400).json({ error: "Missing 'id' or 'sheet' parameters" });
+      }
+
+      const publicUrl = `https://docs.google.com/spreadsheets/d/${id}/export?format=tsv&sheet=${encodeURIComponent(sheet)}`;
+      try {
+        const gRes = await fetch(publicUrl, {
+          headers: { "User-Agent": "Mozilla/5.0 (compatible; StocksAnalyzer/1.0)" },
+        });
+
+        if (!gRes.ok) {
+          const text = await gRes.text().catch(() => gRes.statusText);
+          if (text.includes("accounts.google.com") || text.includes("Sign in")) {
+            return res.status(403).json({
+              error: "A planilha é privada. Torne-a pública (qualquer pessoa com o link) ou conecte sua conta Google.",
+            });
+          }
+          return res.status(gRes.status).json({ error: `Google retornou ${gRes.status}` });
+        }
+
+        const tsv = await gRes.text();
+        const rows = tsv.split("\n").map((row) =>
+          row.split("\t").map((cell) => cell.replace(/\r$/, ""))
+        );
+
+        while (rows.length > 0 && rows[rows.length - 1].every((c) => c === "")) {
+          rows.pop();
+        }
+
+        return res.json({ rows, sheet, count: rows.length });
+      } catch (err: any) {
+        console.error("[PublicSheet] Fetch error:", err.message);
+        return res.status(500).json({ error: err.message || "Failed to fetch public sheet" });
+      }
+    }
+
+    // ---------- /api/public-sheet-names ----------
+    if (pathname === '/api/public-sheet-names') {
+      const id = url.searchParams.get('id');
+      if (!id) {
+        return res.status(400).json({ error: "Missing 'id' parameter" });
+      }
+
+      const editUrl = `https://docs.google.com/spreadsheets/d/${id}/edit`;
+      try {
+        const gRes = await fetch(editUrl, {
+          headers: {
+            "User-Agent": "Mozilla/5.0 (compatible; StocksAnalyzer/1.0)",
+            "Accept": "text/html",
+          },
+        });
+        const html = await gRes.text();
+
+        const matches = [...html.matchAll(/"([^"]{1,60})",\s*(?:null|0|1),\s*0,\s*null,\s*0,\s*null,\s*null,\s*null,\s*null,\s*null,\s*1/g)];
+        const sheets = matches.map((m) => m[1]).filter((s) => s.length > 0);
+
+        if (sheets.length === 0) {
+          return res.json({ sheets: ["AÇÕES", "FII", "S&P500"] });
+        }
+
+        return res.json({ sheets });
+      } catch (err: any) {
+        console.error("[PublicSheetNames] Error:", err.message);
+        return res.json({ sheets: ["AÇÕES", "FII", "S&P500"] });
+      }
+    }
+
+
     // ---------- /api/wallet-config (GET) ----------
     if (pathname === '/api/wallet-config' && req.method === 'GET') {
       const config = getWalletConfig();
@@ -262,7 +334,7 @@ Use Markdown, sem tabelas.`;
       if (!analysisType) analysisType = req.headers?.['x-analysis-type'] || url.searchParams.get('analysisType') as string;
 
       let finalSheetData = sheetData;
-      if (token && spreadsheetId) {
+      if (token && spreadsheetId && spreadsheetId !== 'local') {
         let activeSheet = sheetName;
         if (!activeSheet) {
           const metaUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets.properties.title`;
@@ -274,6 +346,32 @@ Use Markdown, sem tabelas.`;
         const valuesRes = await fetch(valuesUrl, { headers: { Authorization: `Bearer ${token}` } });
         if (!valuesRes.ok) throw new Error(`Google Sheets Values Error (${valuesRes.status}): ${await valuesRes.text()}`);
         finalSheetData = (await valuesRes.json()).values || [];
+      } else if (!finalSheetData && spreadsheetId && spreadsheetId !== 'local' && sheetName && sheetName !== 'local') {
+        console.log('[process-data] No OAuth token — attempting public TSV fetch for sheet:', sheetName);
+        const publicUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=tsv&sheet=${encodeURIComponent(sheetName)}`;
+        const pubRes = await fetch(publicUrl, {
+          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; StocksAnalyzer/1.0)' }
+        });
+
+        if (pubRes.ok) {
+          const tsv = await pubRes.text();
+          if (tsv.includes('accounts.google.com') || tsv.includes('Sign in')) {
+            return res.status(403).json({
+              error: 'A planilha é privada. Torne-a pública ("qualquer pessoa com o link pode ver") ou faça login com o Google para continuar.'
+            });
+          }
+          const rows = tsv.split('\n').map(row =>
+            row.split('\t').map(cell => cell.replace(/\r$/, ''))
+          );
+          while (rows.length > 0 && rows[rows.length - 1].every(c => c === '')) rows.pop();
+          finalSheetData = rows;
+          console.log('[process-data] Public fetch successful —', finalSheetData.length, 'rows');
+        } else {
+          console.warn('[process-data] Public TSV fetch failed:', pubRes.status);
+          return res.status(403).json({
+            error: 'Não foi possível ler a planilha sem login. Verifique se ela está pública ou faça login com o Google.'
+          });
+        }
       }
       if (!finalSheetData) {
         return res.status(400).json({ error: 'No sheet data provided.' });

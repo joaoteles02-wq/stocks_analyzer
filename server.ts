@@ -299,6 +299,86 @@ Mantenha uma linguagem muito profissional, direta e sofisticada. Não use tabela
     res.json({ token });
   });
 
+  // ─── Public Sheet Proxy (no OAuth needed) ───────────────────────────────────
+  // Fetches a Google Sheets tab as TSV via the server to avoid CORS issues.
+  // Works only for spreadsheets set to "Anyone with the link can view".
+  app.get("/api/public-sheet", async (req, res) => {
+    const { id, sheet } = req.query as { id?: string; sheet?: string };
+    if (!id || !sheet) {
+      return res.status(400).json({ error: "Missing 'id' or 'sheet' query params" });
+    }
+
+    const url = `https://docs.google.com/spreadsheets/d/${id}/export?format=tsv&sheet=${encodeURIComponent(sheet)}`;
+    try {
+      const gRes = await fetch(url, {
+        headers: { "User-Agent": "Mozilla/5.0 (compatible; StocksAnalyzer/1.0)" },
+      });
+
+      if (!gRes.ok) {
+        const text = await gRes.text().catch(() => gRes.statusText);
+        // If Google returns HTML (login page), the sheet is private
+        if (text.includes("accounts.google.com") || text.includes("Sign in")) {
+          return res.status(403).json({
+            error: "A planilha é privada. Torne-a pública (qualquer pessoa com o link) ou conecte sua conta Google.",
+          });
+        }
+        return res.status(gRes.status).json({ error: `Google retornou ${gRes.status}` });
+      }
+
+      const tsv = await gRes.text();
+
+      // Parse TSV into 2D array (same shape as Sheets API v4 values)
+      const rows = tsv.split("\n").map((row) =>
+        row.split("\t").map((cell) => cell.replace(/\r$/, ""))
+      );
+
+      // Remove trailing empty rows
+      while (rows.length > 0 && rows[rows.length - 1].every((c) => c === "")) {
+        rows.pop();
+      }
+
+      res.json({ rows, sheet, count: rows.length });
+    } catch (err: any) {
+      console.error("[PublicSheet] Fetch error:", err.message);
+      res.status(500).json({ error: err.message || "Failed to fetch public sheet" });
+    }
+  });
+
+  // Returns the list of sheet names for a public spreadsheet by fetching its HTML page.
+  app.get("/api/public-sheet-names", async (req, res) => {
+    const { id } = req.query as { id?: string };
+    if (!id) {
+      return res.status(400).json({ error: "Missing 'id' query param" });
+    }
+
+    const url = `https://docs.google.com/spreadsheets/d/${id}/edit`;
+    try {
+      const gRes = await fetch(url, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (compatible; StocksAnalyzer/1.0)",
+          "Accept": "text/html",
+        },
+      });
+      const html = await gRes.text();
+
+      // Google embeds sheet names in the page as JSON fragments like ["AÇÕES",0,...]
+      // We extract all quoted strings that appear after the pattern for sheet names.
+      const matches = [...html.matchAll(/"([^"]{1,60})",\s*(?:null|0|1),\s*0,\s*null,\s*0,\s*null,\s*null,\s*null,\s*null,\s*null,\s*1/g)];
+      const sheets = matches.map((m) => m[1]).filter((s) => s.length > 0);
+
+      if (sheets.length === 0) {
+        // Fallback: return known defaults for this project
+        return res.json({ sheets: ["AÇÕES", "FII", "S&P500"] });
+      }
+
+      res.json({ sheets });
+    } catch (err: any) {
+      console.error("[PublicSheetNames] Error:", err.message);
+      res.json({ sheets: ["AÇÕES", "FII", "S&P500"] });
+    }
+  });
+  // ─────────────────────────────────────────────────────────────────────────────
+
   // Persistent wallet config sync across devices
   const walletConfigPath = path.join(os.tmpdir(), "wallet_config.json");
   let inMemoryWalletConfig: Record<string, any> = {};
@@ -366,8 +446,8 @@ Mantenha uma linguagem muito profissional, direta e sofisticada. Não use tabela
 
       let finalSheetData = sheetData;
 
-      // If token and spreadsheetId are provided, fetch the data on the server
-      if (token && spreadsheetId) {
+      // 1) If OAuth token is available, prefer the authenticated API (works for private sheets too)
+      if (token && spreadsheetId && spreadsheetId !== 'local') {
         let activeSheet = sheetName;
 
         if (!activeSheet) {
@@ -397,11 +477,42 @@ Mantenha uma linguagem muito profissional, direta e sofisticada. Não use tabela
         }
         const valuesData = await valuesRes.json();
         finalSheetData = valuesData.values || [];
+
+      // 2) No token but we have spreadsheetId — try public TSV export (works for public sheets)
+      } else if (!finalSheetData && spreadsheetId && spreadsheetId !== 'local' && sheetName && sheetName !== 'local') {
+        console.log('[process-data] No OAuth token — attempting public TSV fetch for sheet:', sheetName);
+        const publicUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=tsv&sheet=${encodeURIComponent(sheetName)}`;
+        const pubRes = await fetch(publicUrl, {
+          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; StocksAnalyzer/1.0)' }
+        });
+
+        if (pubRes.ok) {
+          const tsv = await pubRes.text();
+          // Check if Google returned a login page instead of real data
+          if (tsv.includes('accounts.google.com') || tsv.includes('Sign in')) {
+            return res.status(403).json({
+              error: 'A planilha é privada. Torne-a pública ("qualquer pessoa com o link pode ver") ou faça login com o Google para continuar.'
+            });
+          }
+          const rows = tsv.split('\n').map(row =>
+            row.split('\t').map(cell => cell.replace(/\r$/, ''))
+          );
+          // Remove trailing empty rows
+          while (rows.length > 0 && rows[rows.length - 1].every(c => c === '')) rows.pop();
+          finalSheetData = rows;
+          console.log('[process-data] Public fetch successful —', finalSheetData.length, 'rows');
+        } else {
+          console.warn('[process-data] Public TSV fetch failed:', pubRes.status);
+          return res.status(403).json({
+            error: 'Não foi possível ler a planilha sem login. Verifique se ela está pública ou faça login com o Google.'
+          });
+        }
       }
       
       if (!finalSheetData) {
         return res.status(400).json({ error: "No sheet data provided." });
       }
+
 
       if (!process.env.GEMINI_API_KEY) {
         return res.status(500).json({ error: "Gemini API Key is not configured." });

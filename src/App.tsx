@@ -5,6 +5,7 @@ import { LogIn, FileSpreadsheet, Search, Loader2, Settings, ArrowLeft, Briefcase
 import { googleSignIn, initAuth, logout, clearCachedToken } from './lib/auth';
 import { searchStocksFilterSheet } from './lib/drive';
 import { getSpreadsheetData, getSpreadsheetSheets } from './lib/sheets';
+import { fetchPublicSheetData, fetchPublicSheetNames } from './lib/sheets-public';
 import { WalletView, getStrategyPreview, getBestPortfolioFor10 } from './components/WalletView';
 import { DashboardView } from './components/DashboardView';
 import { pullWalletConfig, subscribeToWalletConfig, pushWalletConfig } from './lib/sync';
@@ -248,7 +249,7 @@ export default function App() {
 
   useEffect(() => {
     const fetchSheets = async () => {
-      if (!token || !selectedFileId) {
+      if (!selectedFileId) {
         setSheetNames([]);
         return;
       }
@@ -259,7 +260,23 @@ export default function App() {
         if (match && match[1]) {
           actualId = match[1];
         }
-        const names = await getSpreadsheetSheets(token, actualId);
+
+        let names: string[] = [];
+        // Try with OAuth token first (works for private sheets); fall back to public
+        if (token) {
+          try {
+            names = await getSpreadsheetSheets(token, actualId);
+          } catch (tokenErr: any) {
+            const msg = (tokenErr.message || '').toLowerCase();
+            if (msg.includes('401') || msg.includes('unauthenticated') || msg.includes('invalid')) {
+              handleTokenInvalidation(tokenErr.message);
+            }
+            // Fall through to public fetch
+          }
+        }
+        if (names.length === 0) {
+          names = await fetchPublicSheetNames(actualId);
+        }
         setSheetNames(names);
         
         if (names.length > 0) {
@@ -283,15 +300,6 @@ export default function App() {
       } catch (err: any) {
         console.error("Failed to load sheet list:", err);
         setSheetNames([]);
-        const errMsg = err.message || '';
-        if (errMsg.includes("insufficient authentication scopes") || errMsg.includes("Insufficient Permission")) {
-          setError("Erro de permissão: Você esqueceu de marcar as caixinhas de permissão para ler arquivos do Google Drive e Sheets ao fazer login. Clique em 'Sair' lá no topo e faça login novamente marcando todas as permissões.");
-        } else if (errMsg.includes("401") || errMsg.toLowerCase().includes("unauthenticated") || errMsg.toLowerCase().includes("invalid authentication") || errMsg.toLowerCase().includes("invalid credentials")) {
-          handleTokenInvalidation(errMsg);
-          setError("Sua sessão de conexão do Google Planilhas expirou por segurança. Use o botão amarelo de reconexão 'Reconectar Google Drive' acima.");
-        } else {
-          setError(`Erro ao carregar lista de abas: ${errMsg}`);
-        }
       } finally {
         setLoadingSheets(false);
       }
@@ -303,23 +311,34 @@ export default function App() {
   // Synchronize Google Sheet raw values to local state for local calculations on Dashboard/Wallet
   useEffect(() => {
     const fetchRawData = async () => {
-      if (dataSource === 'google' && token && selectedFileId && selectedSheetName) {
+      if (dataSource === 'google' && selectedFileId && selectedSheetName) {
         try {
           let actualId = selectedFileId;
           const match = selectedFileId.match(/\/d\/([a-zA-Z0-9-_]+)/);
           if (match && match[1]) {
             actualId = match[1];
           }
-          const fetched = await getSpreadsheetData(token, actualId, selectedSheetName);
+          let fetched: any[][] | null = null;
+          // Try OAuth first (for private sheets), then fall back to public fetch
+          if (token) {
+            try {
+              fetched = await getSpreadsheetData(token, actualId, selectedSheetName);
+            } catch (tokenErr: any) {
+              const msg = (tokenErr.message || '').toLowerCase();
+              if (msg.includes('401') || msg.includes('unauthenticated') || msg.includes('invalid')) {
+                handleTokenInvalidation(tokenErr.message);
+              }
+              // Fall through to public fetch
+            }
+          }
+          if (!fetched || fetched.length === 0) {
+            fetched = await fetchPublicSheetData(actualId, selectedSheetName);
+          }
           if (fetched && fetched.length > 0) {
             setLocalUploadedSheetData(fetched);
           }
         } catch (e: any) {
           console.error("Auto fetch Google Sheet raw values failed:", e);
-          const errMsg = e.message || '';
-          if (errMsg.includes("401") || errMsg.toLowerCase().includes("unauthenticated") || errMsg.toLowerCase().includes("invalid authentication") || errMsg.toLowerCase().includes("invalid credentials")) {
-            handleTokenInvalidation(errMsg);
-          }
         }
       }
     };
@@ -350,6 +369,14 @@ export default function App() {
       }
     }
 
+    // If there is already a spreadsheet ID saved, unblock the UI immediately
+    // (public fetch will work without a token)
+    const hasSavedSheet = !!localStorage.getItem('saved_spreadsheet_id');
+    if (hasSavedSheet) {
+      setNeedsAuth(false);
+      setAuthInitialized(true);
+    }
+
     let authInitCount = 0;
     initAuth(
       (user, token) => {
@@ -358,7 +385,9 @@ export default function App() {
         setToken(token);
       },
       () => {
-        if (authInitCount > 0) setNeedsAuth(true);
+        // Only show login wall if there is no saved spreadsheet to use publicly
+        const stillHasSheet = !!localStorage.getItem('saved_spreadsheet_id');
+        if (authInitCount > 0 && !stillHasSheet) setNeedsAuth(true);
       },
       () => {
         authInitCount++;
@@ -501,8 +530,8 @@ export default function App() {
   const analyzeSelected = async () => {
     const isLocalMode = dataSource === 'local';
     
-    if (!isLocalMode && (!token || !selectedFileId)) {
-      setError("Por favor, conecte ao Google Drive nas Configurações e selecione uma planilha.");
+    if (!isLocalMode && !selectedFileId) {
+      setError("Por favor, configure o ID da planilha nas Configurações.");
       return;
     }
     
@@ -1354,7 +1383,7 @@ export default function App() {
       </div>
 
       {/* Floating Bottom capsule Navigation Dock (Estilo Cirene com Divisões) */}
-      {!needsAuth && user && (
+      {!needsAuth && (
         <div
           className="fixed left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-lg bg-slate-900/90 border border-white/20 backdrop-blur-xl rounded-2xl shadow-[0_12px_40px_-4px_rgba(0,0,0,0.8)] z-50 overflow-hidden flex items-center justify-between"
           style={{ bottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))' }}
